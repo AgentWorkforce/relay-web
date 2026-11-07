@@ -1,5 +1,11 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { ChiefPage } from "./chief-page";
 
 let role = "owner";
@@ -206,3 +212,129 @@ it("shows a retryable discovery failure and never enables an empty scope", async
   await screen.findByRole("checkbox", { name: "acme/portal" });
   expect(screen.queryByText(/Could not load GitHub repositories/)).toBeNull();
 });
+
+async function submitSetup() {
+  fireEvent.click(await screen.findByRole("checkbox", { name: "acme/portal" }));
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  fireEvent.click(screen.getByRole("button", { name: "Create chief" }));
+}
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+it("keeps a failed scan visible through list refreshes until retry or navigation", async () => {
+  chiefs = [{ ...snapshot, status: "ready" }];
+  window.location.hash = "#/chief/chief-1";
+  const original = fetch;
+  let lists = 0;
+  let failScan = true;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, options?: RequestInit) => {
+      if (String(url).endsWith("/scan") && failScan)
+        return new Response("{}", { status: 503 });
+      if (String(url).endsWith("/chiefs")) lists++;
+      return original(url, options);
+    }),
+  );
+  const page = render(<ChiefPage path="/chief/chief-1" />);
+  fireEvent.click(await screen.findByRole("button", { name: "Scan sessions" }));
+  const error = await screen.findByRole("alert");
+  const message = error.textContent;
+  await waitFor(() => expect(lists).toBeGreaterThan(1), { timeout: 2500 });
+  expect(screen.getByRole("alert").textContent).toBe(message);
+  failScan = false;
+  fireEvent.click(screen.getByRole("button", { name: "Scan sessions" }));
+  await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  failScan = true;
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: "Scan sessions" }),
+    ).toHaveProperty("disabled", false),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Scan sessions" }));
+  await screen.findByRole("alert");
+  await act(async () => {
+    window.location.hash = "#/chief";
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+  });
+  page.rerender(<ChiefPage path="/chief" />);
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("ignores an older poll after creation and immediately refreshes the new chief", async () => {
+  const oldPoll = deferred<Response>();
+  const creation = deferred<Response>();
+  const original = fetch;
+  let lists = 0;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, options?: RequestInit) => {
+      if (String(url).endsWith("/chiefs") && options?.method === "POST")
+        return creation.promise;
+      if (String(url).endsWith("/chiefs")) {
+        lists++;
+        if (lists === 2) return oldPoll.promise;
+      }
+      return original(url, options);
+    }),
+  );
+  const page = render(<ChiefPage path="/chief/new" />);
+  await submitSetup();
+  await waitFor(() => expect(lists).toBe(2), { timeout: 2500 });
+  chiefs = [snapshot];
+  await act(async () => {
+    creation.resolve(new Response(JSON.stringify(snapshot)));
+  });
+  page.rerender(<ChiefPage path="/chief/chief-1" />);
+  await waitFor(() => expect(lists).toBeGreaterThan(2));
+  await act(async () => {
+    oldPoll.resolve(
+      new Response(JSON.stringify({ mode: "plan_only", chiefs: [] })),
+    );
+  });
+  expect(screen.getByRole("heading", { name: "Portal" })).toBeTruthy();
+  expect(screen.queryByText(/This chief is not available/)).toBeNull();
+});
+
+it.each([false, true])(
+  "does not redirect a departed setup visit when creation finishes (unmounted: %s)",
+  async (unmount) => {
+    const creation = deferred<Response>();
+    const original = fetch;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, options?: RequestInit) => {
+        if (String(url).endsWith("/chiefs") && options?.method === "POST")
+          return creation.promise;
+        return original(url, options);
+      }),
+    );
+    const page = render(<ChiefPage path="/chief/new" />);
+    await submitSetup();
+    await act(async () => {
+      window.location.hash = "#/chief";
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    });
+    if (unmount) page.unmount();
+    else {
+      page.rerender(<ChiefPage path="/chief" />);
+      // Returning to setup is a new visit, even though the URL matches the original.
+      await act(async () => {
+        window.location.hash = "#/chief/new";
+        window.dispatchEvent(new HashChangeEvent("hashchange"));
+      });
+      page.rerender(<ChiefPage path="/chief/new" />);
+    }
+    const destination = window.location.hash;
+    await act(async () => {
+      creation.resolve(new Response(JSON.stringify(snapshot)));
+    });
+    expect(window.location.hash).toBe(destination);
+  },
+);

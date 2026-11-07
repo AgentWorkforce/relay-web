@@ -84,6 +84,22 @@ export function ChiefPage({ path }: { path: string }) {
   const [manage, setManage] = useState(false);
   const [data, setData] = useState<ChiefList | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const mounted = useRef(false);
+  const listGeneration = useRef(0);
+  const navigationGeneration = useRef(0);
+  useEffect(() => {
+    mounted.current = true;
+    const clearScanError = () => {
+      navigationGeneration.current++;
+      setScanError(null);
+    };
+    window.addEventListener("hashchange", clearScanError);
+    return () => {
+      mounted.current = false;
+      window.removeEventListener("hashchange", clearScanError);
+    };
+  }, []);
   const [pending, setPending] = useState(false);
   const [version, setVersion] = useState(0);
   const selected = path.split("/")[2] ?? "";
@@ -115,14 +131,15 @@ export function ChiefPage({ path }: { path: string }) {
     const abort = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
+      const generation = listGeneration.current;
       try {
         const value = await chiefApi.list(workspace, abort.signal);
-        if (!abort.signal.aborted) {
+        if (!abort.signal.aborted && generation === listGeneration.current) {
           setData(value);
           setError(null);
         }
       } catch (failure) {
-        if (!abort.signal.aborted) {
+        if (!abort.signal.aborted && generation === listGeneration.current) {
           if (failure instanceof SignedOut) redirectBrowser(loginHref());
           else
             setError(
@@ -156,6 +173,11 @@ export function ChiefPage({ path }: { path: string }) {
             {error}
           </p>
         )}
+        {scanError && (
+          <p role="alert" className={s.error}>
+            {scanError}
+          </p>
+        )}
         {data?.mode === "local" && (
           <div className={s.notice}>
             <ShieldCheck size={18} aria-hidden="true" />
@@ -180,7 +202,12 @@ export function ChiefPage({ path }: { path: string }) {
             workspace={workspace}
             manage={manage}
             onCreate={async (input) => {
+              const setupHash = window.location.hash;
+              const visit = navigationGeneration.current;
               const created = await chiefApi.create(workspace, input);
+              if (!mounted.current) return;
+              // Reject list responses that began before this mutation completed.
+              listGeneration.current++;
               setData((current) =>
                 current
                   ? {
@@ -192,7 +219,12 @@ export function ChiefPage({ path }: { path: string }) {
                     }
                   : current,
               );
-              window.location.hash = `/chief/${created.id}`;
+              setVersion((v) => v + 1);
+              if (
+                visit === navigationGeneration.current &&
+                window.location.hash === setupHash
+              )
+                window.location.hash = `/chief/${created.id}`;
             }}
           />
         )}
@@ -274,19 +306,27 @@ export function ChiefPage({ path }: { path: string }) {
             manage={manage}
             pending={pending}
             onScan={async () => {
+              const scanHash = window.location.hash;
+              const visit = navigationGeneration.current;
               setPending(true);
-              setError(null);
+              setScanError(null);
               try {
                 await chiefApi.scan(workspace, chief.id);
                 setVersion((v) => v + 1);
               } catch (failure) {
-                setError(
+                if (
+                  !mounted.current ||
+                  visit !== navigationGeneration.current ||
+                  window.location.hash !== scanHash
+                )
+                  return;
+                setScanError(
                   failure instanceof Error
                     ? failure.message
                     : "Could not scan sessions.",
                 );
               } finally {
-                setPending(false);
+                if (mounted.current) setPending(false);
               }
             }}
           />
