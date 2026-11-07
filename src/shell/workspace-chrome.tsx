@@ -21,6 +21,7 @@ import {
   MessageSquare,
   Settings2,
   X,
+  Compass,
 } from "lucide-react";
 import { appPath } from "../app-path";
 import { BrandLockup } from "./brand";
@@ -32,7 +33,7 @@ import { WorkspaceViewSlotsContext } from "./view-slots";
 import airframe from "./dashboard-airframe.module.css";
 import s from "./workspace-chrome.module.css";
 
-export type RailSection = "Agents" | "Flows" | "Settings";
+export type RailSection = "Agents" | "Flows" | "Settings" | "Chief";
 
 const compactQuery = "(max-width: 759px)";
 function subscribeCompact(onChange: () => void) {
@@ -213,6 +214,7 @@ export function WorkspaceChrome({
     { href: appPath(), label: "Sessions", icon: SessionsIcon, rail: "Agents" },
     { href: "#/messages", label: "Messages", icon: MessageSquare, rail: "Agents" },
     { href: "#/flows", label: "Flows", icon: FlowsIcon, rail: "Flows" },
+    { href: '#/chief', label: 'Chief', icon: Compass, rail: 'Chief' },
   ];
 
   const context = (
