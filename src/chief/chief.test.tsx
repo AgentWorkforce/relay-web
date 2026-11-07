@@ -7,6 +7,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { ChiefPage } from "./chief-page";
+import { RepositoryPicker } from "./repository-picker";
 
 let role = "owner";
 let chiefs: unknown[] = [];
@@ -338,3 +339,22 @@ it.each([false, true])(
     expect(window.location.hash).toBe(destination);
   },
 );
+
+it("never announces readiness when a refresh removes a selected App grant", async () => {
+  const onReady = vi.fn();
+  render(
+    <RepositoryPicker
+      workspace="workspace-1"
+      disabled={false}
+      selected={[{ id: "1", fullName: "acme/portal", private: true }]}
+      onChange={vi.fn()}
+      onReady={onReady}
+    />,
+  );
+  await waitFor(() => expect(onReady).toHaveBeenLastCalledWith(true));
+  onReady.mockClear();
+  catalog = { connected: true, repositories: [] };
+  fireEvent.click(screen.getByRole("button", { name: "Refresh repositories" }));
+  await screen.findByText(/Repository access changed/);
+  expect(onReady.mock.calls.some(([ready]) => ready)).toBe(false);
+});

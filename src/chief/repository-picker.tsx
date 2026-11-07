@@ -35,7 +35,6 @@ export function RepositoryPicker({
         if (abort.signal.aborted) return;
         setError(null);
         setCatalog(result);
-        onReady(result.connected);
       })
       .catch(() => {
         if (!abort.signal.aborted)
