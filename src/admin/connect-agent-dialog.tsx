@@ -4,7 +4,7 @@
 // panel; every other provider takes an API key, because self-host has no
 // `agent-relay cloud connect` CLI target and the stock flows worker cannot
 // mount the Codex/Grok device-login files.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -182,7 +182,9 @@ export function ConnectAgentDialog({
     reset();
     onClose();
   }
-  useEffect(() => {
+  // Keyboard input can arrive as soon as the connected UI is committed.
+  // Update before paint so Escape cannot call a previous device-login state.
+  useLayoutEffect(() => {
     closeRef.current = close;
   });
 
