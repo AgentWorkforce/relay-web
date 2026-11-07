@@ -88,3 +88,16 @@ own origin when that origin qualifies; a dashboard served over plain `http`
 Desktop links here.
 
 `npm run check` runs lint, tests and the production build. Apache-2.0.
+
+## Relay Chief
+
+`#/chief` provides project setup (project, operating policy, review) and the chief
+detail view: readiness, assignments, verification, reservations and decisions.
+It calls relaycontrol's workspace-scoped `/cloud/api/v1/workspaces/:id/chiefs`
+routes with the existing cookie session. The server supplies environment and
+readiness status; there are no browser-side fixtures or credential stores.
+
+For standalone local development, `DASHBOARD_API_ORIGIN` may point to a local
+relaycontrol origin. Vite forwards only `/cloud/api` and `/login`. When using a
+preview, set `DASHBOARD_PREVIEW_HOST` to its exact host. Without the variable,
+the existing Cloud gateway development path is unchanged.
