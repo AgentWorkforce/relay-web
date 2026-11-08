@@ -6,6 +6,7 @@
 type RuntimeConfig = {
   appPath?: unknown;
   loginPath?: unknown;
+  sessionVisualizations?: unknown;
 };
 
 declare global {
@@ -56,6 +57,11 @@ export function loginHref(
       ? (sameOriginPath(configured) ?? "/login")
       : "/login";
   return `${login}?next=${encodeURIComponent(next)}`;
+}
+
+/** Missing or malformed runtime flags keep the standard conversation view. */
+export function sessionVisualizationsEnabled(): boolean {
+  return runtimeConfig().sessionVisualizations === true;
 }
 
 /** Leave the current page. Tests replace this instead of `window.location`. */
