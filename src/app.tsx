@@ -6,14 +6,20 @@ import { DevicePage } from "./device/DevicePage";
 import { userCodeFromHash } from "./device/api";
 import { parseRoute } from "./sessions/route";
 import { Shell } from "./shell/shell";
+import { MessagingPanel } from "./messaging/panel";
+import { ChiefPage } from './chief/chief-page';
 
 /** Hash routes keep the static host simple (no SPA fallback needed). */
 function route(hash: string) {
+  const chief = /^#(\/chief(?:\/.*)?)$/.exec(hash);
+  if (chief) return { page: 'chief' as const, path: chief[1]!, section: '' };
   // Device approval (relaycontrol redirects verification_uri here).
   if (/^#\/device(?:\?.*)?$/.test(hash))
     return { page: "device" as const, path: "", section: "" };
   const flows = /^#(\/flows(?:\/.*)?)$/.exec(hash);
   if (flows) return { page: "flows" as const, path: flows[1]!, section: "" };
+  if (hash === "#/messages" || hash.startsWith("#/messages?"))
+    return { page: "messages" as const, path: "", section: "" };
   const settings = /^#\/settings(?:\/([a-z-]+))?$/.exec(hash);
   if (settings)
     return {
@@ -26,6 +32,7 @@ function route(hash: string) {
 
 /** Hosted workspaceSection(): the rail and default topbar heading per route. */
 function chrome(current: ReturnType<typeof route>) {
+  if (current.page === 'chief') return { rail: 'Chief' as const, label: 'Chief' };
   if (current.page === "flows") {
     const kind = parseFlowsRoute(current.path).kind;
     return {
@@ -42,6 +49,8 @@ function chrome(current: ReturnType<typeof route>) {
                 : "Flows",
     };
   }
+  if (current.page === "messages")
+    return { rail: "Agents" as const, label: "Messages" };
   if (current.page === "settings")
     return { rail: "Settings" as const, label: "Settings" };
   return {
@@ -75,8 +84,10 @@ export function App() {
   const { rail, label } = chrome(current);
   return (
     <Shell rail={rail} label={label}>
+      {current.page === 'chief' && <ChiefPage path={current.path} />}
       {current.page === "flows" && <FlowsApp path={current.path} />}
       {current.page === "settings" && <Settings section={current.section} />}
+      {current.page === "messages" && <MessagingPanel />}
       {current.page === "sessions" && <Dashboard />}
     </Shell>
   );

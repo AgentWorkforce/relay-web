@@ -103,3 +103,16 @@ The summary loads independently of the transcript and overview. Missing History
 support renders no summary block; an empty stored result says “No summary yet”.
 A failed read cannot delay the transcript or invent a summary. This requires
 the companion relaycontrol summary route; existing login and cookies are reused.
+
+## Relay Chief
+
+`#/chief` provides project setup (project, operating policy, review) and the chief
+detail view: readiness, assignments, verification, reservations and decisions.
+It calls relaycontrol's workspace-scoped `/cloud/api/v1/workspaces/:id/chiefs`
+routes with the existing cookie session. The server supplies environment and
+readiness status; there are no browser-side fixtures or credential stores.
+
+For standalone local development, `DASHBOARD_API_ORIGIN` may point to a local
+relaycontrol origin. Vite forwards only `/cloud/api` and `/login`. When using a
+preview, set `DASHBOARD_PREVIEW_HOST` to its exact host. Without the variable,
+the existing Cloud gateway development path is unchanged.

@@ -63,3 +63,8 @@ export function loginHref(
 export function sessionVisualizationsEnabled(): boolean {
   return runtimeConfig().sessionVisualizations === true;
 }
+
+/** Leave the current page. Tests replace this instead of `window.location`. */
+export function redirectBrowser(href: string): void {
+  window.location.replace(href);
+}

@@ -18,8 +18,10 @@ import {
   PanelLeft,
   PanelLeftClose,
   PanelLeftOpen,
+  MessageSquare,
   Settings2,
   X,
+  Compass,
 } from "lucide-react";
 import { appPath } from "../app-path";
 import { BrandLockup } from "./brand";
@@ -31,7 +33,7 @@ import { WorkspaceViewSlotsContext } from "./view-slots";
 import airframe from "./dashboard-airframe.module.css";
 import s from "./workspace-chrome.module.css";
 
-export type RailSection = "Agents" | "Flows" | "Settings";
+export type RailSection = "Agents" | "Flows" | "Settings" | "Chief";
 
 const compactQuery = "(max-width: 759px)";
 function subscribeCompact(onChange: () => void) {
@@ -69,6 +71,19 @@ type ViewLink = {
   icon: ComponentType<SVGProps<SVGSVGElement>>;
   rail: RailSection;
 };
+
+// A shared rail has more than one link. A session detail is still Sessions.
+function viewIsCurrent(
+  name: string,
+  target: RailSection,
+  rail: RailSection,
+  label: string,
+  views: readonly ViewLink[],
+): boolean {
+  if (rail !== target) return false;
+  if (views.filter((view) => view.rail === target).length < 2) return true;
+  return name === (label === "Session" ? "Sessions" : label);
+}
 
 export function WorkspaceChrome({
   children,
@@ -197,7 +212,9 @@ export function WorkspaceChrome({
   const brand = branding();
   const views: ViewLink[] = [
     { href: appPath(), label: "Sessions", icon: SessionsIcon, rail: "Agents" },
+    { href: "#/messages", label: "Messages", icon: MessageSquare, rail: "Agents" },
     { href: "#/flows", label: "Flows", icon: FlowsIcon, rail: "Flows" },
+    { href: '#/chief', label: 'Chief', icon: Compass, rail: 'Chief' },
   ];
 
   const context = (
@@ -224,7 +241,7 @@ export function WorkspaceChrome({
               title={name}
               href={href}
               className={s.sidebarRow}
-              aria-current={rail === target ? "page" : undefined}
+              aria-current={viewIsCurrent(name, target, rail, label, views) ? "page" : undefined}
               onClick={closeSidebar}
             >
               <Icon aria-hidden="true" />
