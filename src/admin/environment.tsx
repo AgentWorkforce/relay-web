@@ -67,9 +67,9 @@ export function EnvironmentSection(props: {
     <section aria-labelledby="environment-title" className="card">
       <h2 id="environment-title">Environment</h2>
       <p>
-        Variables delivered to agents and Flow runs in this workspace, such as
-        model provider keys like <code>ANTHROPIC_API_KEY</code>. Values are
-        write-only: after saving, only a masked preview is shown.
+        Variables available to agents in this workspace, such as model provider
+        keys like <code>ANTHROPIC_API_KEY</code>. Values are write-only: after
+        saving, only a masked preview is shown.
       </p>
       {props.canManage ? (
         <form className="inline-form" onSubmit={(event) => void submit(event)}>
@@ -104,9 +104,7 @@ export function EnvironmentSection(props: {
       {failure && <p role="alert">{failure}</p>}
       {status && <p role="status">{status}</p>}
       {error && <p role="alert">{message(error)}</p>}
-      {!data && !error && (
-        <p role="status">Loading environment variables…</p>
-      )}
+      {!data && !error && <p role="status">Loading environment variables…</p>}
       {data && data.length === 0 && <p>No environment variables yet.</p>}
       {data && data.length > 0 && (
         <table>
@@ -124,9 +122,7 @@ export function EnvironmentSection(props: {
                 <td>
                   <code>{row.name}</code>
                   {row.deliveredToFlowRuns === false && (
-                    <span className="badge warn">
-                      Reserved name: not delivered to Flow runs
-                    </span>
+                    <span className="badge warn">Reserved name</span>
                   )}
                 </td>
                 <td>
