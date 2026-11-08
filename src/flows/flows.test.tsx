@@ -4,6 +4,12 @@ import { App } from "../app";
 import { getAccount } from "../api/client";
 import { FLOWS_CHANGED, flowsApi } from "./api";
 import { parseFlowsRoute } from "./flows-app";
+import { getProductCapabilities } from "../features/capabilities";
+
+vi.mock("../features/capabilities", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../features/capabilities")>()),
+  getProductCapabilities: vi.fn(),
+}));
 
 vi.mock("../api/client", () => ({
   getAccount: vi.fn(),
@@ -49,6 +55,11 @@ const run = (overrides: Record<string, unknown> = {}) => ({
 });
 
 beforeEach(() => {
+  vi.mocked(getProductCapabilities).mockResolvedValue({
+    flows: true,
+    chief: false,
+    relayfile: false,
+  });
   window.location.hash = "";
   vi.mocked(getAccount).mockResolvedValue({
     authenticated: true,
@@ -126,7 +137,9 @@ it("encodes opaque ids in flow and run links", async () => {
   const flowLink = await screen.findByRole("link", { name: "slashed" });
   expect(flowLink).toHaveAttribute("href", "#/flows/f/team%2Fflow");
   expect(
-    within(flowLink.closest("article")!).getByRole("link", { name: /Last run:\s*Completed/ }),
+    within(flowLink.closest("article")!).getByRole("link", {
+      name: /Last run:\s*Completed/,
+    }),
   ).toHaveAttribute("href", "#/flows/runs/team%2Frun");
 });
 
@@ -143,9 +156,7 @@ it("refreshes the sidebar flow list and reports a failed load", async () => {
   await act(async () => {
     window.dispatchEvent(new Event(FLOWS_CHANGED));
   });
-  expect(
-    await within(sidebar).findByText(flows[0]!.name),
-  ).toBeInTheDocument();
+  expect(await within(sidebar).findByText(flows[0]!.name)).toBeInTheDocument();
 });
 
 it("keeps the flows list when run history fails to load", async () => {
@@ -457,9 +468,9 @@ it("shows the flow even when the worker list fails", async () => {
     "workers unavailable",
   );
   // Only "Any online worker" is offered while the list is unavailable.
-  expect(screen.getByLabelText("Worker").querySelectorAll("option")).toHaveLength(
-    1,
-  );
+  expect(
+    screen.getByLabelText("Worker").querySelectorAll("option"),
+  ).toHaveLength(1);
 });
 
 it("hides worker revocation from non-admins on the worker page", async () => {

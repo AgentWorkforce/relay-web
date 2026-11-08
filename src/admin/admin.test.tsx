@@ -9,6 +9,7 @@ import {
 import { adminApi, ApiError } from "./api";
 import { Settings } from "./settings";
 import { App } from "../app";
+import { ProductCapabilitiesProvider } from "../features/product-capabilities";
 
 type Call = { method: string; path: string; body: unknown; init: RequestInit };
 type Handler = (call: Call) => { status?: number; body?: unknown } | undefined;
@@ -17,8 +18,6 @@ let calls: Call[] = [];
 let role: "owner" | "admin" | "member" = "owner";
 let envRows: Array<Record<string, unknown>> = [];
 let extra: Handler | null = null;
-
-
 
 function respond(call: Call): { status?: number; body?: unknown } {
   const custom = extra?.(call);
@@ -151,9 +150,7 @@ it("environment: masked values only, add/replace and two-step delete for admins"
   render(<Settings section="environment" />);
   const table = await screen.findByRole("table");
   expect(within(table).getByText("sk*************ue")).toBeInTheDocument();
-  expect(
-    within(table).getByText(/Reserved name: not delivered/),
-  ).toBeInTheDocument();
+  expect(within(table).getByText("Reserved name")).toBeInTheDocument();
 
   fireEvent.change(screen.getByLabelText("Name"), {
     target: { value: "ANTHROPIC_API_KEY" },
@@ -220,7 +217,9 @@ it("settings has no Integrations section: integrations connect just in time", as
   const nav = await screen.findByRole("navigation", { name: "Settings" });
   expect(within(nav).queryByText("Integrations")).not.toBeInTheDocument();
   // An old #/settings/integrations link falls back to the default section.
-  expect(await screen.findByRole("heading", { level: 1, name: "Workspace" })).toBeInTheDocument();
+  expect(
+    await screen.findByRole("heading", { level: 1, name: "Workspace" }),
+  ).toBeInTheDocument();
 });
 
 it("API tokens: shows the new token once with a copy panel", async () => {
@@ -320,9 +319,15 @@ function inviteFakes(options: { inviteEmail: boolean; delivery: string }) {
           inviteTtlHours: 168,
         },
       };
-    if (call.path === "/cloud/api/v1/organizations/o1/invitations" && call.method === "GET")
+    if (
+      call.path === "/cloud/api/v1/organizations/o1/invitations" &&
+      call.method === "GET"
+    )
       return { body: { invitations: invites } };
-    if (call.path === "/cloud/api/v1/organizations/o1/invitations" && call.method === "POST") {
+    if (
+      call.path === "/cloud/api/v1/organizations/o1/invitations" &&
+      call.method === "POST"
+    ) {
       const body = call.body as { email: string; role: string };
       const invitation = {
         id: "i2",
@@ -338,20 +343,30 @@ function inviteFakes(options: { inviteEmail: boolean; delivery: string }) {
         status: 201,
         body: {
           invitation,
-          inviteUrl: "https://relay.acme.test/login?invite=sh_inv_new_link_aaaaaaaaaaaaaaaa",
+          inviteUrl:
+            "https://relay.acme.test/login?invite=sh_inv_new_link_aaaaaaaaaaaaaaaa",
           emailDelivery: options.delivery,
         },
       };
     }
-    if (call.path === "/cloud/api/v1/organizations/o1/invitations/i1/link" && call.method === "POST")
+    if (
+      call.path === "/cloud/api/v1/organizations/o1/invitations/i1/link" &&
+      call.method === "POST"
+    )
       return {
         body: {
           invitation: invites.find((i) => i.id === "i1"),
-          inviteUrl: "https://relay.acme.test/login?invite=sh_inv_rotated_bbbbbbbbbbbbbbbb",
-          emailDelivery: (call.body as { send?: boolean }).send ? "sent" : "skipped",
+          inviteUrl:
+            "https://relay.acme.test/login?invite=sh_inv_rotated_bbbbbbbbbbbbbbbb",
+          emailDelivery: (call.body as { send?: boolean }).send
+            ? "sent"
+            : "skipped",
         },
       };
-    if (call.path === "/cloud/api/v1/organizations/o1/invitations/i1" && call.method === "DELETE") {
+    if (
+      call.path === "/cloud/api/v1/organizations/o1/invitations/i1" &&
+      call.method === "DELETE"
+    ) {
       invites = invites.filter((i) => i.id !== "i1");
       return { body: { revoked: true } };
     }
@@ -363,30 +378,49 @@ it("owners invite by email; a link to copy is shown when email is not configured
   inviteFakes({ inviteEmail: false, delivery: "not_configured" });
   render(<Settings section="members" />);
   const pending = await screen.findByTestId("invite-old@acme.test");
-  expect(within(pending).getByText(/member • invited by Me • expires/)).toBeInTheDocument();
+  expect(
+    within(pending).getByText(/member • invited by Me • expires/),
+  ).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Invite member" }));
   const dialog = await screen.findByRole("dialog");
-  expect(within(dialog).getByText(/copy the link and send it yourself/)).toBeInTheDocument();
+  expect(
+    within(dialog).getByText(/copy the link and send it yourself/),
+  ).toBeInTheDocument();
   expect(within(dialog).getByText(/sign in with Acme SSO/)).toBeInTheDocument();
   // Owners may invite every role.
   expect(
-    within(dialog).getAllByRole("option").map((option) => option.textContent),
+    within(dialog)
+      .getAllByRole("option")
+      .map((option) => option.textContent),
   ).toEqual(["Member", "Admin", "Owner"]);
-  fireEvent.change(within(dialog).getByPlaceholderText("colleague@example.com"), {
-    target: { value: " new@acme.test " },
+  fireEvent.change(
+    within(dialog).getByPlaceholderText("colleague@example.com"),
+    {
+      target: { value: " new@acme.test " },
+    },
+  );
+  fireEvent.change(within(dialog).getByLabelText("Role"), {
+    target: { value: "admin" },
   });
-  fireEvent.change(within(dialog).getByLabelText("Role"), { target: { value: "admin" } });
-  fireEvent.click(within(dialog).getByRole("button", { name: "Send invitation" }));
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "Send invitation" }),
+  );
   await waitFor(() =>
     expect(
-      calls.find((call) => call.method === "POST" && call.path.endsWith("/invitations"))!.body,
+      calls.find(
+        (call) => call.method === "POST" && call.path.endsWith("/invitations"),
+      )!.body,
     ).toEqual({ email: "new@acme.test", role: "admin" }),
   );
   expect(
-    await screen.findByText(/Email delivery is not configured for this installation/),
+    await screen.findByText(
+      /Email delivery is not configured for this installation/,
+    ),
   ).toBeInTheDocument();
   expect(
-    screen.getByText("https://relay.acme.test/login?invite=sh_inv_new_link_aaaaaaaaaaaaaaaa"),
+    screen.getByText(
+      "https://relay.acme.test/login?invite=sh_inv_new_link_aaaaaaaaaaaaaaaa",
+    ),
   ).toBeInTheDocument();
   expect(await screen.findByTestId("invite-new@acme.test")).toBeInTheDocument();
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -406,14 +440,19 @@ it("the invite dialog keeps focus inside, closes on Escape and returns focus", a
   fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
   expect(dialog.contains(document.activeElement)).toBe(true);
   fireEvent.keyDown(document, { key: "Escape" });
-  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+  );
   expect(document.activeElement).toBe(opener);
 });
 
 it("pending invites: copy link issues a fresh link, resend emails it, cancel revokes", async () => {
   inviteFakes({ inviteEmail: true, delivery: "sent" });
   const writeText = vi.fn().mockResolvedValue(undefined);
-  Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+  Object.defineProperty(navigator, "clipboard", {
+    value: { writeText },
+    configurable: true,
+  });
   render(<Settings section="members" />);
   const pending = await screen.findByTestId("invite-old@acme.test");
   fireEvent.click(within(pending).getByRole("button", { name: "Copy link" }));
@@ -422,25 +461,43 @@ it("pending invites: copy link issues a fresh link, resend emails it, cancel rev
       "https://relay.acme.test/login?invite=sh_inv_rotated_bbbbbbbbbbbbbbbb",
     ),
   );
-  expect(await screen.findByText(/Earlier links for this invite no longer work/)).toBeInTheDocument();
-  fireEvent.click(within(screen.getByTestId("invite-old@acme.test")).getByRole("button", { name: "Resend" }));
+  expect(
+    await screen.findByText(/Earlier links for this invite no longer work/),
+  ).toBeInTheDocument();
+  fireEvent.click(
+    within(screen.getByTestId("invite-old@acme.test")).getByRole("button", {
+      name: "Resend",
+    }),
+  );
   await waitFor(() =>
     expect(
-      calls.filter((call) => call.path.endsWith("/i1/link")).map((call) => call.body),
+      calls
+        .filter((call) => call.path.endsWith("/i1/link"))
+        .map((call) => call.body),
     ).toEqual([{ send: false }, { send: true }]),
   );
-  expect(await screen.findByText("Invitation emailed to old@acme.test.")).toBeInTheDocument();
+  expect(
+    await screen.findByText("Invitation emailed to old@acme.test."),
+  ).toBeInTheDocument();
   // An emailed link is not displayed unless asked for.
   expect(screen.queryByText(/sh_inv_rotated/)).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Show link" }));
   expect(screen.getByText(/sh_inv_rotated/)).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Done" }));
   expect(screen.queryByText(/sh_inv_rotated/)).not.toBeInTheDocument();
-  fireEvent.click(within(screen.getByTestId("invite-old@acme.test")).getByRole("button", { name: "Cancel" }));
-  await waitFor(() =>
-    expect(screen.queryByTestId("invite-old@acme.test")).not.toBeInTheDocument(),
+  fireEvent.click(
+    within(screen.getByTestId("invite-old@acme.test")).getByRole("button", {
+      name: "Cancel",
+    }),
   );
-  expect(await screen.findByText("No pending invitations.")).toBeInTheDocument();
+  await waitFor(() =>
+    expect(
+      screen.queryByTestId("invite-old@acme.test"),
+    ).not.toBeInTheDocument(),
+  );
+  expect(
+    await screen.findByText("No pending invitations."),
+  ).toBeInTheDocument();
 });
 
 it("admins cannot invite or manage owners; members cannot invite", async () => {
@@ -448,50 +505,87 @@ it("admins cannot invite or manage owners; members cannot invite", async () => {
   inviteFakes({ inviteEmail: true, delivery: "sent" });
   const base = extra!;
   extra = (call) =>
-    call.path === "/cloud/api/v1/organizations/o1/memberships" && call.method === "GET"
+    call.path === "/cloud/api/v1/organizations/o1/memberships" &&
+    call.method === "GET"
       ? {
           body: {
             memberships: [
-              { userId: "u1", email: "me@acme.test", name: "Me", role: "admin" },
-              { userId: "u0", email: "boss@acme.test", name: "Boss", role: "owner" },
+              {
+                userId: "u1",
+                email: "me@acme.test",
+                name: "Me",
+                role: "admin",
+              },
+              {
+                userId: "u0",
+                email: "boss@acme.test",
+                name: "Boss",
+                role: "owner",
+              },
             ],
           },
         }
       : base(call);
   const { unmount } = render(<Settings section="members" />);
   const boss = await screen.findByTestId("member-boss@acme.test");
-  expect(within(boss).queryByLabelText("Role for boss@acme.test")).not.toBeInTheDocument();
+  expect(
+    within(boss).queryByLabelText("Role for boss@acme.test"),
+  ).not.toBeInTheDocument();
   expect(within(boss).getByText("Owner")).toBeInTheDocument();
-  expect(within(boss).queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
+  expect(
+    within(boss).queryByRole("button", { name: "Remove" }),
+  ).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Invite member" }));
   const dialog = await screen.findByRole("dialog");
   expect(
-    within(dialog).getAllByRole("option").map((option) => option.textContent),
+    within(dialog)
+      .getAllByRole("option")
+      .map((option) => option.textContent),
   ).toEqual(["Member", "Admin"]);
   unmount();
 
   role = "member";
   render(<Settings section="members" />);
-  expect(await screen.findByText(/can send invites — ask one to invite your teammates/)).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Invite member" })).not.toBeInTheDocument();
+  expect(
+    await screen.findByText(
+      /can send invites — ask one to invite your teammates/,
+    ),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Invite member" }),
+  ).not.toBeInTheDocument();
 });
 
 it("invite errors from the API are shown in the dialog", async () => {
   inviteFakes({ inviteEmail: true, delivery: "sent" });
   const base = extra!;
   extra = (call) =>
-    call.path === "/cloud/api/v1/organizations/o1/invitations" && call.method === "POST"
-      ? { status: 409, body: { error: "already_member", message: "That person is already a member of this organization." } }
+    call.path === "/cloud/api/v1/organizations/o1/invitations" &&
+    call.method === "POST"
+      ? {
+          status: 409,
+          body: {
+            error: "already_member",
+            message: "That person is already a member of this organization.",
+          },
+        }
       : base(call);
   render(<Settings section="members" />);
   fireEvent.click(await screen.findByRole("button", { name: "Invite member" }));
   const dialog = await screen.findByRole("dialog");
-  fireEvent.change(within(dialog).getByPlaceholderText("colleague@example.com"), {
-    target: { value: "b@acme.test" },
-  });
-  fireEvent.click(within(dialog).getByRole("button", { name: "Send invitation" }));
+  fireEvent.change(
+    within(dialog).getByPlaceholderText("colleague@example.com"),
+    {
+      target: { value: "b@acme.test" },
+    },
+  );
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "Send invitation" }),
+  );
   expect(
-    await within(dialog).findByText("That person is already a member of this organization."),
+    await within(dialog).findByText(
+      "That person is already a member of this organization.",
+    ),
   ).toBeInTheDocument();
 });
 
@@ -537,7 +631,20 @@ it("organization rename shows the server's error", async () => {
 });
 
 it("API tokens: leaving the workflow purpose resets a Never expiry", async () => {
-  render(<Settings section="tokens" />);
+  extra = (call) =>
+    call.path === "/cloud/api/v1/license"
+      ? {
+          body: {
+            capabilities: { flows: true, chief: false, relayfile: false },
+          },
+        }
+      : undefined;
+  render(
+    <ProductCapabilitiesProvider>
+      <Settings section="tokens" />
+    </ProductCapabilitiesProvider>,
+  );
+  await screen.findByRole("option", { name: "Flows token" });
   const purpose = await screen.findByLabelText("Purpose");
   fireEvent.change(purpose, { target: { value: "workflow" } });
   const expires = screen.getByLabelText("Expires") as HTMLSelectElement;

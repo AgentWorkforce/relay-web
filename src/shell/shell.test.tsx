@@ -60,7 +60,11 @@ it("saves the Appearance choice and applies it", () => {
 
 it("marks the current rail and keeps hosted-only views out", () => {
   render(
-    <WorkspaceChrome rail="Flows" label="Flows">
+    <WorkspaceChrome
+      rail="Flows"
+      label="Flows"
+      capabilities={{ flows: true, chief: false, relayfile: false }}
+    >
       <p>content</p>
     </WorkspaceChrome>,
   );
@@ -83,18 +87,34 @@ it("marks the current rail and keeps hosted-only views out", () => {
 
 it("marks only the open agents view when sessions and messages share a rail", () => {
   const chrome = (label: string) => (
-    <WorkspaceChrome rail="Agents" label={label}>
+    <WorkspaceChrome
+      rail="Agents"
+      label={label}
+      capabilities={{ flows: true, chief: false, relayfile: false }}
+    >
       <p>content</p>
     </WorkspaceChrome>
   );
   const view = render(chrome("Messages"));
   const views = screen.getByRole("navigation", { name: "Workspace views" });
-  expect(within(views).getByRole("link", { name: "Messages" })).toHaveAttribute("aria-current", "page");
-  expect(within(views).getByRole("link", { name: "Sessions" })).not.toHaveAttribute("aria-current");
+  expect(within(views).getByRole("link", { name: "Messages" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  expect(
+    within(views).getByRole("link", { name: "Sessions" }),
+  ).not.toHaveAttribute("aria-current");
   view.rerender(chrome("Session"));
-  expect(within(views).getByRole("link", { name: "Sessions" })).toHaveAttribute("aria-current", "page");
-  expect(within(views).getByRole("link", { name: "Messages" })).not.toHaveAttribute("aria-current");
-  expect(within(views).getByRole("link", { name: "Flows" })).not.toHaveAttribute("aria-current");
+  expect(within(views).getByRole("link", { name: "Sessions" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  expect(
+    within(views).getByRole("link", { name: "Messages" }),
+  ).not.toHaveAttribute("aria-current");
+  expect(
+    within(views).getByRole("link", { name: "Flows" }),
+  ).not.toHaveAttribute("aria-current");
 });
 
 it("lets pages replace the heading and fill the sidebar", () => {
@@ -212,7 +232,9 @@ it("renders a customer profile's brand in the chrome and account menu", () => {
       <WorkspaceChrome
         rail="Agents"
         label="Sessions"
-        accountControl={<AccountMenu userName="Khaliq Gant" workspaceName="Acme" />}
+        accountControl={
+          <AccountMenu userName="Khaliq Gant" workspaceName="Acme" />
+        }
       >
         <p>content</p>
       </WorkspaceChrome>,
@@ -223,7 +245,9 @@ it("renders a customer profile's brand in the chrome and account menu", () => {
     ).toEqual(["/brand/light.svg", "/brand/dark.svg"]);
     expect(screen.getByText("Powered by Agent Relay")).toBeInTheDocument();
     fireEvent.click(
-      screen.getByRole("button", { name: "Account and workspaces: Khaliq Gant" }),
+      screen.getByRole("button", {
+        name: "Account and workspaces: Khaliq Gant",
+      }),
     );
     expect(screen.getByRole("link", { name: "Support" })).toHaveAttribute(
       "href",

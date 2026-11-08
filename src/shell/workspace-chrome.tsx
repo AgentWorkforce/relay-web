@@ -32,6 +32,10 @@ import { Button } from "./ui";
 import { WorkspaceViewSlotsContext } from "./view-slots";
 import airframe from "./dashboard-airframe.module.css";
 import s from "./workspace-chrome.module.css";
+import {
+  NO_CAPABILITIES,
+  type ProductCapabilities,
+} from "../features/capabilities";
 
 export type RailSection = "Agents" | "Flows" | "Settings" | "Chief";
 
@@ -91,6 +95,7 @@ export function WorkspaceChrome({
   label,
   workspaceName,
   accountControl,
+  capabilities = NO_CAPABILITIES,
 }: {
   children: ReactNode;
   rail: RailSection;
@@ -98,6 +103,7 @@ export function WorkspaceChrome({
   label: string;
   workspaceName?: string;
   accountControl?: ReactNode;
+  capabilities?: ProductCapabilities;
 }) {
   const persistedCollapsed = useSyncExternalStore(
     subscribeNavigationPreference,
@@ -131,7 +137,11 @@ export function WorkspaceChrome({
   }, []);
   const [toolbar, setToolbar] = useState<HTMLDivElement | null>(null);
   const [heading, setHeading] = useState<HTMLDivElement | null>(null);
-  const compact = useSyncExternalStore(subscribeCompact, getCompact, () => false);
+  const compact = useSyncExternalStore(
+    subscribeCompact,
+    getCompact,
+    () => false,
+  );
   const slots = useMemo(
     () => ({
       sidebar,
@@ -141,7 +151,14 @@ export function WorkspaceChrome({
       closeSidebar,
       restoreSidebarFocus,
     }),
-    [sidebar, sidebarFooter, toolbar, heading, closeSidebar, restoreSidebarFocus],
+    [
+      sidebar,
+      sidebarFooter,
+      toolbar,
+      heading,
+      closeSidebar,
+      restoreSidebarFocus,
+    ],
   );
 
   // The theme also lives on body so portaled menus share the tokens.
@@ -172,19 +189,20 @@ export function WorkspaceChrome({
   // Modal behavior: focus moves in, Tab stays inside, Escape closes.
   useEffect(() => {
     if (!navigationOpen) return;
-    const focusable = () =>
-      [
-        ...(drawer.current?.querySelectorAll<HTMLElement>(
-          'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])',
-        ) ?? []),
-      ];
+    const focusable = () => [
+      ...(drawer.current?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])',
+      ) ?? []),
+    ];
     focusable()[0]?.focus();
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         // An open disclosure inside the drawer (the account menu) takes it first.
         if (
           event.defaultPrevented ||
-          drawer.current?.querySelector('[aria-expanded="true"][data-account-trigger]')
+          drawer.current?.querySelector(
+            '[aria-expanded="true"][data-account-trigger]',
+          )
         )
           return;
         event.preventDefault();
@@ -197,10 +215,16 @@ export function WorkspaceChrome({
       const first = items[0]!;
       const last = items[items.length - 1]!;
       const active = document.activeElement;
-      if (event.shiftKey && (active === first || !drawer.current?.contains(active))) {
+      if (
+        event.shiftKey &&
+        (active === first || !drawer.current?.contains(active))
+      ) {
         event.preventDefault();
         last.focus();
-      } else if (!event.shiftKey && (active === last || !drawer.current?.contains(active))) {
+      } else if (
+        !event.shiftKey &&
+        (active === last || !drawer.current?.contains(active))
+      ) {
         event.preventDefault();
         first.focus();
       }
@@ -212,9 +236,32 @@ export function WorkspaceChrome({
   const brand = branding();
   const views: ViewLink[] = [
     { href: appPath(), label: "Sessions", icon: SessionsIcon, rail: "Agents" },
-    { href: "#/messages", label: "Messages", icon: MessageSquare, rail: "Agents" },
-    { href: "#/flows", label: "Flows", icon: FlowsIcon, rail: "Flows" },
-    { href: '#/chief', label: 'Chief', icon: Compass, rail: 'Chief' },
+    {
+      href: "#/messages",
+      label: "Messages",
+      icon: MessageSquare,
+      rail: "Agents",
+    },
+    ...(capabilities.flows
+      ? [
+          {
+            href: "#/flows",
+            label: "Flows",
+            icon: FlowsIcon,
+            rail: "Flows" as const,
+          },
+        ]
+      : []),
+    ...(capabilities.chief
+      ? [
+          {
+            href: "#/chief",
+            label: "Chief",
+            icon: Compass,
+            rail: "Chief" as const,
+          },
+        ]
+      : []),
   ];
 
   const context = (
@@ -241,7 +288,11 @@ export function WorkspaceChrome({
               title={name}
               href={href}
               className={s.sidebarRow}
-              aria-current={viewIsCurrent(name, target, rail, label, views) ? "page" : undefined}
+              aria-current={
+                viewIsCurrent(name, target, rail, label, views)
+                  ? "page"
+                  : undefined
+              }
               onClick={closeSidebar}
             >
               <Icon aria-hidden="true" />

@@ -21,16 +21,59 @@ import {
 import { ThemeSelector } from "../shell/theme-selector";
 import { Button, Skeleton } from "../shell/ui";
 import s from "./settings.module.css";
+import { useProductCapabilities } from "../features/product-capabilities";
 
 /** Hosted settings-layout.tsx sections, minus billing/development. */
 export const SETTINGS_SECTIONS = [
-  { id: "appearance", label: "Appearance", group: "Preferences", adminOnly: false, icon: SunMoon },
-  { id: "workspace", label: "Workspace", group: "Workspace", adminOnly: false, icon: Building2 },
-  { id: "connections", label: "Connections", group: "Workspace", adminOnly: false, icon: Plug },
-  { id: "tokens", label: "API tokens", group: "Workspace", adminOnly: true, icon: KeyRound },
-  { id: "environment", label: "Environment", group: "Workspace", adminOnly: false, icon: LockKeyhole },
-  { id: "organization", label: "Organization", group: "Organization", adminOnly: false, icon: Building2 },
-  { id: "members", label: "Members", group: "Organization", adminOnly: false, icon: Users2 },
+  {
+    id: "appearance",
+    label: "Appearance",
+    group: "Preferences",
+    adminOnly: false,
+    icon: SunMoon,
+  },
+  {
+    id: "workspace",
+    label: "Workspace",
+    group: "Workspace",
+    adminOnly: false,
+    icon: Building2,
+  },
+  {
+    id: "connections",
+    label: "Connections",
+    group: "Workspace",
+    adminOnly: false,
+    icon: Plug,
+  },
+  {
+    id: "tokens",
+    label: "API tokens",
+    group: "Workspace",
+    adminOnly: true,
+    icon: KeyRound,
+  },
+  {
+    id: "environment",
+    label: "Environment",
+    group: "Workspace",
+    adminOnly: false,
+    icon: LockKeyhole,
+  },
+  {
+    id: "organization",
+    label: "Organization",
+    group: "Organization",
+    adminOnly: false,
+    icon: Building2,
+  },
+  {
+    id: "members",
+    label: "Members",
+    group: "Organization",
+    adminOnly: false,
+    icon: Users2,
+  },
 ] as const;
 export type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number]["id"];
 
@@ -39,14 +82,16 @@ const DESCRIPTIONS: Record<SettingsSectionId, string> = {
   workspace: "Your workspace and the agents connected to it.",
   connections: "Coding agents and model accounts available to your workspace.",
   tokens: "Keys that give your tools access to this workspace.",
-  environment: "Encrypted variables and API keys your Flow runs receive.",
+  environment: "Encrypted variables and API keys available to your workspace.",
   organization: "Your organization’s identity and shared settings.",
   members: "The people who share this workspace.",
 };
 
 /** Hosted: a workspace still named "Default" is shown by its organization's name. */
 function workspaceDisplayName(workspaceName: string, organizationName: string) {
-  return /^default(?: workspace)?$/i.test(workspaceName.trim()) ? organizationName : workspaceName;
+  return /^default(?: workspace)?$/i.test(workspaceName.trim())
+    ? organizationName
+    : workspaceName;
 }
 
 export function settingsHash(section: SettingsSectionId) {
@@ -54,6 +99,7 @@ export function settingsHash(section: SettingsSectionId) {
 }
 
 export function Settings(props: { section: string }) {
+  const { capabilities } = useProductCapabilities();
   const {
     data: context,
     error,
@@ -76,7 +122,9 @@ export function Settings(props: { section: string }) {
   // While the context loads, head the page with the requested section.
   const requested = SETTINGS_SECTIONS.find((item) => item.id === props.section);
   const heading = context ? active : (requested?.id ?? active);
-  const activeLabel = SETTINGS_SECTIONS.find((item) => item.id === heading)?.label;
+  const activeLabel = SETTINGS_SECTIONS.find(
+    (item) => item.id === heading,
+  )?.label;
 
   return (
     <div className={`${s.page} settings`}>
@@ -141,17 +189,18 @@ export function Settings(props: { section: string }) {
           )}
           {active === "appearance" && <ThemeSelector />}
           {active !== "appearance" && !context && !error && (
-            <div role="status" aria-label="Loading settings…" className="flex flex-col gap-4">
+            <div
+              role="status"
+              aria-label="Loading settings…"
+              className="flex flex-col gap-4"
+            >
               <span className="sr-only">Loading settings…</span>
               <Skeleton className="h-32 w-full" />
               <Skeleton className="h-24 w-full" />
             </div>
           )}
           {context && active !== "appearance" && (
-            <div
-              className={s.content}
-              data-section={active}
-            >
+            <div className={s.content} data-section={active}>
               {active === "workspace" && (
                 <>
                   <WorkspaceSection context={context} />
@@ -175,7 +224,10 @@ export function Settings(props: { section: string }) {
                 </div>
               )}
               {active === "tokens" && manage && (
-                <TokensSection workspaceId={context.currentWorkspace.id} />
+                <TokensSection
+                  workspaceId={context.currentWorkspace.id}
+                  flowsEnabled={capabilities.flows}
+                />
               )}
               {active === "environment" && (
                 <EnvironmentSection
