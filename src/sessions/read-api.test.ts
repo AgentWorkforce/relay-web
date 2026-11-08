@@ -5,8 +5,8 @@ import { forgetReadApiAccess, ReadApiUnavailable, readApiGet } from "./read-api"
 const signal = () => new AbortController().signal;
 const WORKSPACE = "ws-1";
 const handoff = (over: Record<string, unknown> = {}) => ({
-  readApiBaseUrl: "https://read.example.com",
-  accessToken: "rth_at_one",
+  baseUrl: "https://read.example.com",
+  accessToken: "rth_at_read_one",
   accessTokenExpiresAt: new Date(Date.now() + 300_000).toISOString(),
   tokenType: "Bearer",
   scopes: ["rth:read"],
@@ -54,7 +54,7 @@ it("reads with an in-memory bearer, sends no cookies and marks the cursor", asyn
   expect(fetch.mock.calls[0][1]?.credentials).toBe("same-origin");
   expect(String(read[0])).toBe(`https://read.example.com/v1/sessions?limit=50&workspace=${WORKSPACE}`);
   expect(read[1]?.credentials).toBe("omit");
-  expect((read[1]?.headers as Record<string, string>).Authorization).toBe("Bearer rth_at_one");
+  expect((read[1]?.headers as Record<string, string>).Authorization).toBe("Bearer rth_at_read_one");
   expect(page.nextCursor).toBe("ra1:b96l1:x");
   expect(page.items).toHaveLength(1);
 });
@@ -62,7 +62,7 @@ it("reads with an in-memory bearer, sends no cookies and marks the cursor", asyn
 it("refuses a handoff that gives page scripts a refresh token", async () => {
   const fetch = route((url) =>
     url.includes("/session-read/session")
-      ? json(handoff({ refreshToken: "rth_rt_secret" }))
+      ? json(handoff({ refreshToken: "rth_rt_read_secret" }))
       : json(controlPage),
   );
   const page = await listSessions(WORKSPACE, {}, null, signal());
@@ -74,9 +74,14 @@ it.each([
   ["http://read.example.com"],
   ["https://read.example.com/path"],
   ["https://user:pw@read.example.com"],
-])("does not send the token to an untrusted base URL: %s", async (readApiBaseUrl) => {
-  route(() => json(handoff({ readApiBaseUrl })));
+])("does not send the token to an untrusted base URL: %s", async (baseUrl) => {
+  route(() => json(handoff({ baseUrl })));
   await expect(readApiGet(WORKSPACE, "/v1/sessions", {}, signal())).rejects.toBeInstanceOf(ReadApiUnavailable);
+});
+
+it.each(["rth_rt_read_x", "rth_st_read_x", "sh_at_x"])("refuses a handoff whose access token is really %s", async (accessToken) => {
+  route(() => json(handoff({ accessToken })));
+  await expect(readApiGet(WORKSPACE, "/v1/sessions", {}, signal())).rejects.toMatchObject({ reason: "handoff_invalid" });
 });
 
 it("refuses a handoff scoped to another workspace", async () => {
@@ -116,7 +121,7 @@ it("keeps filters the read API can't serve on Control", async () => {
 it("gets a new access token once after a 401", async () => {
   let handoffs = 0;
   route((url) => {
-    if (url.includes("/session-read/session")) return json(handoff({ accessToken: `rth_at_${++handoffs}` }));
+    if (url.includes("/session-read/session")) return json(handoff({ accessToken: `rth_at_read_${++handoffs}` }));
     return handoffs === 1 ? new Response("", { status: 401 }) : attested({ sessionId: "s-1", turns: [], correlationId: "c" });
   });
   await expect(sessionTurns(WORKSPACE, { sessionId: "s-1", source: "claude" }, signal())).resolves.toEqual({ turns: [], nextCursor: null });

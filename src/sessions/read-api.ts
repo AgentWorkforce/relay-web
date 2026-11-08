@@ -30,7 +30,7 @@ const WORKSPACE_HEADER = "X-Relayhistory-Workspace-Id";
 const EXPIRY_MARGIN_MS = 30_000;
 
 const handoffSchema = z.object({
-  readApiBaseUrl: z.string(),
+  baseUrl: z.string(),
   accessToken: z.string().min(1),
   accessTokenExpiresAt: z.string(),
   tokenType: z.literal("Bearer"),
@@ -86,7 +86,7 @@ async function requestHandoff(workspace: string): Promise<Access> {
     !parsed.success ||
     parsed.data.workspaceId !== workspace ||
     !parsed.data.scopes.includes("rth:read") ||
-    /^rth_(rt|st)_/.test(parsed.data.accessToken)
+    !parsed.data.accessToken.startsWith("rth_at_read_")
   )
     throw new ReadApiUnavailable("handoff_invalid");
   const expiresAt = Date.parse(parsed.data.accessTokenExpiresAt);
@@ -94,7 +94,7 @@ async function requestHandoff(workspace: string): Promise<Access> {
     throw new ReadApiUnavailable("handoff_expired");
   let baseUrl: string;
   try {
-    baseUrl = readApiOrigin(parsed.data.readApiBaseUrl);
+    baseUrl = readApiOrigin(parsed.data.baseUrl);
   } catch {
     throw new ReadApiUnavailable("untrusted_base_url");
   }
