@@ -34,6 +34,10 @@ export default defineConfig({
     host: "127.0.0.1",
     port: 5173,
     strictPort: true,
+    allowedHosts: process.env.DASHBOARD_PREVIEW_HOST ? [process.env.DASHBOARD_PREVIEW_HOST] : [],
+    proxy: process.env.DASHBOARD_API_ORIGIN ? Object.fromEntries(
+      ["/cloud/api", "/login"].map(path => [path, { target: process.env.DASHBOARD_API_ORIGIN, changeOrigin: true }]),
+    ) : undefined,
     fs: {
       deny: [".env", ".env.*", "*.{crt,pem}", "**/.git/**", "**/.local/**"],
     },
