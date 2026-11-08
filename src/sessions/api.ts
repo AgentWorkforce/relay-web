@@ -3,6 +3,14 @@
 import { z } from "zod";
 import { read } from "../api/client";
 import { sessionRow, type Member, type SessionRow } from "./data";
+import {
+  fromDirectCursor,
+  ReadApiUnavailable,
+  readApiEnabled,
+  readApiGet,
+  toDirectCursor,
+  viaReadApi,
+} from "./read-api";
 
 const record = z.record(z.string(), z.unknown());
 const members = z
@@ -68,6 +76,54 @@ export async function listSessions(
   next: string | null,
   signal: AbortSignal,
 ): Promise<SessionPage> {
+  // The read API lists by harness only; other filters keep using Control.
+  if (readApiEnabled() && !filters.q && !filters.project && !filters.since && !filters.until) {
+    return viaReadApi(
+      next,
+      signal,
+      () => listDirect(workspace, filters.source, next, signal),
+      () => listViaControl(workspace, filters, next, signal),
+    );
+  }
+  return listViaControl(workspace, filters, next, signal);
+}
+
+async function listDirect(
+  workspace: string,
+  source: string | undefined,
+  next: string | null,
+  signal: AbortSignal,
+): Promise<SessionPage> {
+  const body = await readApiGet(
+    workspace,
+    "/v1/sessions",
+    { limit: "50", source, cursor: fromDirectCursor(next) },
+    signal,
+  );
+  if (!Array.isArray(body.sessions)) throw new ReadApiUnavailable("list_invalid");
+  const rows = z.array(listSchema.shape.items.element).parse(body.sessions);
+  return {
+    items: rows.map((row) =>
+      sessionRow({
+        ...row,
+        project:
+          typeof row.projectId === "string" && row.projectId.trim()
+            ? { name: row.projectId }
+            : null,
+      }),
+    ),
+    members: [],
+    nextCursor: toDirectCursor(body.nextCursor),
+    now: new Date().toISOString(),
+  };
+}
+
+async function listViaControl(
+  workspace: string,
+  filters: ListFilters,
+  next: string | null,
+  signal: AbortSignal,
+): Promise<SessionPage> {
   const page = listSchema.parse(
     await read(
       path(
@@ -124,24 +180,12 @@ export async function searchSessions(
   next: string | null,
   signal: AbortSignal,
 ) {
-  const body = z
-    .object({ matches: z.array(eventSchema), members, nextCursor: cursor })
-    .parse(
-      await read(
-        path(
-          workspace,
-          `/search${query({
-            q: filters.q,
-            source: filters.source,
-            project: filters.project,
-            since: filters.since,
-            until: filters.until,
-            cursor: next,
-          })}`,
-        ),
-        signal,
-      ),
-    );
+  const body = await viaReadApi(
+    next,
+    signal,
+    () => searchDirect(workspace, filters, next, signal),
+    () => searchViaControl(workspace, filters, next, signal),
+  );
   return {
     matches: body.matches.map((row): SearchMatch => ({
       eventId: String(row.eventId),
@@ -164,6 +208,71 @@ export async function searchSessions(
   };
 }
 
+const searchPage = z.object({ matches: z.array(eventSchema), members, nextCursor: cursor });
+
+async function searchDirect(
+  workspace: string,
+  filters: ListFilters,
+  next: string | null,
+  signal: AbortSignal,
+) {
+  const body = await readApiGet(
+    workspace,
+    "/v1/events",
+    {
+      q: filters.q,
+      limit: "25",
+      order: "desc",
+      maxContent: "600",
+      source: filters.source,
+      project: filters.project,
+      since: filters.since,
+      until: filters.until,
+      cursor: fromDirectCursor(next),
+    },
+    signal,
+  );
+  // A page that hands off below the history floor would silently end the
+  // results here, so Control (or a retry) answers instead.
+  if (body.continuation) throw new ReadApiUnavailable("search_history_floor");
+  if (!Array.isArray(body.events)) throw new ReadApiUnavailable("search_invalid");
+  return searchPage.parse({
+    matches: z.array(eventSchema).parse(body.events).map((event) => ({
+      ...event,
+      citationPath:
+        text(event.sessionId) && text(event.source)
+          ? `/dashboard/sessions/${encodeURIComponent(String(event.sessionId))}?${new URLSearchParams({ source: String(event.source) })}`
+          : null,
+    })),
+    members: [],
+    nextCursor: toDirectCursor(body.nextCursor),
+  });
+}
+
+async function searchViaControl(
+  workspace: string,
+  filters: ListFilters,
+  next: string | null,
+  signal: AbortSignal,
+) {
+  return searchPage.parse(
+      await read(
+        path(
+          workspace,
+          `/search${query({
+            q: filters.q,
+            source: filters.source,
+            project: filters.project,
+            since: filters.since,
+            until: filters.until,
+            cursor: next,
+          })}`,
+        ),
+        signal,
+      ),
+  );
+}
+
 export type ActivityDay = {
   date: string;
   conversations: number;
@@ -171,6 +280,50 @@ export type ActivityDay = {
 };
 
 export async function sessionActivity(
+  workspace: string,
+  range: { first: string; last: string; q?: string },
+  signal: AbortSignal,
+): Promise<ActivityDay[]> {
+  const days = (Date.parse(range.last) - Date.parse(range.first)) / DAY_MS + 1;
+  // One read API read covers at most 92 UTC days and has no text filter.
+  if (readApiEnabled() && !range.q && days >= 1 && days <= 92) {
+    return viaReadApi(
+      null,
+      signal,
+      () => activityDirect(workspace, range, signal),
+      () => activityViaControl(workspace, range, signal),
+    );
+  }
+  return activityViaControl(workspace, range, signal);
+}
+
+const DAY_MS = 86_400_000;
+
+async function activityDirect(
+  workspace: string,
+  range: { first: string; last: string },
+  signal: AbortSignal,
+): Promise<ActivityDay[]> {
+  const body = await readApiGet(
+    workspace,
+    "/v1/sessions/activity",
+    {
+      since: `${range.first}T00:00:00.000Z`,
+      until: new Date(Math.min(Date.parse(range.last) + DAY_MS - 1, Date.now())).toISOString(),
+    },
+    signal,
+  );
+  return z
+    .array(z.object({ date: z.string(), total: z.number(), bySource: z.record(z.string(), z.number()) }))
+    .parse(body.days)
+    .map((day) => ({
+      date: day.date,
+      conversations: day.total,
+      bySource: Object.fromEntries(Object.entries(day.bySource).filter(([, count]) => count > 0)),
+    }));
+}
+
+async function activityViaControl(
   workspace: string,
   range: { first: string; last: string; q?: string },
   signal: AbortSignal,
@@ -227,6 +380,45 @@ export async function sessionEvents(
   next: string | null,
   signal: AbortSignal,
 ) {
+  return viaReadApi(
+    next,
+    signal,
+    () => eventsDirect(workspace, session, next, signal),
+    () => eventsViaControl(workspace, session, next, signal),
+  );
+}
+
+async function eventsDirect(
+  workspace: string,
+  session: { sessionId: string; source: string },
+  next: string | null,
+  signal: AbortSignal,
+) {
+  const body = await readApiGet(
+    workspace,
+    `/v1/sessions/${encodeURIComponent(session.sessionId)}/events`,
+    {
+      source: session.source,
+      order: "asc",
+      limit: "500",
+      maxContent: "100000",
+      cursor: fromDirectCursor(next),
+    },
+    signal,
+  );
+  const events = z.array(eventSchema).parse(body.events).sort((left, right) =>
+    Date.parse(String(left.ts)) - Date.parse(String(right.ts)) ||
+    String(left.eventId).localeCompare(String(right.eventId)),
+  );
+  return { events, members: [] as Member[], nextCursor: toDirectCursor(body.nextCursor) };
+}
+
+async function eventsViaControl(
+  workspace: string,
+  session: { sessionId: string; source: string },
+  next: string | null,
+  signal: AbortSignal,
+) {
   const body = z
     .object({
       events: z.array(eventSchema),
@@ -253,6 +445,32 @@ export async function sessionTurns(
   session: { sessionId: string; source: string },
   signal: AbortSignal,
   next: string | null = null,
+) {
+  return viaReadApi(
+    next,
+    signal,
+    async () => {
+      const body = await readApiGet(
+        workspace,
+        `/v1/sessions/${encodeURIComponent(session.sessionId)}/turns`,
+        { source: session.source, cursor: fromDirectCursor(next) },
+        signal,
+      );
+      const turns = z.array(record).parse(body.turns).filter((turn) =>
+        typeof turn.id === "string" && turn.id !== "" &&
+        typeof turn.ts === "string" && Number.isFinite(Date.parse(turn.ts)),
+      );
+      return { turns, nextCursor: toDirectCursor(body.nextCursor) };
+    },
+    () => turnsViaControl(workspace, session, next, signal),
+  );
+}
+
+async function turnsViaControl(
+  workspace: string,
+  session: { sessionId: string; source: string },
+  next: string | null,
+  signal: AbortSignal,
 ) {
   return z
     .object({ turns: z.array(record), nextCursor: cursor })
