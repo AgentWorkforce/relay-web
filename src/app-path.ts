@@ -7,6 +7,7 @@ type RuntimeConfig = {
   appPath?: unknown;
   loginPath?: unknown;
   sessionVisualizations?: unknown;
+  sessionReadApi?: unknown;
 };
 
 declare global {
