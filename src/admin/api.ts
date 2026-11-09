@@ -1,6 +1,7 @@
 import type { z } from "zod";
 import {
   adminContextSchema,
+  sessionErasureSchema,
   apiTokensSchema,
   codingAgentCheckSchema,
   codingAgentsSchema,
@@ -238,6 +239,15 @@ export const adminApi = {
       method: "PATCH",
       body: { name },
     }),
+  hardDeleteSession: (
+    organization: string,
+    session: { workspaceId: string; source: string; sessionId: string },
+  ) =>
+    call(
+      `/v1/organizations/${enc(organization)}/sessions/${enc(session.sessionId)}?${new URLSearchParams({ workspaceId: session.workspaceId, source: session.source })}`,
+      sessionErasureSchema,
+      { method: "DELETE" },
+    ),
 };
 
 export const canManage = (role: Role) => role === "owner" || role === "admin";
