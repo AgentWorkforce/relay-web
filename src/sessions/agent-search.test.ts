@@ -17,11 +17,11 @@ const page = { items: [], members: [], nextCursor: null, error: false };
 
 // The same vectors as relaycontrol's test/agent-query.test.ts.
 it.each([
-  ["@layered-control", "", ["layered-control"]],
-  ["@Layered-Control", "", ["layered-control"]],
-  ["@layered-control@node", "", ["layered-control@node"]],
-  ["@layered-*", "", ["layered-*"]],
-  ["@layered-control@no*", "", ["layered-control@no*"]],
+  ["@example-agent", "", ["example-agent"]],
+  ["@Example-Agent", "", ["example-agent"]],
+  ["@example-agent@node", "", ["example-agent@node"]],
+  ["@example-*", "", ["example-*"]],
+  ["@example-agent@no*", "", ["example-agent@no*"]],
   ["fix the bug @a", "fix the bug", ["a"]],
   ["@a fix @b the bug", "fix the bug", ["a", "b"]],
   ["@a @A @b", "", ["a", "b"]],
@@ -59,11 +59,11 @@ it("keeps server-filtered rows and still applies other filters to them", () => {
 });
 
 it("completes the @word being typed", () => {
-  expect(agentDraft("fix @lay")).toBe("lay");
+  expect(agentDraft("fix @exa")).toBe("exa");
   expect(agentDraft("@")).toBe("");
-  expect(agentDraft("@lay ")).toBeNull();
-  expect(agentDraft("me@lay")).toBeNull();
-  expect(completeAgent("fix @lay", "layered-control")).toBe("fix @layered-control ");
+  expect(agentDraft("@exa ")).toBeNull();
+  expect(agentDraft("me@exa")).toBeNull();
+  expect(completeAgent("fix @exa", "example-agent")).toBe("fix @example-agent ");
 });
 
 it("asks Control for the agent", async () => {
