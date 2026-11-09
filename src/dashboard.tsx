@@ -6,6 +6,7 @@ import { SessionsPage, SessionsSkeleton } from "./sessions/SessionsPage";
 import { Button } from "./shell/ui";
 import "./sessions/sessions.css";
 import { loginHref, sessionVisualizationsEnabled } from "./app-path";
+import { analytics } from "./analytics";
 
 // The transcript renderer (Markdown, diff parsing) loads with the first session opened.
 const SessionView = lazy(() =>
@@ -50,7 +51,7 @@ export function Dashboard() {
     return () => request.abort();
   }, [attempt]);
 
-  const signedOut = useCallback(() => setError(new SignedOut()), []);
+  const signedOut = useCallback(() => { analytics.stop(); setError(new SignedOut()); }, []);
   useEffect(() => {
     if (error instanceof SignedOut) {
       window.location.replace(loginHref());

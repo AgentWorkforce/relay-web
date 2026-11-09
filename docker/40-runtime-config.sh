@@ -31,6 +31,11 @@ require_path() {
 }
 
 session_visualizations="${DASHBOARD_SESSION_VISUALIZATIONS_ENABLED:-false}"
+analytics_enabled="${DASHBOARD_ANALYTICS_ENABLED:-false}"
+case "$analytics_enabled" in
+  true|false) ;;
+  *) echo "40-runtime-config: DASHBOARD_ANALYTICS_ENABLED must be true or false" >&2; exit 1 ;;
+esac
 case "$session_visualizations" in
   true|false) ;;
   *) echo "40-runtime-config: DASHBOARD_SESSION_VISUALIZATIONS_ENABLED must be true or false" >&2; exit 1 ;;
@@ -79,6 +84,7 @@ esac
 tmp="${target}.tmp.$$"
 {
   printf 'window.__AGENT_RELAY_DASHBOARD_CONFIG__ = Object.freeze({\n'
+  printf '  analyticsEnabled: %s,\n' "$analytics_enabled"
   printf '  sessionVisualizations: %s,\n' "$session_visualizations"
   printf '  sessionReadApi: %s,\n' "$session_read_api"
   printf '  appPath: %s,\n' "$(json_string "$app_path" DASHBOARD_APP_PATH)"
