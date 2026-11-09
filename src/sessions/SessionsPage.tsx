@@ -1133,10 +1133,10 @@ function SessionList({
                     colSpan={8}
                     className="px-5 py-12 text-center text-muted-foreground"
                   >
-                    {rows.length ? (
-                      "No sessions match these filters."
-                    ) : filters.agent ? (
+                    {!rows.length && filters.agent && parseSessionQuery(liveQuery).filters.every((filter) => filter.field === "agent") ? (
                       `No sessions found for @${filters.agent}.`
+                    ) : rows.length || filters.agent ? (
+                      "No sessions match these filters."
                     ) : (
                       <div className="flex flex-col items-center gap-4">
                         <p>
