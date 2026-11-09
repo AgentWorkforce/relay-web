@@ -118,6 +118,25 @@ relaycontrol's own pages, so their tokens never reach this app.
 
 ## Relay Chief
 
+### Feature availability
+
+The dashboard reads the installation's capabilities from the signed-in,
+same-origin `GET /cloud/api/v1/capabilities` endpoint, which reports what
+`SELFHOST_FEATURES` selects. Flows and Chief are hidden from navigation and
+their route components do not mount until the server returns the corresponding
+boolean as true. Workflow token creation is also hidden when Flows is off;
+existing tokens remain available for inspection and revocation. Environment,
+account connections and general token controls remain available.
+
+On the first read, missing endpoints, invalid responses, signed-out requests,
+pending reads and an eight-second timeout keep both features off. Returning to
+the app checks again behind the current state, so an open page keeps unsaved
+work; only the server saying the feature is off, or that the session ended,
+closes it. There is no runtime-config, URL or local-storage override. Control
+remains responsible for authenticated API enforcement.
+
+A Control version without this endpoint keeps these features unavailable.
+
 `#/chief` provides project setup (project, operating policy, review) and the chief
 detail view: readiness, assignments, verification, reservations and decisions.
 It calls relaycontrol's workspace-scoped `/cloud/api/v1/workspaces/:id/chiefs`

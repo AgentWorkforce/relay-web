@@ -12,6 +12,7 @@ import { getAccount } from "../api/client";
 import type { Account } from "../api/contracts";
 import { AccountMenu } from "./account-menu";
 import { WorkspaceChrome, type RailSection } from "./workspace-chrome";
+import { useProductCapabilities } from "../features/product-capabilities";
 
 const AccountContext = createContext<Account | null>(null);
 
@@ -30,6 +31,7 @@ export function Shell({
   children: ReactNode;
 }) {
   const [account, setAccount] = useState<Account | null>(null);
+  const { capabilities } = useProductCapabilities();
   useEffect(() => {
     const request = new AbortController();
     getAccount(request.signal).then(
@@ -45,21 +47,22 @@ export function Shell({
   const userName = account?.user.name || "Your account";
   return (
     <AccountContext.Provider value={account}>
-    <WorkspaceChrome
-      rail={rail}
-      label={label}
-      workspaceName={account?.currentWorkspace?.name}
-      accountControl={
-        account ? (
-          <AccountMenu
-            userName={userName}
-            workspaceName={account.currentWorkspace?.name ?? null}
-          />
-        ) : null
-      }
-    >
-      {children}
-    </WorkspaceChrome>
+      <WorkspaceChrome
+        capabilities={capabilities}
+        rail={rail}
+        label={label}
+        workspaceName={account?.currentWorkspace?.name}
+        accountControl={
+          account ? (
+            <AccountMenu
+              userName={userName}
+              workspaceName={account.currentWorkspace?.name ?? null}
+            />
+          ) : null
+        }
+      >
+        {children}
+      </WorkspaceChrome>
     </AccountContext.Provider>
   );
 }

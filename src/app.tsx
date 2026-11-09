@@ -9,18 +9,23 @@ import { SignInPage } from "./sign-in/SignInPage";
 import { signInRoute } from "./sign-in/api";
 import { parseRoute } from "./sessions/route";
 import { Shell } from "./shell/shell";
-import { ChiefPage } from './chief/chief-page';
+import { ChiefPage } from "./chief/chief-page";
+import {
+  ProductCapabilitiesProvider,
+  ProductFeature,
+} from "./features/product-capabilities";
 
 /** Hash routes keep the static host simple (no SPA fallback needed). */
 function route(hash: string) {
   if (hash === "#/downloads" || (!hash && isDownloadsPath(window.location.pathname)))
     return { page: "downloads" as const, path: "", section: "" };
-  const chief = /^#(\/chief(?:\/.*)?)$/.exec(hash);
-  if (chief) return { page: 'chief' as const, path: chief[1]!, section: '' };
+  const featureHash = hash.split("?")[0] ?? hash;
+  const chief = /^#(\/chief(?:\/.*)?)$/.exec(featureHash);
+  if (chief) return { page: "chief" as const, path: chief[1]!, section: "" };
   // Device approval (relaycontrol redirects verification_uri here).
   if (/^#\/device(?:\?.*)?$/.test(hash))
     return { page: "device" as const, path: "", section: "" };
-  const flows = /^#(\/flows(?:\/.*)?)$/.exec(hash);
+  const flows = /^#(\/flows(?:\/.*)?)$/.exec(featureHash);
   if (flows) return { page: "flows" as const, path: flows[1]!, section: "" };
   const settings = /^#\/settings(?:\/([a-z-]+))?$/.exec(hash);
   if (settings)
@@ -34,7 +39,8 @@ function route(hash: string) {
 
 /** Hosted workspaceSection(): the rail and default topbar heading per route. */
 function chrome(current: ReturnType<typeof route>) {
-  if (current.page === 'chief') return { rail: 'Chief' as const, label: 'Chief' };
+  if (current.page === "chief")
+    return { rail: "Chief" as const, label: "Chief" };
   if (current.page === "flows") {
     const kind = parseFlowsRoute(current.path).kind;
     return {
@@ -57,7 +63,8 @@ function chrome(current: ReturnType<typeof route>) {
     return { rail: "Settings" as const, label: "Downloads" };
   return {
     rail: "Agents" as const,
-    label: parseRoute(window.location).view === "session" ? "Session" : "Sessions",
+    label:
+      parseRoute(window.location).view === "session" ? "Session" : "Sessions",
   };
 }
 
@@ -87,12 +94,22 @@ export function App() {
   }
   const { rail, label } = chrome(current);
   return (
-    <Shell rail={rail} label={label}>
-      {current.page === 'chief' && <ChiefPage path={current.path} />}
-      {current.page === "flows" && <FlowsApp path={current.path} />}
-      {current.page === "settings" && <Settings section={current.section} />}
-      {current.page === "downloads" && <DownloadsPage />}
-      {current.page === "sessions" && <Dashboard />}
-    </Shell>
+    <ProductCapabilitiesProvider>
+      <Shell rail={rail} label={label}>
+        {current.page === "chief" && (
+          <ProductFeature feature="chief">
+            <ChiefPage path={current.path} />
+          </ProductFeature>
+        )}
+        {current.page === "flows" && (
+          <ProductFeature feature="flows">
+            <FlowsApp path={current.path} />
+          </ProductFeature>
+        )}
+        {current.page === "settings" && <Settings section={current.section} />}
+        {current.page === "downloads" && <DownloadsPage />}
+        {current.page === "sessions" && <Dashboard />}
+      </Shell>
+    </ProductCapabilitiesProvider>
   );
 }

@@ -19,7 +19,10 @@ import { Button } from "../shell/ui";
 import { adminApi } from "./api";
 import type { CodingAgentProvider } from "./contracts";
 import { message } from "./use-load";
-import { useDeviceConnection, type DeviceProvider } from "./use-device-connection";
+import {
+  useDeviceConnection,
+  type DeviceProvider,
+} from "./use-device-connection";
 import s from "./connect-agent-dialog.module.css";
 
 const brandIcons: Record<string, string> = {
@@ -48,7 +51,9 @@ export type ConnectChoice = {
 };
 
 /** Hosted CONNECT_COMMANDS order: Claude first, then the API-key providers. */
-export function connectChoices(providers: CodingAgentProvider[]): ConnectChoice[] {
+export function connectChoices(
+  providers: CodingAgentProvider[],
+): ConnectChoice[] {
   const choices: ConnectChoice[] = [];
   for (const provider of providers) {
     if (provider.authTypes.includes("oauth_token")) {
@@ -66,7 +71,11 @@ export function connectChoices(providers: CodingAgentProvider[]): ConnectChoice[
   const deviceLabels: Record<string, string> = { openai: "Codex", xai: "Grok" };
   for (const provider of providers) {
     // Only providers this dialog has a device-login hook for.
-    if (!provider.authTypes.includes("provider_oauth") || !isDeviceProvider(provider.id)) continue;
+    if (
+      !provider.authTypes.includes("provider_oauth") ||
+      !isDeviceProvider(provider.id)
+    )
+      continue;
     choices.push({
       key: `${provider.id}:device-login`,
       provider: provider.id,
@@ -81,7 +90,8 @@ export function connectChoices(providers: CodingAgentProvider[]): ConnectChoice[
       key: `${provider.id}:api-key`,
       provider: provider.id,
       label:
-        provider.authTypes.includes("oauth_token") || provider.authTypes.includes("provider_oauth")
+        provider.authTypes.includes("oauth_token") ||
+        provider.authTypes.includes("provider_oauth")
           ? `${provider.displayName} API key`
           : provider.displayName,
       kind: "api-key",
@@ -110,7 +120,9 @@ function iconUrl(icon: string) {
 
 /** A command the operator runs in a terminal, with its own copy affordance. */
 function CommandSnippet({ command }: { command: string }) {
-  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">(
+    "idle",
+  );
   async function copy() {
     try {
       await navigator.clipboard.writeText(command);
@@ -159,9 +171,22 @@ export function ConnectAgentDialog({
   // Called here rather than inside the panel (as hosted): this component stays
   // mounted while the dialog is closed, so an outstanding code keeps polling
   // and a login the operator already approved is not abandoned.
-  const codex = useDeviceConnection({ workspaceId, provider: "openai", label: "Codex", onConnected });
-  const grok = useDeviceConnection({ workspaceId, provider: "xai", label: "Grok", onConnected });
-  const devices: Record<DeviceProvider, ReturnType<typeof useDeviceConnection>> = { openai: codex, xai: grok };
+  const codex = useDeviceConnection({
+    workspaceId,
+    provider: "openai",
+    label: "Codex",
+    onConnected,
+  });
+  const grok = useDeviceConnection({
+    workspaceId,
+    provider: "xai",
+    label: "Grok",
+    onConnected,
+  });
+  const devices: Record<
+    DeviceProvider,
+    ReturnType<typeof useDeviceConnection>
+  > = { openai: codex, xai: grok };
   const dialogRef = useRef<HTMLDivElement | null>(null);
   // The parent passes a new onClose each render; read it through a ref so a
   // list refresh does not rerun the focus effect and pull focus out of a field.
@@ -201,9 +226,11 @@ export function ConnectAgentDialog({
       // Keep Tab inside the dialog while it is open (radix Dialog does this on hosted).
       const dialog = dialogRef.current;
       if (event.key !== "Tab" || !dialog) return;
-      const focusable = [...dialog.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      )];
+      const focusable = [
+        ...dialog.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ];
       if (!focusable.length) {
         event.preventDefault();
         dialog.focus();
@@ -212,10 +239,16 @@ export function ConnectAgentDialog({
       const first = focusable[0]!;
       const last = focusable[focusable.length - 1]!;
       const active = document.activeElement;
-      if (event.shiftKey && (active === first || active === dialog || !dialog.contains(active))) {
+      if (
+        event.shiftKey &&
+        (active === first || active === dialog || !dialog.contains(active))
+      ) {
         event.preventDefault();
         last.focus();
-      } else if (!event.shiftKey && (active === last || !dialog.contains(active))) {
+      } else if (
+        !event.shiftKey &&
+        (active === last || !dialog.contains(active))
+      ) {
         event.preventDefault();
         first.focus();
       }
@@ -251,7 +284,11 @@ export function ConnectAgentDialog({
           <X size={18} />
         </button>
         {selected ? (
-          <button type="button" className={`${s.back} ${s.providerBack}`} onClick={reset}>
+          <button
+            type="button"
+            className={`${s.back} ${s.providerBack}`}
+            onClick={reset}
+          >
             <ArrowLeft size={15} /> All agents
           </button>
         ) : null}
@@ -289,10 +326,13 @@ export function ConnectAgentDialog({
               </button>
             ))}
             {!choices.length ? (
-              <p className={s.description}>No agents are available to connect.</p>
+              <p className={s.description}>
+                No agents are available to connect.
+              </p>
             ) : null}
           </div>
-        ) : selected.kind === "device-login" && isDeviceProvider(selected.provider) ? (
+        ) : selected.kind === "device-login" &&
+          isDeviceProvider(selected.provider) ? (
           <DeviceLinkPanel
             key={selected.key}
             label={selected.label}
@@ -341,7 +381,11 @@ function DeviceLinkPanel({
   return (
     <>
       <ol className={s.steps} aria-label="Connection steps">
-        <li aria-current={state === "idle" || state === "starting" ? "step" : undefined}>
+        <li
+          aria-current={
+            state === "idle" || state === "starting" ? "step" : undefined
+          }
+        >
           <span>1</span> Get a code
         </li>
         <li aria-current={state === "waiting" ? "step" : undefined}>
@@ -353,15 +397,17 @@ function DeviceLinkPanel({
           <>
             <h3>{label} connected</h3>
             <p>
-              This workspace can now run {label} agents with your subscription. Your access and
-              refresh tokens stay encrypted on your control plane; flow runs get a copy only while
-              they run.
+              This workspace can use your {label} account. Your access and
+              refresh tokens stay encrypted on your control plane.
             </p>
           </>
         ) : (
           <>
             <h3>Link your {label} account</h3>
-            <p>Start the link, then approve the one-time code on {label}’s sign-in page.</p>
+            <p>
+              Start the link, then approve the one-time code on {label}’s
+              sign-in page.
+            </p>
             {/* Still enabled while a code is outstanding: a lost code is only
                 recoverable by asking for a new one (the start is rate-limited). */}
             <button
@@ -370,8 +416,14 @@ function DeviceLinkPanel({
               disabled={state === "starting"}
               onClick={() => void start()}
             >
-              {state === "starting" ? <Loader2 size={16} className={s.spinner} aria-hidden="true" /> : null}
-              {state === "starting" ? "Starting…" : connection ? `Restart ${label} link` : `Start ${label} link`}
+              {state === "starting" ? (
+                <Loader2 size={16} className={s.spinner} aria-hidden="true" />
+              ) : null}
+              {state === "starting"
+                ? "Starting…"
+                : connection
+                  ? `Restart ${label} link`
+                  : `Start ${label} link`}
             </button>
             {connection ? (
               <div className={s.command}>
@@ -393,10 +445,13 @@ function DeviceLinkPanel({
             ) : null}
             {state === "waiting" ? (
               <>
-                <p role="status">Waiting for {label} authorization… Continue only if you started this login.</p>
+                <p role="status">
+                  Waiting for {label} authorization… Continue only if you
+                  started this login.
+                </p>
                 <p className={s.hint}>
-                  You can close this dialog while you approve the code — the link finishes on its own
-                  as long as you stay on this page.
+                  You can close this dialog while you approve the code — the
+                  link finishes on its own as long as you stay on this page.
                 </p>
               </>
             ) : null}
@@ -478,8 +533,9 @@ function SetupTokenPanel({
             <h3>{label} connected</h3>
             <p>
               This workspace can now run {label} agents with your subscription
-              {accountEmail.trim() ? ` (${accountEmail.trim()})` : ""}. The token is
-              stored encrypted on your control plane as a workspace credential.
+              {accountEmail.trim() ? ` (${accountEmail.trim()})` : ""}. The
+              token is stored encrypted on your control plane as a workspace
+              credential.
             </p>
           </>
         ) : (
@@ -511,8 +567,9 @@ function SetupTokenPanel({
                 onChange={(event) => setAccountEmail(event.target.value)}
               />
               <small>
-                Names which {label} account this token is for. A different email adds
-                another account; the same email replaces that account’s token.
+                Names which {label} account this token is for. A different email
+                adds another account; the same email replaces that account’s
+                token.
               </small>
             </label>
             <button
@@ -596,9 +653,9 @@ function ApiKeyPanel({
           <>
             <h3>{choice.label} connected</h3>
             <p>
-              Flow runs in this workspace receive this key as {choice.envName} while it
-              has LLM call access. The key is stored encrypted on your control plane and
-              is never shown again.
+              This workspace can use the key as {choice.envName} while it has
+              LLM call access. The key is stored encrypted on your control plane
+              and is never shown again.
             </p>
           </>
         ) : (

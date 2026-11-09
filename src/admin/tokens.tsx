@@ -23,7 +23,10 @@ const PURPOSES: Array<{ value: TokenPurpose; label: string; help: string }> = [
 ];
 const EXPIRY = ["30", "90", "180", "365"];
 
-export function TokensSection(props: { workspaceId: string }) {
+export function TokensSection(props: {
+  workspaceId: string;
+  flowsEnabled?: boolean;
+}) {
   const { data, error, reload } = useLoad((signal) =>
     adminApi.listTokens(props.workspaceId, signal),
   );
@@ -36,7 +39,16 @@ export function TokensSection(props: { workspaceId: string }) {
   } | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const help = PURPOSES.find((item) => item.value === purpose)?.help;
+  const visiblePurposes = PURPOSES.filter(
+    (item) => item.value !== "workflow" || props.flowsEnabled,
+  );
+  const shownPurpose =
+    purpose === "workflow" && !props.flowsEnabled ? "agent-runtime" : purpose;
+  const shownExpiry =
+    shownPurpose !== "workflow" && expiry === "never" ? "90" : expiry;
+  const help = visiblePurposes.find(
+    (item) => item.value === shownPurpose,
+  )?.help;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -45,10 +57,11 @@ export function TokensSection(props: { workspaceId: string }) {
     try {
       const token = await adminApi.createToken(props.workspaceId, {
         label: label.trim(),
-        purpose,
-        ...(expiry === "never"
+        // What the form shows, so never a workflow token while Flows is off.
+        purpose: shownPurpose,
+        ...(shownExpiry === "never"
           ? { neverExpires: true }
-          : { expiryDays: Number(expiry) }),
+          : { expiryDays: Number(shownExpiry) }),
       });
       setCreated({ label: token.label, token: token.accessToken });
       setLabel("");
@@ -84,14 +97,14 @@ export function TokensSection(props: { workspaceId: string }) {
             value={label}
             maxLength={128}
             onChange={(event) => setLabel(event.target.value)}
-            placeholder="flows-worker"
+            placeholder="workspace-service"
             required
           />
         </label>
         <label>
           Purpose
           <select
-            value={purpose}
+            value={shownPurpose}
             onChange={(event) => {
               const next = event.target.value as TokenPurpose;
               setPurpose(next);
@@ -99,7 +112,7 @@ export function TokensSection(props: { workspaceId: string }) {
               if (next !== "workflow" && expiry === "never") setExpiry("90");
             }}
           >
-            {PURPOSES.map((item) => (
+            {visiblePurposes.map((item) => (
               <option key={item.value} value={item.value}>
                 {item.label}
               </option>
@@ -109,7 +122,7 @@ export function TokensSection(props: { workspaceId: string }) {
         <label>
           Expires
           <select
-            value={expiry}
+            value={shownExpiry}
             onChange={(event) => setExpiry(event.target.value)}
           >
             {EXPIRY.map((days) => (
@@ -117,7 +130,9 @@ export function TokensSection(props: { workspaceId: string }) {
                 {days} days
               </option>
             ))}
-            {purpose === "workflow" && <option value="never">Never</option>}
+            {purpose === "workflow" && props.flowsEnabled && (
+              <option value="never">Never</option>
+            )}
           </select>
         </label>
         <button
