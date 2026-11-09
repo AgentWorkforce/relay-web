@@ -59,6 +59,7 @@ it("lists the workspace's installers with version, size and sha256, without prob
   expect(screen.getByText("64.0 MB")).toBeInTheDocument();
   expect(screen.getByText(sha)).toBeInTheDocument();
   expect(screen.queryByText("Desktop-2026.11.9-Linux-x64-probe.tar.gz")).toBeNull();
+  expect(screen.getByRole("main")).toHaveClass("settings");
   const manifest = seen.find((call) => call.path.endsWith("channel=stable"));
   expect(manifest?.headers["X-Agent-Relay-Profile"]).toBe("x7k2q");
 });

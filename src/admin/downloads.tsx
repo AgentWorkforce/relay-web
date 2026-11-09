@@ -118,7 +118,7 @@ function Release(props: {
               <td>
                 <code>{asset.sha256}</code>
               </td>
-              <td>
+              <td className="actions">
                 <DownloadButton profile={props.profile} asset={asset} navigate={props.navigate} />
               </td>
             </tr>
@@ -136,7 +136,7 @@ export function DownloadsPage(props: { navigate?: (url: string) => void }) {
     items.map((item) => ({ profile: profile.id, ...item })),
   );
   return (
-    <main>
+    <main className="settings">
       <h1>Downloads</h1>
       {error && <p role="alert">{message(error)}</p>}
       {!error && !data && <p>Loading…</p>}
