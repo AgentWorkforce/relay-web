@@ -2,9 +2,15 @@ name: Container Image
 
 # Builds the self-hosted dashboard image. Pull requests build and smoke-test
 # linux/amd64 without pushing. Publishing is manual (or a v* tag), only from
-# a reviewed commit on main, to ghcr.io/agentworkforce/relay-dashboard for
-# linux/amd64 and linux/arm64 with an SBOM, max-mode provenance and a signed
-# GitHub build-provenance attestation. Pin the printed digest, never a tag.
+# a reviewed commit on main, for linux/amd64 and linux/arm64 with an SBOM,
+# max-mode provenance and a signed GitHub build-provenance attestation.
+# Pin the printed digest, never a tag.
+#
+# One build is pushed to two repositories, so both carry the same digest:
+#   ghcr.io/agentworkforce/relay-webapp     primary, matches the relay-webapp chart
+#   ghcr.io/agentworkforce/relay-dashboard  legacy name, kept while existing
+#                                           installs and chart defaults pin it
+# Each repository gets its own signed provenance attestation for that digest.
 on:
   pull_request:
     branches: [main]
@@ -34,7 +40,9 @@ permissions:
   contents: read
 
 env:
-  IMAGE: ghcr.io/agentworkforce/relay-dashboard
+  IMAGE: ghcr.io/agentworkforce/relay-webapp
+  # Remove once nothing pins the old name; the digest is identical.
+  LEGACY_IMAGE: ghcr.io/agentworkforce/relay-dashboard
 
 jobs:
   validate:
@@ -54,7 +62,7 @@ jobs:
           platforms: linux/amd64
           push: false
           load: true
-          tags: relay-dashboard:ci
+          tags: relay-webapp:ci
           build-args: SOURCE_REVISION=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -67,7 +75,7 @@ jobs:
           html="$RUNNER_TEMP/dashboard-html"
           mkdir -p "$html" && chmod 0777 "$html"
           docker run --rm --read-only --user 101:101 \
-            -v "$html:/work" relay-dashboard:ci \
+            -v "$html:/work" relay-webapp:ci \
             sh -ec 'cp -a /usr/share/nginx/html/. /work/'
           docker run -d --name dashboard --read-only --user 101:101 \
             --tmpfs /tmp:uid=101,gid=101 \
@@ -76,7 +84,7 @@ jobs:
             -e DASHBOARD_APP_PATH=/ \
             -e DASHBOARD_API_BASE_PATH=/cloud/api \
             -e DASHBOARD_LOGIN_PATH=/login \
-            -p 8080:8080 relay-dashboard:ci
+            -p 8080:8080 relay-webapp:ci
           ready=0
           for _ in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8080/healthz; then ready=1; break; fi
@@ -149,7 +157,9 @@ jobs:
         id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
-          images: ${{ env.IMAGE }}
+          images: |
+            ${{ env.IMAGE }}
+            ${{ env.LEGACY_IMAGE }}
           tags: |
             type=sha,format=long,prefix=sha-
             type=semver,pattern={{version}},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
@@ -181,5 +191,19 @@ jobs:
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
 
-      - name: Record immutable image reference
-        run: echo "Published \`${IMAGE}@${{ steps.build.outputs.digest }}\`" >> "$GITHUB_STEP_SUMMARY"
+      - name: Attest published image (legacy name)
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-name: ${{ env.LEGACY_IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Record immutable image references
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          {
+            echo "Published \`${IMAGE}@${DIGEST}\`"
+            echo
+            echo "Also published (legacy name, same digest) \`${LEGACY_IMAGE}@${DIGEST}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
