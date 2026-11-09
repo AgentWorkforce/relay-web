@@ -106,6 +106,16 @@ support renders no summary block; an empty stored result says â€œNo summary yetâ
 A failed read cannot delay the transcript or invent a summary. This requires
 the companion relaycontrol summary route; existing login and cookies are reused.
 
+## Password sign-in (self-hosted)
+
+When relaycontrol lists `password` in `SELFHOST_SIGNIN_METHODS`, signed-out
+visitors land on `#/sign-in`, with `#/register` and `#/forgot-password` beside
+it. The page reads the public `/cloud/api/v1/auth/login-config` and shows only
+the configured methods. Any install without passwords, and any custom
+`DASHBOARD_LOGIN_PATH`, goes to relaycontrol's `/login` as before. The emailed
+`/login/password/verify` and `/login/password/reset` links stay on
+relaycontrol's own pages, so their tokens never reach this app.
+
 ## Relay Chief
 
 `#/chief` provides project setup (project, operating policy, review) and the chief
