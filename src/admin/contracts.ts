@@ -17,6 +17,7 @@ export type AdminContext = z.infer<typeof adminContextSchema>;
 
 export const sessionErasureSchema = z.object({
   status: z.enum(["in_progress", "completed", "failed"]),
+  unreadable: z.boolean(),
 });
 
 export const envVarSchema = z.object({

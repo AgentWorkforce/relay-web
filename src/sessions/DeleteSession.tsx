@@ -22,7 +22,7 @@ export function DeleteSession({
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [started, setStarted] = useState(false);
+  const [started, setStarted] = useState<string | null>(null);
 
   useEffect(() => {
     const abort = new AbortController();
@@ -43,12 +43,17 @@ export function DeleteSession({
     setBusy(true);
     setError(null);
     try {
-      const { status } = await adminApi.hardDeleteSession(id, { workspaceId, source, sessionId });
+      const { status, unreadable } = await adminApi.hardDeleteSession(id, { workspaceId, source, sessionId });
       if (status === "completed") {
         onDeleted();
         return;
       }
-      setStarted(true);
+      // "Hidden" and "erased" are different states; only completed means erased.
+      setStarted(
+        unreadable
+          ? "This session is now hidden from everyone. Stored data is still being erased, which can take up to 48 hours."
+          : "Deletion is in progress.",
+      );
     } catch (failure) {
       if (failure instanceof SignedOut) {
         onSignedOut?.();
@@ -61,7 +66,7 @@ export function DeleteSession({
   }
 
   if (started) {
-    return <p role="status" className="text-xs text-muted-foreground">Deletion is in progress.</p>;
+    return <p role="status" className="max-w-sm text-xs text-muted-foreground">{started}</p>;
   }
   if (!confirming) {
     return (

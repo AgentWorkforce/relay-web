@@ -34,7 +34,7 @@ it("is not offered to members", async () => {
 });
 
 it("deletes only after confirmation, then leaves the session", async () => {
-  const fetch = stub("admin", Response.json({ status: "completed" }));
+  const fetch = stub("admin", Response.json({ status: "completed", unreadable: true }));
   const onDeleted = vi.fn();
   render(<DeleteSession workspaceId="w 1" source="codex" sessionId="s/1" onDeleted={onDeleted} />);
   await openConfirm();
@@ -58,12 +58,12 @@ it("cancel sends nothing", async () => {
 });
 
 it("does not report an in-progress erase as deleted", async () => {
-  stub("owner", Response.json({ status: "in_progress" }, { status: 202 }));
+  stub("owner", Response.json({ status: "in_progress", unreadable: true }, { status: 202 }));
   const onDeleted = vi.fn();
   render(<DeleteSession {...target} onDeleted={onDeleted} />);
   await openConfirm();
   fireEvent.click(screen.getByRole("button", { name: "Yes, delete session" }));
-  expect((await screen.findByRole("status")).textContent).toMatch(/in progress/);
+  expect((await screen.findByRole("status")).textContent).toMatch(/hidden from everyone.*still being erased/);
   expect(onDeleted).not.toHaveBeenCalled();
 });
 
