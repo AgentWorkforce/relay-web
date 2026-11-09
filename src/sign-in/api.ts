@@ -14,6 +14,8 @@ const loginConfigSchema = z.object({
   methods: z.array(z.string()),
   oidc: z.object({ displayName: z.string() }).nullable(),
   logo_url: z.string().nullable(),
+  // Optional: an older relaycontrol does not send it.
+  org_name: z.string().nullish(),
   password_policy: z
     .object({ min_length: z.number(), max_length: z.number() })
     .nullable(),

@@ -122,6 +122,34 @@ it("sends an invited sign-in through the form route that redeems the invite", as
   });
 });
 
+it("co-brands under the Agent Relay lockup", async () => {
+  config = {
+    status: 200,
+    body: { ...fullConfig, logo_url: "https://cdn.example.test/logo.svg", org_name: "Example Corp" },
+  };
+  const { container } = show("sign-in");
+  expect(await screen.findByText("Example Corp")).toBeTruthy();
+  const logo = container.querySelector('[data-slot="co-brand"] img')!;
+  expect(logo.getAttribute("src")).toBe("https://cdn.example.test/logo.svg");
+  expect(logo.getAttribute("referrerpolicy")).toBe("no-referrer");
+  expect(container.querySelector("header hr")).toBeTruthy();
+  expect(container.querySelector("header a svg")).toBeTruthy();
+});
+
+it.each([
+  ["no logo", { logo_url: null, org_name: "Example Corp" }],
+  ["a non-https logo", { logo_url: "http://cdn.example.test/logo.svg", org_name: "Example Corp" }],
+  ["a script URL", { logo_url: "javascript:alert(1)", org_name: "Example Corp" }],
+])("shows only Agent Relay with %s", async (_label, fields) => {
+  config = { status: 200, body: { ...fullConfig, ...fields } };
+  const { container } = show("sign-in");
+  await screen.findByRole("button", { name: "Sign in with password" });
+  expect(container.querySelector("header a svg")).toBeTruthy();
+  expect(container.querySelector("header hr")).toBeNull();
+  expect(container.querySelector('[data-slot="co-brand"]')).toBeNull();
+  expect(screen.queryByText("Example Corp")).toBeNull();
+});
+
 it("signs in and returns to next", async () => {
   answers["/cloud/api/v1/auth/password/login"] = { status: 200, body: { userId: "u" } };
   show("sign-in");
