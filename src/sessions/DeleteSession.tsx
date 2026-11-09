@@ -1,6 +1,6 @@
 // Operator-only hard delete of one session. relaycontrol enforces the role;
 // hiding the control from members is only presentation.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { adminApi, canManage, SignedOut } from "../admin/api";
 import { Button } from "../shell/ui";
@@ -23,6 +23,27 @@ export function DeleteSession({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [started, setStarted] = useState<string | null>(null);
+  const mounted = useRef(true);
+  const cancelButton = useRef<HTMLButtonElement>(null);
+  const deleteButton = useRef<HTMLButtonElement>(null);
+  const returnFocus = useRef(false);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  // The control that had focus disappears when the confirmation swaps in.
+  useEffect(() => {
+    if (confirming) {
+      cancelButton.current?.focus();
+    } else if (returnFocus.current) {
+      returnFocus.current = false;
+      deleteButton.current?.focus();
+    }
+  }, [confirming]);
 
   useEffect(() => {
     const abort = new AbortController();
@@ -45,7 +66,12 @@ export function DeleteSession({
     try {
       const { status, unreadable } = await adminApi.hardDeleteSession(id, { workspaceId, source, sessionId });
       if (status === "completed") {
-        onDeleted();
+        // Never navigate someone who has already moved on to another page.
+        if (mounted.current) onDeleted();
+        return;
+      }
+      if (status === "failed") {
+        setError("The session could not be fully erased. Please try again.");
         return;
       }
       // "Hidden" and "erased" are different states; only completed means erased.
@@ -70,7 +96,7 @@ export function DeleteSession({
   }
   if (!confirming) {
     return (
-      <Button variant="ghost" size="sm" onClick={() => setConfirming(true)}>
+      <Button ref={deleteButton} variant="ghost" size="sm" onClick={() => setConfirming(true)}>
         <Trash2 aria-hidden="true" />
         Delete session
       </Button>
@@ -87,10 +113,12 @@ export function DeleteSession({
           Yes, delete session
         </Button>
         <Button
+          ref={cancelButton}
           variant="ghost"
           size="sm"
           disabled={busy}
           onClick={() => {
+            returnFocus.current = true;
             setConfirming(false);
             setError(null);
           }}

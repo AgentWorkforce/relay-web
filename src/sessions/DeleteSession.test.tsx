@@ -48,13 +48,44 @@ it("deletes only after confirmation, then leaves the session", async () => {
   expect(init.credentials).toBe("same-origin");
 });
 
-it("cancel sends nothing", async () => {
-  const fetch = stub("owner", Response.json({ status: "completed" }));
+it("cancel sends nothing and focus follows the confirmation", async () => {
+  const fetch = stub("owner", Response.json({ status: "completed", unreadable: true }));
   render(<DeleteSession {...target} onDeleted={vi.fn()} />);
   await openConfirm();
+  expect(document.activeElement).toBe(screen.getByRole("button", { name: "Cancel" }));
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-  expect(screen.getByRole("button", { name: "Delete session" })).toBeTruthy();
+  expect(document.activeElement).toBe(screen.getByRole("button", { name: "Delete session" }));
   expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+it("reports a failed erase and leaves a retry", async () => {
+  stub("owner", Response.json({ status: "failed", unreadable: false }));
+  const onDeleted = vi.fn();
+  render(<DeleteSession {...target} onDeleted={onDeleted} />);
+  await openConfirm();
+  fireEvent.click(screen.getByRole("button", { name: "Yes, delete session" }));
+  expect((await screen.findByRole("alert")).textContent).toMatch(/could not be fully erased/);
+  expect(screen.queryByRole("status")).toBeNull();
+  expect(onDeleted).not.toHaveBeenCalled();
+  expect((screen.getByRole("button", { name: "Yes, delete session" }) as HTMLButtonElement).disabled).toBe(false);
+});
+
+it("does not navigate after the page has been left", async () => {
+  let finish: (response: Response) => void = () => undefined;
+  vi.stubGlobal("fetch", vi.fn((url: string) =>
+    url.endsWith("/auth/whoami")
+      ? Promise.resolve(Response.json(context("owner")))
+      : new Promise<Response>((resolve) => { finish = resolve; }),
+  ));
+  const onDeleted = vi.fn();
+  const { unmount } = render(<DeleteSession {...target} onDeleted={onDeleted} />);
+  await openConfirm();
+  fireEvent.click(screen.getByRole("button", { name: "Yes, delete session" }));
+  await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledTimes(2));
+  unmount();
+  finish(Response.json({ status: "completed", unreadable: true }));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(onDeleted).not.toHaveBeenCalled();
 });
 
 it("does not report an in-progress erase as deleted", async () => {
