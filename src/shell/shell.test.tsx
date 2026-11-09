@@ -87,13 +87,10 @@ it("marks only the open agents view when sessions and messages share a rail", ()
       <p>content</p>
     </WorkspaceChrome>
   );
-  const view = render(chrome("Messages"));
+  render(chrome("Session"));
   const views = screen.getByRole("navigation", { name: "Workspace views" });
-  expect(within(views).getByRole("link", { name: "Messages" })).toHaveAttribute("aria-current", "page");
-  expect(within(views).getByRole("link", { name: "Sessions" })).not.toHaveAttribute("aria-current");
-  view.rerender(chrome("Session"));
   expect(within(views).getByRole("link", { name: "Sessions" })).toHaveAttribute("aria-current", "page");
-  expect(within(views).getByRole("link", { name: "Messages" })).not.toHaveAttribute("aria-current");
+  expect(within(views).queryByRole("link", { name: "Messages" })).toBeNull();
   expect(within(views).getByRole("link", { name: "Flows" })).not.toHaveAttribute("aria-current");
 });
 
