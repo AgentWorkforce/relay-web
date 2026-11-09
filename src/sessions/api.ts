@@ -8,6 +8,7 @@ import {
   ReadApiUnavailable,
   readApiEnabled,
   readApiGet,
+  rememberMembers,
   toDirectCursor,
   viaReadApi,
 } from "./read-api";
@@ -108,18 +109,34 @@ export async function listSessions(
   return listViaControl(workspace, filters, next, signal);
 }
 
+/**
+ * The read API knows no Control users, so names come from Control. The request
+ * is shared across callers, so it isn't tied to any one caller's signal.
+ */
+function workspaceMembers(workspace: string) {
+  return rememberMembers(workspace, async () =>
+    z
+      .object({ members })
+      .parse(await read(path(workspace, "/members"), new AbortController().signal))
+      .members,
+  );
+}
+
 async function listDirect(
   workspace: string,
   source: string | undefined,
   next: string | null,
   signal: AbortSignal,
 ): Promise<SessionPage> {
-  const body = await readApiGet(
-    workspace,
-    "/v1/sessions",
-    { limit: "50", source, cursor: fromDirectCursor(next) },
-    signal,
-  );
+  const [body, people] = await Promise.all([
+    readApiGet(
+      workspace,
+      "/v1/sessions",
+      { limit: "50", source, cursor: fromDirectCursor(next) },
+      signal,
+    ),
+    workspaceMembers(workspace),
+  ]);
   if (!Array.isArray(body.sessions)) throw new ReadApiUnavailable("list_invalid");
   const rows = z.array(listSchema.shape.items.element).parse(body.sessions);
   return {
@@ -132,7 +149,7 @@ async function listDirect(
             : null,
       }),
     ),
-    members: [],
+    members: people,
     nextCursor: toDirectCursor(body.nextCursor),
     now: new Date().toISOString(),
   };
@@ -302,23 +319,26 @@ async function eventsDirect(
   next: string | null,
   signal: AbortSignal,
 ) {
-  const body = await readApiGet(
-    workspace,
-    `/v1/sessions/${encodeURIComponent(session.sessionId)}/events`,
-    {
-      source: session.source,
-      order: "asc",
-      limit: "500",
-      maxContent: "100000",
-      cursor: fromDirectCursor(next),
-    },
-    signal,
-  );
+  const [body, people] = await Promise.all([
+    readApiGet(
+      workspace,
+      `/v1/sessions/${encodeURIComponent(session.sessionId)}/events`,
+      {
+        source: session.source,
+        order: "asc",
+        limit: "500",
+        maxContent: "100000",
+        cursor: fromDirectCursor(next),
+      },
+      signal,
+    ),
+    workspaceMembers(workspace),
+  ]);
   const events = z.array(eventSchema).parse(body.events).sort((left, right) =>
     Date.parse(String(left.ts)) - Date.parse(String(right.ts)) ||
     String(left.eventId).localeCompare(String(right.eventId)),
   );
-  return { events, members: [] as Member[], nextCursor: toDirectCursor(body.nextCursor) };
+  return { events, members: people, nextCursor: toDirectCursor(body.nextCursor) };
 }
 
 async function eventsViaControl(

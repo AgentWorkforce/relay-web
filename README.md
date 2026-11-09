@@ -91,7 +91,7 @@ Desktop links here.
 
 ### Session visualizations
 
-`DASHBOARD_SESSION_READ_API_ENABLED=true` (default false) reads list, search, activity, turns and events directly from the session read API, using the access token Control hands the page at `POST /cloud/api/v1/workspaces/:id/session-read/session`. The refresh token stays server side. A first page that the read API can't serve falls back to the existing `/cloud/api` path; timing, output and catalog always use it. The read API must allow the dashboard origin in CORS and expose `X-Relayhistory-Workspace-Id`.
+`DASHBOARD_SESSION_READ_API_ENABLED=true` (default false) reads list, search, activity, turns and events directly from the session read API, using the access token Control hands the page at `POST /cloud/api/v1/workspaces/:id/session-read/session`. The refresh token stays server side. A first page that the read API can't serve falls back to the existing `/cloud/api` path; timing, output and catalog always use it. The read API must allow the dashboard origin in CORS and expose `X-Relayhistory-Workspace-Id`. In this mode people's names come from Control's `GET /cloud/api/v1/workspaces/:id/sessions/members`; a Control version without that route shows no names.
 
 The Timeline, Decision tree and Work graph views are ported from Cloud. They are off by default. Set `DASHBOARD_SESSION_VISUALIZATIONS_ENABLED=true` in the container to emit the strict boolean `sessionVisualizations` in the existing runtime config. Static-host configurations can supply that boolean directly. Missing, false or malformed values retain Conversation and never mount graph reads.
 
