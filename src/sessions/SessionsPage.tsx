@@ -199,26 +199,19 @@ export function SessionsPage({
           aria-label="Sessions views"
         >
           {sessionVisualizationsEnabled() && <a href={graphHref(workspaceId)} onClick={onLinkClick} className={buttonClass("ghost", "sm")}><Network data-icon="inline-start" /> Work graph</a>}
-          {(["sessions", "search"] as const).map((name) => (
-            <a
-              key={name}
-              href={listHref(query, name)}
-              aria-current={
-                tab === name || (name === "sessions" && tab === "activity")
-                  ? "page"
-                  : undefined
-              }
-              onClick={onLinkClick}
-              data-slot="button"
-              className={buttonClass(
-                "ghost",
-                "sm",
-                "text-xs font-medium text-muted-foreground aria-[current=page]:bg-accent aria-[current=page]:text-accent-foreground",
-              )}
-            >
-              {name === "sessions" ? "Sessions" : "Search messages"}
-            </a>
-          ))}
+          <a
+            href={listHref(query)}
+            aria-current={tab !== "search" ? "page" : undefined}
+            onClick={onLinkClick}
+            data-slot="button"
+            className={buttonClass(
+              "ghost",
+              "sm",
+              "text-xs font-medium text-muted-foreground aria-[current=page]:bg-accent aria-[current=page]:text-accent-foreground",
+            )}
+          >
+            Sessions
+          </a>
         </nav>
       </WorkspaceViewSlot>
       {tab !== "sessions" && (

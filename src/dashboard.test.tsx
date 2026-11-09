@@ -194,6 +194,21 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals());
 
+it.each(["sessions", "activity", "search"] as const)(
+  "never offers the Search messages toolbar entry from the %s view",
+  async (tab) => {
+    window.history.replaceState(null, "", `/?tab=${tab}&searchMessages=true&features=messages`);
+    window.localStorage.setItem("searchMessagesEnabled", "true");
+    respond(/\/sessions\/search$/, () => ({ matches: [], members, nextCursor: null }));
+    render(<Dashboard />);
+    const views = await screen.findByRole("navigation", { name: "Sessions views" });
+    expect(within(views).queryByRole("link", { name: "Search messages" })).toBeNull();
+    expect(within(views).getAllByRole("link").map((link) => link.textContent)).toEqual(["Sessions"]);
+    expect(within(views).getByRole("link", { name: "Sessions" })).toHaveAttribute("href", "/");
+    window.localStorage.removeItem("searchMessagesEnabled");
+  },
+);
+
 it("lists sessions with agent, project, people, and status, linking in-app", async () => {
   const shortSummary = "Restored session loading after a History outage.";
   respond(/\/sessions$/, () => ({

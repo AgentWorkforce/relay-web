@@ -85,37 +85,31 @@ it("marks the current rail and keeps hosted-only views out", () => {
   expect(screen.getByRole("heading", { name: "Flows" })).toBeInTheDocument();
 });
 
-it("marks only the open agents view when sessions and messages share a rail", () => {
-  const chrome = (label: string) => (
-    <WorkspaceChrome
-      rail="Agents"
-      label={label}
-      capabilities={{ flows: true, chief: false, relayfile: false }}
-    >
-      <p>content</p>
-    </WorkspaceChrome>
-  );
-  const view = render(chrome("Messages"));
-  const views = screen.getByRole("navigation", { name: "Workspace views" });
-  expect(within(views).getByRole("link", { name: "Messages" })).toHaveAttribute(
-    "aria-current",
-    "page",
-  );
-  expect(
-    within(views).getByRole("link", { name: "Sessions" }),
-  ).not.toHaveAttribute("aria-current");
-  view.rerender(chrome("Session"));
-  expect(within(views).getByRole("link", { name: "Sessions" })).toHaveAttribute(
-    "aria-current",
-    "page",
-  );
-  expect(
-    within(views).getByRole("link", { name: "Messages" }),
-  ).not.toHaveAttribute("aria-current");
-  expect(
-    within(views).getByRole("link", { name: "Flows" }),
-  ).not.toHaveAttribute("aria-current");
-});
+it.each(["Sessions", "Session", "Messages"])(
+  "keeps Messages out of self-host navigation from the %s view",
+  (label) => {
+    window.history.replaceState(null, "", "/?messages=true&features=messages");
+    window.localStorage.setItem("SELFHOST_FEATURES", "messages,flows,chief");
+    window.localStorage.setItem("messagesEnabled", "true");
+    render(
+      <WorkspaceChrome
+        rail="Agents"
+        label={label}
+        capabilities={{ flows: true, chief: true, relayfile: true }}
+      >
+        <p>content</p>
+      </WorkspaceChrome>,
+    );
+    const views = screen.getByRole("navigation", { name: "Workspace views" });
+    expect(within(views).queryByRole("link", { name: "Messages" })).toBeNull();
+    expect(views.querySelector('a[href="#/messages"]')).toBeNull();
+    expect(within(views).getByRole("link", { name: "Sessions" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(within(views).getByRole("link", { name: "Flows" })).not.toHaveAttribute("aria-current");
+  },
+);
 
 it("lets pages replace the heading and fill the sidebar", () => {
   render(
