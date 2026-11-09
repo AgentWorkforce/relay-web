@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Dashboard } from "./dashboard";
 import { FlowsApp, parseFlowsRoute } from "./flows/flows-app";
 import { Settings } from "./admin/settings";
+import { DownloadsPage, isDownloadsPath } from "./admin/downloads";
 import { DevicePage } from "./device/DevicePage";
 import { userCodeFromHash } from "./device/api";
 import { parseRoute } from "./sessions/route";
@@ -11,6 +12,8 @@ import { ChiefPage } from './chief/chief-page';
 
 /** Hash routes keep the static host simple (no SPA fallback needed). */
 function route(hash: string) {
+  if (hash === "#/downloads" || (!hash && isDownloadsPath(window.location.pathname)))
+    return { page: "downloads" as const, path: "", section: "" };
   const chief = /^#(\/chief(?:\/.*)?)$/.exec(hash);
   if (chief) return { page: 'chief' as const, path: chief[1]!, section: '' };
   // Device approval (relaycontrol redirects verification_uri here).
@@ -53,6 +56,8 @@ function chrome(current: ReturnType<typeof route>) {
     return { rail: "Agents" as const, label: "Messages" };
   if (current.page === "settings")
     return { rail: "Settings" as const, label: "Settings" };
+  if (current.page === "downloads")
+    return { rail: "Settings" as const, label: "Downloads" };
   return {
     rail: "Agents" as const,
     label: parseRoute(window.location).view === "session" ? "Session" : "Sessions",
@@ -87,6 +92,7 @@ export function App() {
       {current.page === 'chief' && <ChiefPage path={current.path} />}
       {current.page === "flows" && <FlowsApp path={current.path} />}
       {current.page === "settings" && <Settings section={current.section} />}
+      {current.page === "downloads" && <DownloadsPage />}
       {current.page === "messages" && <MessagingPanel />}
       {current.page === "sessions" && <Dashboard />}
     </Shell>
