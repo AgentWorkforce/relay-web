@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from "vitest";
-import { appPath, loginHref, sessionVisualizationsEnabled } from "./app-path";
+import { appPath, loginHref, serverLoginHref, sessionVisualizationsEnabled } from "./app-path";
 
 afterEach(() => {
   delete window.__AGENT_RELAY_DASHBOARD_CONFIG__;
@@ -11,7 +11,14 @@ it("uses the configured same-origin paths", () => {
     loginPath: "/login",
   };
   expect(appPath()).toBe("/");
+  expect(loginHref("/x")).toBe("/#/sign-in?next=%2Fx");
+  expect(serverLoginHref("/x")).toBe("/login?next=%2Fx");
+});
+
+it("keeps hosted builds and custom login paths on the configured page", () => {
   expect(loginHref("/x")).toBe("/login?next=%2Fx");
+  window.__AGENT_RELAY_DASHBOARD_CONFIG__ = { loginPath: "/session/login" };
+  expect(loginHref("/x")).toBe("/session/login?next=%2Fx");
 });
 
 it("rejects protocol-relative and absolute configured paths", () => {

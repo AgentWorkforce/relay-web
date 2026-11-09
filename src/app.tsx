@@ -5,6 +5,8 @@ import { Settings } from "./admin/settings";
 import { DownloadsPage, isDownloadsPath } from "./admin/downloads";
 import { DevicePage } from "./device/DevicePage";
 import { userCodeFromHash } from "./device/api";
+import { SignInPage } from "./sign-in/SignInPage";
+import { signInRoute } from "./sign-in/api";
 import { parseRoute } from "./sessions/route";
 import { Shell } from "./shell/shell";
 import { MessagingPanel } from "./messaging/panel";
@@ -80,6 +82,8 @@ export function App() {
       window.removeEventListener("popstate", update);
     };
   }, []);
+  const signIn = signInRoute(hash);
+  if (signIn) return <SignInPage key={signIn.next} {...signIn} />;
   const current = route(hash);
   if (current.page === "device") {
     const code = userCodeFromHash(hash);

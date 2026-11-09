@@ -48,16 +48,28 @@ export function appPath(): string {
   return withSlashes(import.meta.env.BASE_URL || "/");
 }
 
-/** Sign-in URL that returns to `next` (defaults to the current page). */
-export function loginHref(
-  next = `${window.location.pathname}${window.location.search}${window.location.hash}`,
-): string {
+/** relaycontrol's own sign-in page, returning to `next`. */
+export function serverLoginHref(next: string): string {
   const configured = runtimeConfig().loginPath;
   const login =
     typeof configured === "string" && configured.startsWith("/")
       ? (sameOriginPath(configured) ?? "/login")
       : "/login";
   return `${login}?next=${encodeURIComponent(next)}`;
+}
+
+/**
+ * Sign-in URL that returns to `next` (defaults to the current page). A
+ * self-hosted install on the standard `/login` starts at the app's sign-in
+ * page, which falls through to `/login` unless passwords are enabled. Hosted
+ * builds and custom login paths go to the configured page directly.
+ */
+export function loginHref(
+  next = `${window.location.pathname}${window.location.search}${window.location.hash}`,
+): string {
+  if (runtimeConfig().loginPath === "/login")
+    return `${appPath()}#/sign-in?next=${encodeURIComponent(next)}`;
+  return serverLoginHref(next);
 }
 
 /** Missing or malformed runtime flags keep the standard conversation view. */
