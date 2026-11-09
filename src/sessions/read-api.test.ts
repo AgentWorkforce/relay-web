@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { listSessions, sessionTurns } from "./api";
+import { listSessions, sessionEvents, sessionTurns } from "./api";
 import { forgetReadApiAccess, ReadApiUnavailable, readApiGet } from "./read-api";
 
 const signal = () => new AbortController().signal;
@@ -50,13 +50,93 @@ it("reads with an in-memory bearer, sends no cookies and marks the cursor", asyn
       : attested({ sessions: [session], nextCursor: "b96l1:x", correlationId: "c" }),
   );
   const page = await listSessions(WORKSPACE, {}, null, signal());
-  const [, read] = fetch.mock.calls;
+  const read = fetch.mock.calls.find(([url]) => String(url).startsWith("https://read.example.com"))!;
   expect(fetch.mock.calls[0][1]?.credentials).toBe("same-origin");
   expect(String(read[0])).toBe(`https://read.example.com/v1/sessions?limit=50&workspace=${WORKSPACE}`);
   expect(read[1]?.credentials).toBe("omit");
   expect((read[1]?.headers as Record<string, string>).Authorization).toBe("Bearer rth_at_read_one");
   expect(page.nextCursor).toBe("ra1:b96l1:x");
   expect(page.items).toHaveLength(1);
+});
+
+const MEMBERS_URL = `/cloud/api/v1/workspaces/${WORKSPACE}/sessions/members`;
+const direct = (members: () => Response) =>
+  route((url) => {
+    if (url === MEMBERS_URL) return members();
+    if (url.includes("/session-read/session")) return json(handoff());
+    return attested({ sessions: [session], events: [], nextCursor: null });
+  });
+const memberCalls = (fetch: ReturnType<typeof route>) =>
+  fetch.mock.calls.filter(([url]) => String(url) === MEMBERS_URL);
+
+it("attaches Control's names in direct mode, loading them once per workspace", async () => {
+  const names = [{ id: "u1", name: "Example Person" }];
+  const fetch = direct(() => json({ members: names }));
+  const page = await listSessions(WORKSPACE, {}, null, signal());
+  const events = await sessionEvents(WORKSPACE, { sessionId: "s-1", source: "claude" }, null, signal());
+  expect(page.members).toEqual(names);
+  expect(events.members).toEqual(names);
+  expect(memberCalls(fetch)).toHaveLength(1);
+});
+
+it("doesn't tie the shared names request to one caller's signal", async () => {
+  const fetch = direct(() => json({ members: [] }));
+  const caller = signal();
+  await listSessions(WORKSPACE, {}, null, caller);
+  expect(memberCalls(fetch)[0]![1]?.signal).not.toBe(caller);
+});
+
+it.each([
+  ["a 404 from an older Control", () => json({ error: "not_found" }, { status: 404 })],
+  ["a malformed body", () => json({ members: "nope" })],
+  ["a 200 without members", () => json({})],
+  ["an empty list", () => json({ members: [] })],
+])("still lists sessions with no names after %s, and retries next time", async (_label, failure) => {
+  const fetch = direct(failure);
+  const page = await listSessions(WORKSPACE, {}, null, signal());
+  expect(page.members).toEqual([]);
+  expect(page.items).toHaveLength(1);
+  await listSessions(WORKSPACE, {}, null, signal());
+  expect(memberCalls(fetch)).toHaveLength(2);
+});
+
+it("shows sessions without names when Control stalls, then retries", async () => {
+  vi.useFakeTimers();
+  try {
+    let stalled = true;
+    const fetch = vi.fn((input: string | URL, init: RequestInit = {}) => {
+      const url = String(input);
+      if (url === MEMBERS_URL && stalled)
+        return new Promise<Response>((_, reject) =>
+          init.signal!.addEventListener("abort", () =>
+            reject(new DOMException("Aborted", "AbortError")),
+          ),
+        );
+      if (url === MEMBERS_URL)
+        return Promise.resolve(json({ members: [{ id: "u1", name: "Example Person" }] }));
+      if (url.includes("/session-read/session")) return Promise.resolve(json(handoff()));
+      return Promise.resolve(attested({ sessions: [session], nextCursor: null }));
+    });
+    vi.stubGlobal("fetch", fetch);
+    const loading = listSessions(WORKSPACE, {}, null, signal());
+    await vi.advanceTimersByTimeAsync(3_000);
+    const page = await loading;
+    expect(page.items).toHaveLength(1);
+    expect(page.members).toEqual([]);
+    stalled = false;
+    const next = await listSessions(WORKSPACE, {}, null, signal());
+    expect(next.members).toEqual([{ id: "u1", name: "Example Person" }]);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("never asks for the names route on the Control path", async () => {
+  window.__AGENT_RELAY_DASHBOARD_CONFIG__ = {};
+  const fetch = route(() => json(controlPage));
+  const page = await listSessions(WORKSPACE, {}, null, signal());
+  expect(page.members).toEqual([{ id: "u", name: "U" }]);
+  expect(memberCalls(fetch)).toHaveLength(0);
 });
 
 it("refuses a handoff that gives page scripts a refresh token", async () => {
@@ -101,7 +181,7 @@ it("falls back to Control when a first page's workspace is not attested", async 
 it("never restarts a read API cursor on Control", async () => {
   const fetch = route((url) => (url.includes("/session-read/session") ? json(handoff()) : new Response("", { status: 503 })));
   await expect(listSessions(WORKSPACE, {}, "ra1:b96l1:x", signal())).rejects.toBeInstanceOf(ReadApiUnavailable);
-  expect(fetch.mock.calls.some(([url]) => String(url).includes("/cloud/api/v1/workspaces/ws-1/sessions"))).toBe(false);
+  expect(fetch.mock.calls.some(([url]) => String(url).includes("/cloud/api/v1/workspaces/ws-1/sessions") && String(url) !== MEMBERS_URL)).toBe(false);
 });
 
 it("keeps a Control cursor on Control", async () => {

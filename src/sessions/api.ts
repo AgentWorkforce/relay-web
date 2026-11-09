@@ -8,17 +8,18 @@ import {
   ReadApiUnavailable,
   readApiEnabled,
   readApiGet,
+  rememberMembers,
   toDirectCursor,
   viaReadApi,
 } from "./read-api";
 
 const record = z.record(z.string(), z.unknown());
-const members = z
-  .array(z.object({ id: z.string(), name: z.string().nullish() }))
-  .default([])
-  .transform((rows): Member[] =>
-    rows.map((row) => ({ id: row.id, name: row.name ?? null })),
-  );
+const memberRows = z.array(
+  z.object({ id: z.string(), name: z.string().nullish() }),
+);
+const toMembers = (rows: z.infer<typeof memberRows>): Member[] =>
+  rows.map((row) => ({ id: row.id, name: row.name ?? null }));
+const members = memberRows.default([]).transform(toMembers);
 const cursor = z
   .string()
   .nullish()
@@ -108,18 +109,44 @@ export async function listSessions(
   return listViaControl(workspace, filters, next, signal);
 }
 
+/** How long a session read waits for names before showing the sessions without them. */
+const MEMBERS_DEADLINE_MS = 3_000;
+
+/**
+ * The read API knows no Control users, so names come from Control. The request
+ * is shared across callers, so it has its own deadline instead of a caller's
+ * signal, and needs a real `members` array so a bad answer is retried.
+ */
+function workspaceMembers(workspace: string) {
+  return rememberMembers(workspace, async () => {
+    const deadline = new AbortController();
+    const timer = setTimeout(() => deadline.abort(), MEMBERS_DEADLINE_MS);
+    try {
+      return z
+        .object({ members: memberRows.transform(toMembers) })
+        .parse(await read(path(workspace, "/members"), deadline.signal))
+        .members;
+    } finally {
+      clearTimeout(timer);
+    }
+  });
+}
+
 async function listDirect(
   workspace: string,
   source: string | undefined,
   next: string | null,
   signal: AbortSignal,
 ): Promise<SessionPage> {
-  const body = await readApiGet(
-    workspace,
-    "/v1/sessions",
-    { limit: "50", source, cursor: fromDirectCursor(next) },
-    signal,
-  );
+  const [body, people] = await Promise.all([
+    readApiGet(
+      workspace,
+      "/v1/sessions",
+      { limit: "50", source, cursor: fromDirectCursor(next) },
+      signal,
+    ),
+    workspaceMembers(workspace),
+  ]);
   if (!Array.isArray(body.sessions)) throw new ReadApiUnavailable("list_invalid");
   const rows = z.array(listSchema.shape.items.element).parse(body.sessions);
   return {
@@ -132,7 +159,7 @@ async function listDirect(
             : null,
       }),
     ),
-    members: [],
+    members: people,
     nextCursor: toDirectCursor(body.nextCursor),
     now: new Date().toISOString(),
   };
@@ -302,23 +329,26 @@ async function eventsDirect(
   next: string | null,
   signal: AbortSignal,
 ) {
-  const body = await readApiGet(
-    workspace,
-    `/v1/sessions/${encodeURIComponent(session.sessionId)}/events`,
-    {
-      source: session.source,
-      order: "asc",
-      limit: "500",
-      maxContent: "100000",
-      cursor: fromDirectCursor(next),
-    },
-    signal,
-  );
+  const [body, people] = await Promise.all([
+    readApiGet(
+      workspace,
+      `/v1/sessions/${encodeURIComponent(session.sessionId)}/events`,
+      {
+        source: session.source,
+        order: "asc",
+        limit: "500",
+        maxContent: "100000",
+        cursor: fromDirectCursor(next),
+      },
+      signal,
+    ),
+    workspaceMembers(workspace),
+  ]);
   const events = z.array(eventSchema).parse(body.events).sort((left, right) =>
     Date.parse(String(left.ts)) - Date.parse(String(right.ts)) ||
     String(left.eventId).localeCompare(String(right.eventId)),
   );
-  return { events, members: [] as Member[], nextCursor: toDirectCursor(body.nextCursor) };
+  return { events, members: people, nextCursor: toDirectCursor(body.nextCursor) };
 }
 
 async function eventsViaControl(

@@ -5,6 +5,7 @@
 // expires. The token lives in memory, and a handoff carrying a refresh token is
 // refused so that a refresh token is never held by page scripts.
 import { z } from "zod";
+import type { Member } from "./data";
 
 /** The read path failed or isn't available. A first page falls back to Control. */
 export class ReadApiUnavailable extends Error {
@@ -42,8 +43,37 @@ type Access = { baseUrl: string; token: string; expiresAt: number };
 const handoffs = new Map<string, Promise<Access>>();
 
 /** Forget every held access token (tests, sign-out). */
+const memberLists = new Map<string, Promise<Member[]>>();
+
+/**
+ * Display names for a workspace, loaded once. A failure resolves to no names
+ * so an outage never blocks sessions. Failures and empty lists aren't kept, so
+ * the next read retries.
+ */
+export function rememberMembers(
+  workspace: string,
+  load: () => Promise<Member[]>,
+): Promise<Member[]> {
+  const known = memberLists.get(workspace);
+  if (known) return known;
+  const forget = () => memberLists.delete(workspace);
+  const loading = load().then(
+    (names) => {
+      if (!names.length) forget();
+      return names;
+    },
+    () => {
+      forget();
+      return [];
+    },
+  );
+  memberLists.set(workspace, loading);
+  return loading;
+}
+
 export function forgetReadApiAccess() {
   handoffs.clear();
+  memberLists.clear();
 }
 
 function readApiOrigin(raw: string): string {
