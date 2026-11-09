@@ -140,7 +140,7 @@ it("co-brands under the Agent Relay lockup", async () => {
 it("starts the customer row under a profile logo instead of beside it", async () => {
   window.__AGENT_RELAY_DASHBOARD_CONFIG__ = {
     customerProfile: { productName: "Example Corp", logo: "/logo.svg" },
-  };
+  } as never;
   resetBrandingForTests();
   config = {
     status: 200,
