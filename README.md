@@ -8,6 +8,29 @@ read to the signed-in workspace. Session links are `?session=<id>&source=<source
 on the app's base path; hosted `/dashboard/sessions/<id>?source=` links also open.
 No separate authentication, preview mode, or production-data proxy.
 
+## Product analytics
+
+Analytics is off by default. Set `DASHBOARD_ANALYTICS_ENABLED=true` in a self-hosted
+image's runtime environment to enable the typed browser adapter. Control must also
+have its analytics destination configured. The browser sends only registered
+`dashboard.page_viewed` and `dashboard.session_opened` events to the same-origin
+`/cloud/api/v1/analytics/events` gateway using the existing HttpOnly session cookie.
+Control authenticates the caller, derives workspace/organization attribution,
+and selects its collector or PostHog adapter. The browser receives no producer
+credential, PostHog key, or destination URL, and never falls back to a hosted sink.
+
+Only fixed page categories and entry-source enums are exported. Session opens
+are captured after a transcript read succeeds; a failed read emits nothing.
+An explicit `from` list filter distinguishes search/list entry; other opens use
+`link`. IDs, URLs, search text, titles, transcript content and exceptions are
+excluded. Category page views are emitted when the authenticated shell changes
+category. Account/workspace changes or shell teardown discard pending work.
+The in-memory buffer is capped at 32 events, three attempts and a 20-second
+delivery budget per event; requests time out after three seconds. Authentication,
+authority or a disabled gateway stops delivery until the context changes.
+A gateway `202` means the gateway accepted the request, not that the collector
+has persisted it. Collector durability requires independent file readback.
+
 ## Run
 
 Install dependencies here with `npm ci`, then run `npm run dev` from the Cloud

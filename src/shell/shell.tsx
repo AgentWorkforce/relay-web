@@ -5,6 +5,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useLayoutEffect,
   useState,
   type ReactNode,
 } from "react";
@@ -13,6 +14,7 @@ import type { Account } from "../api/contracts";
 import { AccountMenu } from "./account-menu";
 import { WorkspaceChrome, type RailSection } from "./workspace-chrome";
 import { useProductCapabilities } from "../features/product-capabilities";
+import { analytics, type AnalyticsPage } from "../analytics";
 
 const AccountContext = createContext<Account | null>(null);
 
@@ -45,6 +47,20 @@ export function Shell({
     return () => request.abort();
   }, []);
   const userName = account?.user.name || "Your account";
+  const userId = account?.user.id;
+  const workspaceId = account?.currentWorkspace?.id;
+  const analyticsPage: AnalyticsPage | null = rail === "Agents" ? "sessions"
+    : rail === "Flows" ? "flows" : rail === "Settings" ? "settings" : null;
+  useLayoutEffect(() => {
+    // Context is in-memory only, never an analytics property or authority.
+    // Establish it before a loaded child emits from a passive effect.
+    analytics.setContext(userId && workspaceId ? JSON.stringify([userId, workspaceId]) : null);
+    return () => analytics.stop();
+  }, [userId, workspaceId]);
+  useEffect(() => {
+    if (userId && workspaceId && analyticsPage)
+      analytics.capture({ event: "dashboard.page_viewed", properties: { page: analyticsPage } });
+  }, [userId, workspaceId, analyticsPage]);
   return (
     <AccountContext.Provider value={account}>
       <WorkspaceChrome

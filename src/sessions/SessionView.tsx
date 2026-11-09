@@ -55,6 +55,8 @@ import { ToggleGroup, ToggleGroupItem } from "./visualizations/view-toggle";
 import { ChartGantt, Network } from "lucide-react";
 
 import { SessionModelSummary, sessionModelSummary } from "./model-summary";
+import { analytics } from "../analytics";
+import { useShellAccount } from "../shell/shell";
 
 type Loaded = {
   events: Record<string, unknown>[];
@@ -208,6 +210,19 @@ export function SessionView({
   }, [loaded.data, extra]);
   const moreError = moreFailure?.key === key ? moreFailure.error : null;
   const error = loaded.error ?? moreError;
+  const analyticsAccount = useShellAccount();
+  const analyticsUser = analyticsAccount?.user.id;
+  const analyticsWorkspace = analyticsAccount?.currentWorkspace?.id;
+  const reportedOpen = useRef<string | null>(null);
+  const visitKey = JSON.stringify([analyticsUser, workspaceId, sessionId, source]);
+  useEffect(() => {
+    if (!loaded.data || !analyticsUser || analyticsWorkspace !== workspaceId || reportedOpen.current === visitKey) return;
+    reportedOpen.current = visitKey;
+    // Only a successfully loaded transcript counts. Never export the URL,
+    // query, source harness, session id, event id, titles or transcript bytes.
+    const entry = from !== null ? (new URLSearchParams(from).has("q") ? "search" : "list") : "link";
+    analytics.capture({ event: "dashboard.session_opened", properties: { source: entry } });
+  }, [loaded.data, visitKey, from, analyticsUser, analyticsWorkspace, workspaceId]);
   useEffect(() => {
     if (error instanceof SignedOut || modelSummary.error instanceof SignedOut) onSignedOut?.();
   }, [error, modelSummary.error, onSignedOut]);

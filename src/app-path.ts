@@ -8,6 +8,7 @@ type RuntimeConfig = {
   loginPath?: unknown;
   sessionVisualizations?: unknown;
   sessionReadApi?: unknown;
+  analyticsEnabled?: unknown;
 };
 
 declare global {
@@ -75,6 +76,11 @@ export function loginHref(
 /** Missing or malformed runtime flags keep the standard conversation view. */
 export function sessionVisualizationsEnabled(): boolean {
   return runtimeConfig().sessionVisualizations === true;
+}
+
+/** Explicit operator opt-in; no URL, storage or hosted-key override. */
+export function analyticsEnabled(): boolean {
+  return runtimeConfig().analyticsEnabled === true;
 }
 
 /** Leave the current page. Tests replace this instead of `window.location`. */
