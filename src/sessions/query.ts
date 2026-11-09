@@ -22,10 +22,37 @@ export type SessionFilter = {
 
 const PARTS = /(?:[^\s"]|"[^"]*")+/g;
 
+/** `@name`, `@name@node`, a trailing `*` for a prefix; the same grammar as relaycontrol. */
+const AGENT_TOKEN = /^@([a-z0-9._-]+(?:@[a-z0-9._-]+)?\*?)$/i;
+
+/** Agents named in a query, in order. The backend serves the first one only. */
+export function queryAgents(query: string) {
+  const seen = new Set<string>();
+  for (const filter of parseSessionQuery(query).filters) {
+    if (filter.field === "agent") seen.add(filter.value);
+  }
+  return [...seen];
+}
+
+/** What follows `@` in the word being typed, or null when not typing an agent. */
+export function agentDraft(query: string) {
+  return query.match(/(?:^|\s)@([a-z0-9._-]*(?:@[a-z0-9._-]*)?)$/i)?.[1]?.toLowerCase() ?? null;
+}
+
+/** Replace the `@` word being typed with a complete agent token. */
+export function completeAgent(query: string, name: string) {
+  return `${query.replace(/@[a-z0-9._-]*(?:@[a-z0-9._-]*)?$/i, `@${name}`)} `;
+}
+
 export function parseSessionQuery(query: string) {
   const filters: SessionFilter[] = [];
   const words: string[] = [];
   for (const raw of query.match(PARTS) ?? []) {
+    const agent = raw.match(AGENT_TOKEN);
+    if (agent) {
+      filters.push({ raw, field: "agent", value: agent[1]!.toLowerCase(), exclude: false });
+      continue;
+    }
     const match = raw.match(
       /^(-?)(harness|project|is|person|updated|created):(.*)$/i,
     );
@@ -85,6 +112,10 @@ export function matchesSessionFilters(
     if (!v) return true;
     let matches: boolean | null = false;
     switch (field) {
+      case "agent":
+        // Applied by the server; a row carries no agent name to check here.
+        matches = true;
+        break;
       case "harness":
         matches =
           row.source.toLowerCase() === v ||
@@ -316,6 +347,22 @@ export function serverFilters(
     since: day && (op === ">=" || op === ">" || op === "=") ? day : undefined,
     until: day && (op === "<=" || op === "<" || op === "=") ? nextDay : undefined,
   };
+}
+
+/**
+ * `serverFilters` for the session list, which alone can filter by agent. The
+ * agent list cannot also narrow by project or date on the server, so those
+ * tokens stay browser filters over the loaded rows.
+ */
+export function listServerFilters(
+  q: string,
+  knownProjects: ReadonlySet<string> = new Set(),
+): ListFilters {
+  const filters = serverFilters(q, knownProjects);
+  const agent = queryAgents(q)[0];
+  return agent
+    ? { ...filters, agent, project: undefined, since: undefined, until: undefined }
+    : filters;
 }
 
 /** A value RelayHistory can match exactly: a `projectId` seen in a page. */
