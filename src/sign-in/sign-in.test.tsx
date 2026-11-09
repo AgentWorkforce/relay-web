@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { resetBrandingForTests } from "../shell/branding";
 import { SignInPage } from "./SignInPage";
 import {
   INVALID_CREDENTIALS_MESSAGE,
@@ -134,6 +135,22 @@ it("co-brands under the Agent Relay lockup", async () => {
   expect(logo.getAttribute("referrerpolicy")).toBe("no-referrer");
   expect(container.querySelector("header hr")).toBeTruthy();
   expect(container.querySelector("header a svg")).toBeTruthy();
+});
+
+it("starts the customer row under a profile logo instead of beside it", async () => {
+  window.__AGENT_RELAY_DASHBOARD_CONFIG__ = {
+    customerProfile: { productName: "Example Corp", logo: "/logo.svg" },
+  };
+  resetBrandingForTests();
+  config = {
+    status: 200,
+    body: { ...fullConfig, logo_url: "https://cdn.example.test/logo.svg", org_name: "Example Corp" },
+  };
+  const { container } = show("sign-in");
+  await screen.findByText("Example Corp");
+  expect(container.querySelector('[data-slot="co-brand"]')!.className).toContain("col-span-2");
+  delete window.__AGENT_RELAY_DASHBOARD_CONFIG__;
+  resetBrandingForTests();
 });
 
 it.each([

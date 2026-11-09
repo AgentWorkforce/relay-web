@@ -319,6 +319,8 @@ export function SignInPage(props: {
     ? config.logo_url
     : null;
   const orgName = config?.org_name?.trim() || null;
+  // A profile logo fills the lockup: no wordmark to align with, and no room beside it.
+  const coBrandPlacement = brand.logo ? "col-span-2" : "col-start-2";
 
   return (
     <div className="min-h-dvh bg-[#f9fafb] text-[#111827] dark:bg-[#101c29] dark:text-[#e8f0f7]">
@@ -338,10 +340,10 @@ export function SignInPage(props: {
           </a>
           {logoUrl && (
             <>
-              <hr className="col-start-2 my-3.5 w-[150px] max-w-full border-0 border-t border-[#d7e0e8] dark:border-[#30485e]" />
+              <hr className={`${coBrandPlacement} my-3.5 w-[150px] max-w-full border-0 border-t border-[#d7e0e8] dark:border-[#30485e]`} />
               <div
                 data-slot="co-brand"
-                className="col-start-2 flex min-w-0 items-center gap-2.5"
+                className={`${coBrandPlacement} flex min-w-0 items-center gap-2.5`}
               >
                 {/* An <img> never runs script inside an SVG. */}
                 <img
