@@ -87,7 +87,7 @@ it.each([
     expect(FlowsApp).not.toHaveBeenCalled();
     expect(ChiefPage).not.toHaveBeenCalled();
     expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-      "/cloud/api/v1/license",
+      "/cloud/api/v1/capabilities",
     ]);
     expect(fetchMock.mock.calls[0]![1]).toMatchObject({
       credentials: "same-origin",

@@ -632,7 +632,7 @@ it("organization rename shows the server's error", async () => {
 
 it("API tokens: leaving the workflow purpose resets a Never expiry", async () => {
   extra = (call) =>
-    call.path === "/cloud/api/v1/license"
+    call.path === "/cloud/api/v1/capabilities"
       ? {
           body: {
             capabilities: { flows: true, chief: false, relayfile: false },

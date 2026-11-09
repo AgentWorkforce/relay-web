@@ -71,7 +71,7 @@ export type RepositoryCatalog = z.infer<typeof repositoryCatalogSchema>;
 export class ChiefRefused extends Error {}
 
 function refusalMessage(body: { error?: string; message?: string } | null) {
-  if (body?.error === "feature_not_enabled" || body?.error === "feature_not_licensed")
+  if (body?.error === "feature_not_enabled")
     return "Chief is not enabled on this installation.";
   return body?.message?.trim() || "You don't have permission to do that.";
 }

@@ -230,7 +230,6 @@ function deferred<T>() {
 
 it.each([
   ["feature_not_enabled", "Chief is not enabled on this installation.", "Chief is not enabled on this installation."],
-  ["feature_not_licensed", "Chief is not licensed on this installation.", "Chief is not enabled on this installation."],
   ["forbidden", "Workspace admin role required", "Workspace admin role required"],
 ])("shows the server's %s refusal, writes nothing on load and stops polling", async (error, message, shown) => {
   const original = fetch;

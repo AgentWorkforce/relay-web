@@ -120,25 +120,22 @@ relaycontrol's own pages, so their tokens never reach this app.
 
 ### Feature availability
 
-The dashboard reads effective capabilities from the signed-in, same-origin
-`GET /cloud/api/v1/license` endpoint (relay-control #37, license DTO revision 2).
-Flows and Chief are hidden from navigation and their route components do not
-mount until the server returns the corresponding boolean capability as true.
-Workflow token creation is also hidden when Flows is off; existing tokens remain
-available for inspection and revocation. Environment, account connections and
-general token controls remain available.
+The dashboard reads the installation's capabilities from the signed-in,
+same-origin `GET /cloud/api/v1/capabilities` endpoint, which reports what
+`SELFHOST_FEATURES` selects. Flows and Chief are hidden from navigation and
+their route components do not mount until the server returns the corresponding
+boolean as true. Workflow token creation is also hidden when Flows is off;
+existing tokens remain available for inspection and revocation. Environment,
+account connections and general token controls remain available.
 
-Missing endpoints, invalid responses, signed-out requests, pending reads and an
-eight-second timeout keep both features off. Returning to the app refreshes
-availability and closes the feature until that read completes. There is no
-runtime-config, URL or local-storage override. The UI does not evaluate license
-documents: Flows and Relayfile are paid add-ons; Chief is a separate default-off
-selection. Control remains responsible for authenticated API enforcement.
+On the first read, missing endpoints, invalid responses, signed-out requests,
+pending reads and an eight-second timeout keep both features off. Returning to
+the app checks again behind the current state, so an open page keeps unsaved
+work; only the server saying the feature is off, or that the session ended,
+closes it. There is no runtime-config, URL or local-storage override. Control
+remains responsible for authenticated API enforcement.
 
-Deploy the matching Control capability endpoint before enabling a feature.
-Older Control installations without it keep these features unavailable. Passing
-dashboard tests does not establish installed API enforcement, license validity,
-workload absence or end-to-end acceptance on a running deployment.
+A Control version without this endpoint keeps these features unavailable.
 
 `#/chief` provides project setup (project, operating policy, review) and the chief
 detail view: readiness, assignments, verification, reservations and decisions.

@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { SignedOut } from "../api/client";
 
-// relay-control #37, license DTO revision 2. Only the server's effective
-// capabilities enable UI; selection and licence claims are not evaluated here.
+// relay-control's GET /api/v1/capabilities: what SELFHOST_FEATURES selects.
+// Only this answer enables UI; nothing is decided in the browser.
 const responseSchema = z.object({
   capabilities: z.object({
     flows: z.boolean(),
@@ -20,7 +20,7 @@ export const NO_CAPABILITIES: ProductCapabilities = Object.freeze({
 });
 
 export async function getProductCapabilities(signal: AbortSignal) {
-  const response = await fetch("/cloud/api/v1/license", {
+  const response = await fetch("/cloud/api/v1/capabilities", {
     signal,
     credentials: "same-origin",
     cache: "no-store",
