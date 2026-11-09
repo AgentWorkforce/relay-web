@@ -32,20 +32,14 @@ import { useLoad } from "./use-load";
 import {
   agentNames,
   listSessions,
-  searchSessions,
-  type SearchMatch,
 } from "./api";
 import { ActivityPanel } from "./ActivityPanel";
 import {
   harnessName,
-  memberNames,
   projectLabel,
-  promptLabel,
-  shortProject,
   sessionActivity,
   sessionKey,
   sessionTitle,
-  shortDate,
   toolKey,
   dateTime,
   workStates,
@@ -58,18 +52,14 @@ import {
   queryAgents,
   facetFilters,
   listServerFilters,
-  serverFilters,
   filterValue,
-  matchesSearchFilters,
   matchesSessionFilters,
-  VIEW_FIELDS,
   parseSessionQuery,
   removeSessionFilter,
   sessionSuggestions,
   setSessionFilter,
 } from "./query";
 import {
-  citationHref,
   graphHref,
   listHref,
   listState,
@@ -156,7 +146,7 @@ export function relativeTime(value: string | null, now: number) {
   return `${Math.floor(days / 365)}y ago`;
 }
 
-type Tab = "sessions" | "activity" | "search";
+type Tab = "sessions" | "activity";
 
 function useSignedOut(error: Error | null | undefined, onSignedOut: () => void) {
   useEffect(() => {
@@ -198,40 +188,19 @@ export function SessionsPage({
           <h1>Sessions</h1>
         </div>
       </WorkspaceViewSlot>
-      <WorkspaceViewSlot name="toolbar">
-        <nav
-          className="flex items-center gap-1"
-          aria-label="Sessions views"
-        >
-          {sessionVisualizationsEnabled() && <a href={graphHref(workspaceId)} onClick={onLinkClick} className={buttonClass("ghost", "sm")}><Network data-icon="inline-start" /> Work graph</a>}
-          {(["sessions", "search"] as const).map((name) => (
-            <a
-              key={name}
-              href={listHref(query, name)}
-              aria-current={
-                tab === name || (name === "sessions" && tab === "activity")
-                  ? "page"
-                  : undefined
-              }
-              onClick={onLinkClick}
-              data-slot="button"
-              className={buttonClass(
-                "ghost",
-                "sm",
-                "text-xs font-medium text-muted-foreground aria-[current=page]:bg-accent aria-[current=page]:text-accent-foreground",
-              )}
-            >
-              {name === "sessions" ? "Sessions" : "Search messages"}
-            </a>
-          ))}
-        </nav>
-      </WorkspaceViewSlot>
+      {sessionVisualizationsEnabled() && (
+        <WorkspaceViewSlot name="toolbar">
+          <nav className="flex items-center gap-1" aria-label="Sessions views">
+            <a href={graphHref(workspaceId)} onClick={onLinkClick} className={buttonClass("ghost", "sm")}><Network data-icon="inline-start" /> Work graph</a>
+          </nav>
+        </WorkspaceViewSlot>
+      )}
       {tab !== "sessions" && (
         <div className={styles.tableToolbar}>
           <SearchBox workspaceId={workspaceId} query={query} onChange={setQuery} tab={tab} />
         </div>
       )}
-      {tab !== "sessions" && <UnusedFilters query={query} view={tab} />}
+      {tab !== "sessions" && <UnusedFilters query={query} />}
       {tab === "sessions" && (
         <ActivityPanel
           workspaceId={workspaceId}
@@ -245,13 +214,6 @@ export function SessionsPage({
           query={debounced}
           liveQuery={query}
           onQuery={setQuery}
-          onSignedOut={onSignedOut}
-        />
-      )}
-      {tab === "search" && (
-        <MessageSearch
-          workspaceId={workspaceId}
-          query={debounced}
           onSignedOut={onSignedOut}
         />
       )}
@@ -315,11 +277,7 @@ function SearchBox({
             data-slot="input-group-control"
             aria-label="Search sessions"
             className="min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
-            placeholder={
-              tab === "search"
-                ? "Search prompts, replies, and tool output…"
-                : "Search sessions, @agent, or filter with harness: project: is: person: updated:"
-            }
+            placeholder="Search sessions, @agent, or filter with harness: project: is: person: updated:"
             value={query}
             onChange={(event) => onChange(event.target.value)}
           />
@@ -367,21 +325,12 @@ function SearchBox({
 }
 
 /** Tokens a view can't apply are named, rather than shown as if active. */
-function UnusedFilters({
-  query,
-  view,
-}: {
-  query: string;
-  view: "search" | "activity";
-}) {
-  const unused = parseSessionQuery(query).filters.filter(
-    (filter) => filter.value && !VIEW_FIELDS[view].has(filter.field),
-  );
+function UnusedFilters({ query }: { query: string }) {
+  const unused = parseSessionQuery(query).filters.filter((filter) => filter.value);
   if (!unused.length) return null;
   return (
     <p className="text-xs text-muted-foreground">
-      Not applied in {view === "search" ? "message search" : "activity"}:{" "}
-      {unused.map((filter) => filter.raw).join(" ")}
+      Not applied in activity: {unused.map((filter) => filter.raw).join(" ")}
     </p>
   );
 }
@@ -1172,146 +1121,3 @@ function SessionList({
   );
 }
 
-function MessageSearch({
-  workspaceId,
-  query,
-  onSignedOut,
-}: {
-  workspaceId: string;
-  query: string;
-  onSignedOut: () => void;
-}) {
-  const filters = useMemo(() => serverFilters(query), [query]);
-  const key = filters.q ? JSON.stringify([workspaceId, filters]) : null;
-  const page = useLoad(key, (signal) =>
-    searchSessions(workspaceId, filters, null, signal),
-  );
-  const [appended, setAppended] = useState<{
-    key: string;
-    matches: SearchMatch[];
-    nextCursor: string | null;
-  } | null>(null);
-  const [moreBusy, setMoreBusy] = useState(false);
-  const [moreFailure, setMoreFailure] = useState<{
-    key: string | null;
-    error: Error;
-  } | null>(null);
-  const moreError = moreFailure?.key === key ? moreFailure.error : null;
-  useSignedOut(page.error ?? moreError, onSignedOut);
-  const extra = appended && appended.key === key ? appended : null;
-  const matches = [
-    ...(page.data?.matches ?? []),
-    ...(extra?.matches ?? []),
-  ].filter((match) => matchesSearchFilters(match, query));
-  const members = page.data?.members ?? [];
-  const cursor = extra ? extra.nextCursor : (page.data?.nextCursor ?? null);
-  const busy = page.loading || moreBusy;
-  const error = page.error ?? moreError;
-
-  async function loadMore() {
-    if (!cursor || !key) return;
-    setMoreBusy(true);
-    setMoreFailure(null);
-    try {
-      const next = await searchSessions(
-        workspaceId,
-        filters,
-        cursor,
-        new AbortController().signal,
-      );
-      setAppended({
-        key,
-        matches: [...(extra?.matches ?? []), ...next.matches],
-        nextCursor: next.nextCursor,
-      });
-    } catch (reason) {
-      setMoreFailure({ key, error: reason as Error });
-    } finally {
-      setMoreBusy(false);
-    }
-  }
-
-  if (!filters.q)
-    return (
-      <p className="dim">
-        Type to search every recorded message in this workspace.
-      </p>
-    );
-  return (
-    <>
-      {error && (
-        <p role="alert">
-          {error instanceof SignedOut ? "Taking you to sign in…" : error.message}
-        </p>
-      )}
-      {busy && matches.length === 0 && <p role="status">Searching…</p>}
-      {!busy && !error && matches.length === 0 && <p>No messages match.</p>}
-      <ul className="matches">
-        {matches.map((match) => {
-          // Without a citation path, link the match's session directly.
-          const href =
-            citationHref(
-              match.citationPath,
-              match.eventId,
-              listState(query, "search"),
-            ) ??
-            (match.sessionId && match.source
-              ? sessionHref(
-                  match.sessionId,
-                  match.source,
-                  match.eventId,
-                  listState(query, "search"),
-                )
-              : null);
-          const who =
-            match.actorRole === "user" || match.kind === "prompt"
-              ? ((match.userId
-                  ? memberNames([match.userId], members)[0]
-                  : null) ?? "User")
-              : match.actorName ||
-                (match.source ? harnessName(match.source) : "Agent");
-          return (
-            <li key={match.eventId}>
-              <a
-                href={href ?? "#"}
-                onClick={(event) => {
-                  if (!href) return;
-                  onLinkClick(event);
-                }}
-              >
-                <span className="match-meta">
-                  {[
-                    who,
-                    match.toolName,
-                    promptLabel(match.taskTitle),
-                    match.projectId ? shortProject(match.projectId) : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                  <time dateTime={match.ts}>{shortDate(match.ts)}</time>
-                </span>
-                <span className="snippet">
-                  {(match.actorRole === "user" || match.kind === "prompt"
-                    ? promptLabel(match.content, 600)
-                    : null) ??
-                    match.content ??
-                    "(no text)"}
-                  {match.contentTruncated ? "…" : ""}
-                </span>
-              </a>
-            </li>
-          );
-        })}
-      </ul>
-      {cursor && (
-        <button
-          className="more"
-          onClick={() => void loadMore()}
-          disabled={busy}
-        >
-          {busy ? "Loading…" : "More results"}
-        </button>
-      )}
-    </>
-  );
-}

@@ -1,7 +1,6 @@
 import { expect, it } from "vitest";
 import {
   backHref,
-  citationHref,
   listHref,
   listState,
   parseRoute,
@@ -10,7 +9,6 @@ import {
 import {
   compareDate,
   facetFilters,
-  matchesSearchFilters,
   projectMatches,
   serverFilters,
   matchesSessionFilters,
@@ -47,10 +45,6 @@ it("accepts hosted citation paths and transcript anchors", () => {
     event: "e9",
     from: null,
   });
-  expect(citationHref("/dashboard/sessions/s%2F1?source=codex", "e1")).toBe(
-    "/?session=s%2F1&source=codex&event=e1",
-  );
-  expect(citationHref(null)).toBeNull();
 });
 
 it("keeps list state in the URL", () => {
@@ -63,7 +57,7 @@ it("keeps list state in the URL", () => {
   ).toEqual({
     view: "list",
     q: "x",
-    tab: "search",
+    tab: "sessions",
   });
 });
 
@@ -107,17 +101,13 @@ it("filters rows with hosted query tokens", () => {
 });
 
 it("returns from a session to the list with its filters", () => {
-  const from = listState("fix is:active", "search");
+  const from = listState("fix is:active", "activity");
   const href = sessionHref("s", "codex", null, from);
   const route = parseRoute(new URL(href, "https://relay.test"));
   expect(route.view === "session" && backHref(route.from)).toBe(
-    "/?tab=search&q=fix+is%3Aactive",
+    "/?tab=activity&q=fix+is%3Aactive",
   );
   expect(backHref(null)).toBe("/");
-});
-
-it("keeps malformed citation paths non-navigable", () => {
-  expect(citationHref("http://[bad", "e1")).toBeNull();
 });
 
 it("never matches a complete date filter against a missing row date", () => {
@@ -137,20 +127,6 @@ it("lists aliased harness sources once", () => {
     (s) => s.field === "harness" && s.title === "Claude Code",
   );
   expect(harnesses.map((s) => s.value)).toEqual(["claude"]);
-});
-
-it("applies search-view filters to message matches", () => {
-  const match = {
-    source: "claude-terminal",
-    projectId: "acme/relay",
-    userId: "u1",
-    ts: "2026-11-02T10:00:00Z",
-  };
-  expect(matchesSearchFilters(match, "loader harness:claude")).toBe(true);
-  expect(matchesSearchFilters(match, "project:relay person:u1")).toBe(true);
-  expect(matchesSearchFilters(match, "person:u2")).toBe(false);
-  expect(matchesSearchFilters(match, "-project:relay")).toBe(false);
-  expect(matchesSearchFilters(match, "is:active")).toBe(true);
 });
 
 it("matches project tokens exactly, by full id or last segment", () => {

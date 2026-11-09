@@ -260,49 +260,6 @@ export function filterValue(query: string, field: string): string {
   );
 }
 
-/** Fields each non-list view can honour; other tokens are listed as unused. */
-export const VIEW_FIELDS: Record<"search" | "activity", Set<string>> = {
-  search: new Set(["harness", "project", "person", "updated"]),
-  activity: new Set(),
-};
-
-/** Apply the search view's filter tokens to message matches. */
-export function matchesSearchFilters(
-  match: {
-    source: string | null;
-    projectId: string | null;
-    userId: string | null;
-    ts: string;
-  },
-  query: string,
-) {
-  return parseSessionQuery(query).filters.every(({ field, value, exclude }) => {
-    const v = value.toLowerCase();
-    if (!v || !VIEW_FIELDS.search.has(field)) return true;
-    let matches: boolean | null = false;
-    switch (field) {
-      case "harness":
-        matches =
-          !!match.source &&
-          (match.source.toLowerCase() === v ||
-            toolKey(match.source) === v ||
-            harnessName(match.source).toLowerCase() === v);
-        break;
-      case "project":
-        matches = projectMatches(match.projectId, v);
-        break;
-      case "person":
-        matches = match.userId === value;
-        break;
-      case "updated":
-        matches = compareDate(match.ts, value);
-        break;
-    }
-    if (matches === null) return true;
-    return exclude ? !matches : matches;
-  });
-}
-
 /**
  * Server-side filters derived from the query tokens: free text, dates, a
  * single unaliased harness, and a project only when the value is a project
