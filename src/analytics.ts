@@ -18,6 +18,16 @@ const DEADLINE_MS = 20_000;
 const REQUEST_MS = 3_000;
 const MAX_ATTEMPTS = 3;
 
+function eventId(): string {
+  // randomUUID is secure-context-only; getRandomValues is also available on
+  // HTTP self-hosted sites. Never fall back to Math.random or a user identity.
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = Array.from(bytes, value => value.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 // Project again at the runtime boundary: even an untyped caller cannot export
 // an arbitrary property, URL, session id, query, transcript or exception.
 function project(value: Input): Input | null {
@@ -36,7 +46,7 @@ export function createAnalytics(options: {
 }) {
   const send = options.fetch ?? ((...args) => fetch(...args));
   const now = options.now ?? Date.now;
-  const uuid = options.uuid ?? (() => crypto.randomUUID());
+  const uuid = options.uuid ?? eventId;
   let context: string | null = null;
   let generation = 0;
   let refused = false;

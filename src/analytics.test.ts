@@ -11,9 +11,27 @@ function fixture(status = 202) {
   return { port, send, enable: (value: boolean) => { enabled = value; } };
 }
 beforeEach(() => vi.useFakeTimers());
-afterEach(() => { vi.useRealTimers(); delete window.__AGENT_RELAY_DASHBOARD_CONFIG__; });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); delete window.__AGENT_RELAY_DASHBOARD_CONFIG__; });
 
 describe("the authenticated gateway adapter", () => {
+  it("uses independent UUIDv4 event IDs when randomUUID is unavailable on an HTTP site", async () => {
+    vi.stubGlobal("crypto", { getRandomValues: crypto.getRandomValues.bind(crypto) });
+    const send = vi.fn<typeof fetch>().mockImplementation(async () => new Response(null, { status: 202 }));
+    const port = createAnalytics({ enabled: () => true, fetch: send });
+    port.setContext("signed-in"); port.capture(page); port.capture(page); await vi.runAllTimersAsync();
+    const ids = send.mock.calls.map(([, init]) => JSON.parse(init!.body as string).events[0].client_event_id);
+    expect(ids).toHaveLength(2);
+    expect(ids[0]).not.toBe(ids[1]);
+    for (const id of ids) expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(port.stats().gatewayAccepted).toBe(2);
+  });
+  it("drops safely if cryptographic randomness itself is unavailable", async () => {
+    vi.stubGlobal("crypto", {});
+    const send = vi.fn<typeof fetch>();
+    const port = createAnalytics({ enabled: () => true, fetch: send });
+    port.setContext("signed-in"); port.capture(page); await vi.runAllTimersAsync();
+    expect(send).not.toHaveBeenCalled(); expect(port.stats()).toEqual({ queued: 0, gatewayAccepted: 0, dropped: 1 });
+  });
   it.each([undefined, false, "true", 1])("is disabled unless runtime config explicitly opts in (%s)", (value) => {
     window.__AGENT_RELAY_DASHBOARD_CONFIG__ = { analyticsEnabled: value };
     expect(analyticsEnabled()).toBe(false);
