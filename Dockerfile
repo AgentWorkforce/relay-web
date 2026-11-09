@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # Self-hosted Agent Relay dashboard: the static SPA served by unprivileged
-# nginx on :8080. The chart (helm-charts charts/relay-dashboard) copies
+# nginx on :8080. The chart (AgentWorkforce/infra charts/relay-webapp) copies
 # /usr/share/nginx/html into an emptyDir, runs with a read-only root
 # filesystem as uid 101, and sets the DASHBOARD_* env this image turns into
 # /runtime-config.js at start-up.
@@ -20,7 +20,7 @@ FROM nginxinc/nginx-unprivileged:stable-alpine@sha256:f5116ed4606f3eb015dd4a8e28
 ARG SOURCE_REVISION=unknown
 LABEL org.opencontainers.image.title="Agent Relay dashboard" \
       org.opencontainers.image.description="Self-hosted Agent Relay dashboard (static SPA on unprivileged nginx)" \
-      org.opencontainers.image.source="https://github.com/AgentWorkforce/relay-dashboard" \
+      org.opencontainers.image.source="https://github.com/AgentWorkforce/relay-webapp" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.revision="${SOURCE_REVISION}"
 USER root

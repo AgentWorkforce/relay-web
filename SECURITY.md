@@ -10,7 +10,7 @@ request or discussion for a security problem.
 
 - **Email (preferred):** security@agentrelay.com
 - **GitHub private vulnerability reporting**, once it is enabled for this
-  repository: https://github.com/AgentWorkforce/relay-dashboard/security/advisories/new
+  repository: https://github.com/AgentWorkforce/relay-webapp/security/advisories/new
 
 Please include:
 
@@ -46,7 +46,8 @@ release to receive them.
 ## Scope
 
 In scope: the code in this repository and the artifacts built from it
-(the `relay-dashboard` container image).
+(the `ghcr.io/agentworkforce/relay-webapp` container image, also published
+under its legacy name `ghcr.io/agentworkforce/relay-dashboard`).
 
 Out of scope: vulnerabilities in third-party dependencies with no demonstrated
 exploit path through this project, findings that need an attacker to already
