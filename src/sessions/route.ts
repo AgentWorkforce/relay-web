@@ -3,7 +3,7 @@
 // paths (`…/dashboard/sessions/<id>?source=<source>`) are accepted as well.
 import { appPath } from "../app-path";
 export type SessionRoute =
-  | { view: "list"; q: string; tab: "sessions" | "activity" | "search" }
+  | { view: "list"; q: string; tab: "sessions" | "activity" }
   | { view: "graph"; sessionId?: string; source?: string; workspaceId?: string }
   | {
       view: "session";
@@ -47,7 +47,7 @@ export function parseRoute(location: {
   return {
     view: "list",
     q: params.get("q") ?? "",
-    tab: tab === "activity" || tab === "search" ? tab : "sessions",
+    tab: tab === "activity" ? tab : "sessions",
   };
 }
 
@@ -83,7 +83,7 @@ export function sessionHref(
 
 export function listHref(
   q = "",
-  tab: "sessions" | "activity" | "search" = "sessions",
+  tab: "sessions" | "activity" = "sessions",
 ) {
   const params = new URLSearchParams();
   if (tab !== "sessions") params.set("tab", tab);
@@ -99,36 +99,16 @@ export function backHref(from: string | null) {
   const tab = params.get("tab");
   return listHref(
     params.get("q") ?? "",
-    tab === "activity" || tab === "search" ? tab : "sessions",
+    tab === "activity" ? tab : "sessions",
   );
 }
 
 /** The `from` value for links out of a list view. */
-export function listState(q: string, tab: "sessions" | "activity" | "search") {
+export function listState(q: string, tab: "sessions" | "activity") {
   const params = new URLSearchParams();
   if (tab !== "sessions") params.set("tab", tab);
   if (q) params.set("q", q);
   return params.toString() || null;
-}
-
-/** Convert an API citation path into an in-app link. */
-export function citationHref(
-  path: string | null | undefined,
-  event?: string | null,
-  from?: string | null,
-) {
-  if (!path) return null;
-  let url: URL;
-  try {
-    url = new URL(path, "https://relay.invalid");
-  } catch {
-    // A malformed citation stays non-navigable instead of breaking search.
-    return null;
-  }
-  const route = parseRoute({ pathname: url.pathname, search: url.search });
-  return route.view === "session"
-    ? sessionHref(route.sessionId, route.source, event, from)
-    : null;
 }
 
 export function navigate(href: string) {

@@ -55,31 +55,6 @@
   border-radius: 2px;
   display: inline-block;
 }
-/* Message search */
-.matches {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  font-size: 13px;
-}
-.matches li {
-  border-bottom: 1px solid var(--border);
-}
-.matches a {
-  display: block;
-  padding: 12px;
-}
-.matches a:hover {
-  background: var(--accent);
-}
-.match-meta {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 12px;
-  color: var(--fg-muted);
-}
-
 /* Activity */
 .activity {
   margin-top: 20px;

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { listSessions, searchSessions, sessionTurns } from "./api";
+import { listSessions, sessionTurns } from "./api";
 import { forgetReadApiAccess, ReadApiUnavailable, readApiGet } from "./read-api";
 
 const signal = () => new AbortController().signal;
@@ -143,12 +143,3 @@ it("asks Control again once the access token nears expiry", async () => {
   expect(handoffs).toBe(2);
 });
 
-it("does not end a search silently at the history floor", async () => {
-  const fetch = route((url) => {
-    if (url.includes("/session-read/session")) return json(handoff());
-    if (url.includes("read.example.com")) return attested({ events: [], nextCursor: null, continuation: { backend: "relayhistory", reason: "history_floor", until: "t" } });
-    return json({ matches: [], members: [], nextCursor: null });
-  });
-  await searchSessions(WORKSPACE, { q: "needle" }, null, signal());
-  expect(fetch.mock.calls.some(([url]) => String(url).includes("/sessions/search"))).toBe(true);
-});

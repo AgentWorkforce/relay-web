@@ -499,29 +499,15 @@ it("opens hosted-style citation links and keeps the transcript when enrichments 
   expect(navigator.clipboard.writeText).toHaveBeenCalled();
 });
 
-it("searches messages across sessions and links each match to its session", async () => {
-  respond(/\/sessions\/search$/, (url) => ({
-    matches: [
-      {
-        eventId: "e5",
-        sessionId: "s/1",
-        source: "codex",
-        ts: "2026-11-02T18:00:04.000Z",
-        kind: "assistant",
-        content: `Fixed the loader for ${url.searchParams.get("q")}`,
-        citationPath: "/dashboard/sessions/s%2F1?source=codex",
-      },
-    ],
-    members,
-    nextCursor: null,
-  }));
+it("treats an old message-search link as the sessions list", async () => {
   window.history.replaceState(null, "", "/?tab=search&q=loader");
   render(<Dashboard />);
-  const match = await screen.findByText("Fixed the loader for loader");
-  expect(match.closest("a")).toHaveAttribute(
-    "href",
-    "/?session=s%2F1&source=codex&event=e5&from=tab%3Dsearch%26q%3Dloader",
+  expect(await screen.findByLabelText("Search sessions")).toHaveAttribute(
+    "placeholder",
+    expect.stringContaining("Search sessions"),
   );
+  expect(screen.queryByText("Search messages")).toBeNull();
+  expect(screen.queryByText(/every recorded message/)).toBeNull();
 });
 
 it("charts team activity by agent", async () => {
@@ -671,51 +657,6 @@ it("sends an expired session on a transcript to sign in", async () => {
   expect(
     screen.queryByRole("button", { name: "Retry" }),
   ).not.toBeInTheDocument();
-});
-
-it("links a search match without a citation path to its session", async () => {
-  respond(/\/sessions\/search$/, () => ({
-    matches: [
-      {
-        eventId: "e1",
-        sessionId: "s/1",
-        source: "codex",
-        ts: "2026-11-02T18:00:00.000Z",
-        userId: "u1",
-        kind: "prompt",
-        content: "Please fix the loader",
-      },
-      {
-        eventId: "x1",
-        sessionId: "s2",
-        source: "claude",
-        userId: "u2",
-        ts: "2026-11-02T18:00:00.000Z",
-        kind: "prompt",
-        content: "Please fix the loader too",
-      },
-    ],
-    members,
-    nextCursor: null,
-  }));
-  window.history.replaceState(
-    null,
-    "",
-    "/?tab=search&q=loader%20person%3Au1%20is%3Aactive",
-  );
-  render(<Dashboard />);
-  const match = await screen.findByText("Please fix the loader");
-  expect(match.closest("a")).toHaveAttribute(
-    "href",
-    expect.stringMatching(/^\/\?session=s%2F1&source=codex&event=e1/),
-  );
-  // person:u1 filters the other person's match; is: is named as unused.
-  expect(
-    screen.queryByText("Please fix the loader too"),
-  ).not.toBeInTheDocument();
-  expect(
-    screen.getByText(/Not applied in message search: is:active/),
-  ).toBeInTheDocument();
 });
 
 it("retries a failed account load", async () => {
