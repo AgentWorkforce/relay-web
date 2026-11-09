@@ -3,6 +3,7 @@ import { listSessions } from "./api";
 import {
   agentDraft,
   completeAgent,
+  listServerFilters,
   matchesSessionFilters,
   parseSessionQuery,
   queryAgents,
@@ -43,13 +44,19 @@ it.each([
 
 it("sends only the first agent, and leaves dates and projects to the browser", () => {
   const known = new Set(["relay"]);
-  expect(serverFilters("@a @b project:relay updated:>=2026-01-01", known)).toMatchObject({
+  expect(listServerFilters("@a @b project:relay updated:>=2026-01-01", known)).toMatchObject({
     agent: "a",
     project: undefined,
     since: undefined,
     until: undefined,
   });
-  expect(serverFilters("project:relay", known).project).toBe("relay");
+  expect(listServerFilters("project:relay", known).project).toBe("relay");
+});
+
+it("keeps server date and project bounds for message search, which ignores the agent", () => {
+  const filters = serverFilters("needle @a project:relay updated:>=2026-01-01", new Set(["relay"]));
+  expect(filters).toMatchObject({ q: "needle", project: "relay", since: "2026-01-01" });
+  expect(filters).not.toHaveProperty("agent");
 });
 
 it("keeps server-filtered rows and still applies other filters to them", () => {
@@ -64,6 +71,9 @@ it("completes the @word being typed", () => {
   expect(agentDraft("@exa ")).toBeNull();
   expect(agentDraft("me@exa")).toBeNull();
   expect(completeAgent("fix @exa", "example-agent")).toBe("fix @example-agent ");
+  expect(agentDraft("@builder@")).toBe("builder@");
+  expect(agentDraft("@builder@no")).toBe("builder@no");
+  expect(completeAgent("fix @builder@no", "builder@node")).toBe("fix @builder@node ");
 });
 
 it("asks Control for the agent", async () => {

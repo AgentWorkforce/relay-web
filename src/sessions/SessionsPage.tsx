@@ -57,6 +57,7 @@ import {
   completeAgent,
   queryAgents,
   facetFilters,
+  listServerFilters,
   serverFilters,
   filterValue,
   matchesSearchFilters,
@@ -570,7 +571,7 @@ function SessionList({
     () => new Set(),
   );
   const filters = useMemo(
-    () => serverFilters(query, knownProjects),
+    () => listServerFilters(query, knownProjects),
     [query, knownProjects],
   );
   const key = JSON.stringify([workspaceId, filters, reload]);
@@ -1132,10 +1133,10 @@ function SessionList({
                     colSpan={8}
                     className="px-5 py-12 text-center text-muted-foreground"
                   >
-                    {filters.agent ? (
-                      `No sessions found for @${filters.agent}.`
-                    ) : rows.length ? (
+                    {rows.length ? (
                       "No sessions match these filters."
+                    ) : filters.agent ? (
+                      `No sessions found for @${filters.agent}.`
                     ) : (
                       <div className="flex flex-col items-center gap-4">
                         <p>

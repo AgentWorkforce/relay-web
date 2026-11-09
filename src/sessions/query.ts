@@ -36,12 +36,12 @@ export function queryAgents(query: string) {
 
 /** What follows `@` in the word being typed, or null when not typing an agent. */
 export function agentDraft(query: string) {
-  return query.match(/(?:^|\s)@([a-z0-9._-]*)$/i)?.[1]?.toLowerCase() ?? null;
+  return query.match(/(?:^|\s)@([a-z0-9._-]*(?:@[a-z0-9._-]*)?)$/i)?.[1]?.toLowerCase() ?? null;
 }
 
 /** Replace the `@` word being typed with a complete agent token. */
 export function completeAgent(query: string, name: string) {
-  return `${query.replace(/@[a-z0-9._-]*$/i, `@${name}`)} `;
+  return `${query.replace(/@[a-z0-9._-]*(?:@[a-z0-9._-]*)?$/i, `@${name}`)} `;
 }
 
 export function parseSessionQuery(query: string) {
@@ -337,20 +337,32 @@ export function serverFilters(
       : undefined;
   const harness = single("harness");
   const project = single("project");
-  const agent = queryAgents(q)[0];
   return {
     q: parsed.text.trim() || undefined,
-    agent,
     // A harness with aliased sources (claude, claude-terminal…) is filtered in
     // the browser so the server doesn't drop the aliases.
     source:
       harness && harnessSources(harness).length === 1 ? harness : undefined,
-    // The agent list cannot also narrow by project or date on the server, so
-    // those tokens stay browser filters over the loaded rows.
-    project: !agent && project && isProjectId(project, knownProjects) ? project : undefined,
-    since: !agent && day && (op === ">=" || op === ">" || op === "=") ? day : undefined,
-    until: !agent && day && (op === "<=" || op === "<" || op === "=") ? nextDay : undefined,
+    project: project && isProjectId(project, knownProjects) ? project : undefined,
+    since: day && (op === ">=" || op === ">" || op === "=") ? day : undefined,
+    until: day && (op === "<=" || op === "<" || op === "=") ? nextDay : undefined,
   };
+}
+
+/**
+ * `serverFilters` for the session list, which alone can filter by agent. The
+ * agent list cannot also narrow by project or date on the server, so those
+ * tokens stay browser filters over the loaded rows.
+ */
+export function listServerFilters(
+  q: string,
+  knownProjects: ReadonlySet<string> = new Set(),
+): ListFilters {
+  const filters = serverFilters(q, knownProjects);
+  const agent = queryAgents(q)[0];
+  return agent
+    ? { ...filters, agent, project: undefined, since: undefined, until: undefined }
+    : filters;
 }
 
 /** A value RelayHistory can match exactly: a `projectId` seen in a page. */
