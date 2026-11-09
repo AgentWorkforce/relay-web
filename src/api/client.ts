@@ -1,5 +1,14 @@
 import { accountSchema, sessionsSchema } from "./contracts";
 export class SignedOut extends Error {}
+/** A refused read; `code` is the server's reason, for callers that explain it. */
+export class ReadError extends Error {
+  constructor(
+    message: string,
+    readonly code: string | null,
+  ) {
+    super(message);
+  }
+}
 export async function read(path: string, signal: AbortSignal) {
   const response = await fetch(`/cloud/api${path}`, {
     signal,
@@ -9,8 +18,14 @@ export async function read(path: string, signal: AbortSignal) {
     headers: { Accept: "application/json" },
   });
   if (response.status === 401) throw new SignedOut();
-  if (!response.ok)
-    throw new Error("Couldn’t load your sessions. Please try again.");
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    const code = body?.reason ?? body?.error;
+    throw new ReadError(
+      "Couldn’t load your sessions. Please try again.",
+      typeof code === "string" ? code : null,
+    );
+  }
   return response.json();
 }
 export async function getAccount(signal: AbortSignal) {

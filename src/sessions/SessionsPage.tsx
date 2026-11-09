@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { useLoad } from "./use-load";
 import {
+  agentNames,
   listSessions,
   searchSessions,
   type SearchMatch,
@@ -52,6 +53,9 @@ import {
   type SessionRow,
 } from "./data";
 import {
+  agentDraft,
+  completeAgent,
+  queryAgents,
   facetFilters,
   serverFilters,
   filterValue,
@@ -223,7 +227,7 @@ export function SessionsPage({
       </WorkspaceViewSlot>
       {tab !== "sessions" && (
         <div className={styles.tableToolbar}>
-          <SearchBox query={query} onChange={setQuery} tab={tab} />
+          <SearchBox workspaceId={workspaceId} query={query} onChange={setQuery} tab={tab} />
         </div>
       )}
       {tab !== "sessions" && <UnusedFilters query={query} view={tab} />}
@@ -278,15 +282,28 @@ export function SessionsSkeleton({ label = "Loading sessions…" }: { label?: st
 
 /** Hosted session-search.tsx search bar (the inline field, without the command panel). */
 function SearchBox({
+  workspaceId,
   query,
   onChange,
   tab,
 }: {
+  workspaceId: string;
   query: string;
   onChange: (value: string) => void;
   tab: Tab;
 }) {
   const filters = parseSessionQuery(query).filters;
+  const agents = queryAgents(query);
+  const draft = agentDraft(query);
+  // Fetched only once someone starts an @name; a failure just means no suggestions.
+  const roster = useLoad(
+    draft === null ? null : workspaceId,
+    (signal) => agentNames(workspaceId, signal),
+    { keepPrevious: true },
+  );
+  const suggestions = draft === null
+    ? []
+    : (roster.data ?? []).filter((name) => name.toLowerCase().startsWith(draft)).slice(0, 8);
   return (
     <div className={styles.searchControl}>
       <div className={styles.searchBar}>
@@ -300,7 +317,7 @@ function SearchBox({
             placeholder={
               tab === "search"
                 ? "Search prompts, replies, and tool output…"
-                : "Search sessions, or filter with harness: project: is: person: updated:"
+                : "Search sessions, @agent, or filter with harness: project: is: person: updated:"
             }
             value={query}
             onChange={(event) => onChange(event.target.value)}
@@ -323,6 +340,27 @@ function SearchBox({
           </ul>
         )}
       </div>
+      {suggestions.length > 0 && (
+        <ul className="mt-1 flex flex-wrap gap-1" aria-label="Agent suggestions">
+          {suggestions.map((name) => (
+            <li key={name}>
+              <button
+                type="button"
+                className={buttonClass("ghost", "sm", "text-xs")}
+                onClick={() => onChange(completeAgent(query, name))}
+              >
+                @{name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {tab === "sessions" && agents.length > 0 && (
+        <p role="status" className="mt-1 text-[11px] text-muted-foreground">
+          {agents.length > 1 && `One agent at a time: showing @${agents[0]}. `}
+          Sessions still being uploaded aren’t included.
+        </p>
+      )}
     </div>
   );
 }
@@ -807,7 +845,7 @@ function SessionList({
         role="group"
         aria-label="Session view controls"
       >
-        <SearchBox query={liveQuery} onChange={onQuery} tab="sessions" />
+        <SearchBox workspaceId={workspaceId} query={liveQuery} onChange={onQuery} tab="sessions" />
         <Button
           variant="ghost"
           size="icon-sm"
@@ -1094,7 +1132,9 @@ function SessionList({
                     colSpan={8}
                     className="px-5 py-12 text-center text-muted-foreground"
                   >
-                    {rows.length ? (
+                    {filters.agent ? (
+                      `No sessions found for @${filters.agent}.`
+                    ) : rows.length ? (
                       "No sessions match these filters."
                     ) : (
                       <div className="flex flex-col items-center gap-4">

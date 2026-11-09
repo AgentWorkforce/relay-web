@@ -1,7 +1,7 @@
 // Session reads against the control plane (`/cloud/api/v1/workspaces/:id/sessions…`).
 // The control plane scopes every read to the signed-in workspace.
 import { z } from "zod";
-import { read } from "../api/client";
+import { read, ReadError } from "../api/client";
 import { sessionRow, type Member, type SessionRow } from "./data";
 import {
   fromDirectCursor,
@@ -64,11 +64,29 @@ function query(entries: Record<string, string | null | undefined>) {
 
 export type ListFilters = {
   q?: string;
+  agent?: string;
   source?: string;
   project?: string;
   since?: string;
   until?: string;
 };
+
+/** What relaycontrol's refusal of an agent search means for the person searching. */
+const AGENT_SEARCH_MESSAGES: Record<string, string> = {
+  agent_filter_not_ready: "Search by agent isn’t available on this workspace yet.",
+  agent_with_text: "Search by agent can’t be combined with other words yet. Remove the words or the @name.",
+  agent_prefix_not_supported: "Searching by the start of an agent name isn’t available yet. Use the full name.",
+  agent_prefix_too_short: "Use at least 3 letters or digits before the *.",
+  agent_prefix_too_broad: "That matches too many agents. Use more of the name.",
+};
+
+/** Names for `@` autocomplete, from the workspace's agent roster. */
+export async function agentNames(workspace: string, signal: AbortSignal) {
+  const body = z.object({ names: z.array(z.string()) }).parse(
+    await read(`/v1/workspaces/${encodeURIComponent(workspace)}/session-agent-names`, signal),
+  );
+  return body.names;
+}
 
 export async function listSessions(
   workspace: string,
@@ -77,7 +95,7 @@ export async function listSessions(
   signal: AbortSignal,
 ): Promise<SessionPage> {
   // The read API lists by harness only; other filters keep using Control.
-  if (readApiEnabled() && !filters.q && !filters.project && !filters.since && !filters.until) {
+  if (readApiEnabled() && !filters.q && !filters.agent && !filters.project && !filters.since && !filters.until) {
     return viaReadApi(
       next,
       signal,
@@ -131,6 +149,7 @@ async function listViaControl(
         query({
           metadata: "deferred",
           q: filters.q,
+          agent: filters.agent,
           source: filters.source,
           project: filters.project,
           since: filters.since,
@@ -139,7 +158,10 @@ async function listViaControl(
         }),
       ),
       signal,
-    ),
+    ).catch((failure: unknown) => {
+      const message = failure instanceof ReadError && failure.code ? AGENT_SEARCH_MESSAGES[failure.code] : undefined;
+      throw filters.agent && message ? new Error(message) : failure;
+    }),
   );
   if (page.error) throw new HistoryUnavailable();
   return {
