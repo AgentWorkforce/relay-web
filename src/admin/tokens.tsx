@@ -52,23 +52,16 @@ export function TokensSection(props: {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (purpose === "workflow" && !props.flowsEnabled) {
-      setFailure(
-        "Flows is no longer enabled. Choose a token purpose before continuing.",
-      );
-      setPurpose("agent-runtime");
-      setExpiry("90");
-      return;
-    }
     setBusy(true);
     setFailure(null);
     try {
       const token = await adminApi.createToken(props.workspaceId, {
         label: label.trim(),
-        purpose,
-        ...(expiry === "never"
+        // What the form shows, so never a workflow token while Flows is off.
+        purpose: shownPurpose,
+        ...(shownExpiry === "never"
           ? { neverExpires: true }
-          : { expiryDays: Number(expiry) }),
+          : { expiryDays: Number(shownExpiry) }),
       });
       setCreated({ label: token.label, token: token.accessToken });
       setLabel("");

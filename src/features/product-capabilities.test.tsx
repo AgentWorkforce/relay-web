@@ -6,6 +6,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { App } from "../app";
 import { FlowsApp } from "../flows/flows-app";
@@ -148,7 +149,7 @@ it("retries through the server rather than enabling a failed feature locally", a
   expect(fetchMock).toHaveBeenCalledTimes(2);
 });
 
-it("closes an active feature immediately on refresh, then honors revocation", async () => {
+it("keeps an active feature during a tab-return check, then honors revocation", async () => {
   fetchMock.mockResolvedValueOnce(response({ ...OFF, flows: true }));
   window.location.hash = "#/flows";
   render(<App />);
@@ -156,12 +157,76 @@ it("closes an active feature immediately on refresh, then honors revocation", as
   const pending = deferred<Response>();
   fetchMock.mockReturnValueOnce(pending.promise);
   fireEvent(window, new Event("focus"));
-  expect(screen.queryByTestId("flows-page")).toBeNull();
-  expect(screen.queryByRole("link", { name: "Flows" })).toBeNull();
+  expect(screen.getByTestId("flows-page")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Flows" })).toBeInTheDocument();
   await act(async () => pending.resolve(response()));
   expect(
     await screen.findByRole("heading", { name: "Flows is not enabled on this installation" }),
   ).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Flows" })).toBeNull();
+});
+
+function Draft() {
+  const [value, setValue] = useState("");
+  return (
+    <input
+      aria-label="Draft"
+      value={value}
+      onChange={(event) => setValue(event.target.value)}
+    />
+  );
+}
+
+it.each([
+  ["Flows definition", "flows", "#/flows", FlowsApp],
+  ["Chief setup form", "chief", "#/chief", ChiefPage],
+] as const)(
+  "keeps a modified %s through a tab return",
+  async (_label, feature, hash, Page) => {
+    const original = vi.mocked(Page).getMockImplementation();
+    vi.mocked(Page).mockImplementation((() => <Draft />) as never);
+    const on = { ...OFF, [feature]: true };
+    fetchMock.mockImplementation(async () => response(on));
+    window.location.hash = hash;
+    render(<App />);
+    const input = await screen.findByLabelText("Draft");
+    fireEvent.change(input, { target: { value: "edited" } });
+    const pending = deferred<Response>();
+    fetchMock.mockReturnValueOnce(pending.promise);
+    fireEvent(window, new Event("focus"));
+    await act(async () => pending.resolve(response(on)));
+    expect(screen.getByLabelText("Draft")).toBe(input);
+    expect(input).toHaveValue("edited");
+    vi.mocked(Page).mockImplementation(original as never);
+  },
+);
+
+it("keeps an open feature when a tab-return check fails", async () => {
+  fetchMock.mockResolvedValueOnce(response({ ...OFF, flows: true }));
+  window.location.hash = "#/flows";
+  render(<App />);
+  await screen.findByTestId("flows-page");
+  fetchMock.mockRejectedValueOnce(new Error("offline"));
+  await act(async () => {
+    fireEvent(window, new Event("focus"));
+  });
+  expect(screen.getByTestId("flows-page")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Flows" })).toBeInTheDocument();
+});
+
+it("closes an open feature when a tab-return check finds the session ended", async () => {
+  fetchMock.mockResolvedValueOnce(response({ ...OFF, flows: true }));
+  window.location.hash = "#/flows";
+  render(<App />);
+  await screen.findByTestId("flows-page");
+  fetchMock.mockResolvedValueOnce(new Response("{}", { status: 401 }));
+  await act(async () => {
+    fireEvent(window, new Event("focus"));
+  });
+  expect(
+    await screen.findByRole("heading", { name: "Sign in to continue" }),
+  ).toBeInTheDocument();
+  expect(screen.queryByTestId("flows-page")).toBeNull();
 });
 
 it("does not let a stale earlier response restore an enabled feature", async () => {
@@ -194,7 +259,7 @@ it("a timed-out read stays closed even if an ignored-abort response arrives late
   expect(FlowsApp).not.toHaveBeenCalled();
 });
 
-it("hides workflow token creation by default and refuses a stale selection after disablement", async () => {
+it("hides workflow token creation by default and submits the visible purpose after disablement", async () => {
   const view = render(<TokensSection workspaceId="workspace" />);
   await screen.findByLabelText("Purpose");
   expect(screen.queryByRole("option", { name: "Flows token" })).toBeNull();
@@ -211,8 +276,12 @@ it("hides workflow token creation by default and refuses a stale selection after
   view.rerender(<TokensSection workspaceId="workspace" flowsEnabled={false} />);
   expect(screen.queryByRole("option", { name: "Flows token" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Create token" }));
-  expect(screen.getByRole("alert")).toHaveTextContent(
-    "Flows is no longer enabled",
+  await waitFor(() =>
+    expect(adminApi.createToken).toHaveBeenCalledWith("workspace", {
+      label: "worker",
+      purpose: "agent-runtime",
+      expiryDays: 90,
+    }),
   );
-  await waitFor(() => expect(adminApi.createToken).not.toHaveBeenCalled());
+  expect(screen.queryByText(/no longer enabled/)).toBeNull();
 });

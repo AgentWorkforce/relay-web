@@ -31,24 +31,32 @@ export function ProductCapabilitiesProvider({
 }: {
   children: ReactNode;
 }) {
-  const [attempt, setAttempt] = useState(0);
+  const [{ attempt, background }, setCheck] = useState({
+    attempt: 0,
+    background: false,
+  });
   const [result, setResult] = useState<State & { attempt: number }>({
     ...CLOSED,
     attempt: -1,
   });
-  // A refresh closes the gate in the same render, before the next effect starts.
-  const current: State = result.attempt === attempt ? result : CLOSED;
+  // An explicit retry closes the gate in the same render. A tab return checks
+  // behind the current state, so an enabled page and its drafts stay mounted.
+  const current: State =
+    result.attempt === attempt || background ? result : CLOSED;
   useEffect(() => {
     const request = new AbortController();
     let disposed = false;
+    // Only the server's own answer closes a feature that was open: a failed
+    // tab-return check keeps it, and the next one tries again.
+    const fail = (status: "unavailable" | "signed-out") =>
+      setResult((previous) =>
+        background && previous.status === "ready" && status === "unavailable"
+          ? { ...previous, attempt }
+          : { attempt, status, capabilities: NO_CAPABILITIES },
+      );
     const deadline = window.setTimeout(() => {
       request.abort();
-      if (!disposed)
-        setResult({
-          attempt,
-          status: "unavailable",
-          capabilities: NO_CAPABILITIES,
-        });
+      if (!disposed) fail("unavailable");
     }, 8_000);
     getProductCapabilities(request.signal)
       .then(
@@ -58,11 +66,7 @@ export function ProductCapabilitiesProvider({
         },
         (error: unknown) => {
           if (!disposed)
-            setResult({
-              attempt,
-              status: error instanceof SignedOut ? "signed-out" : "unavailable",
-              capabilities: NO_CAPABILITIES,
-            });
+            fail(error instanceof SignedOut ? "signed-out" : "unavailable");
         },
       )
       .finally(() => window.clearTimeout(deadline));
@@ -71,9 +75,10 @@ export function ProductCapabilitiesProvider({
       window.clearTimeout(deadline);
       request.abort();
     };
-  }, [attempt]);
+  }, [attempt, background]);
   useEffect(() => {
-    const refresh = () => setAttempt((value) => value + 1);
+    const refresh = () =>
+      setCheck((check) => ({ attempt: check.attempt + 1, background: true }));
     const visible = () => {
       if (document.visibilityState === "visible") refresh();
     };
@@ -86,7 +91,11 @@ export function ProductCapabilitiesProvider({
   }, []);
   return (
     <ProductContext.Provider
-      value={{ ...current, reload: () => setAttempt((value) => value + 1) }}
+      value={{
+        ...current,
+        reload: () =>
+          setCheck((check) => ({ attempt: check.attempt + 1, background: false })),
+      }}
     >
       {children}
     </ProductContext.Provider>
