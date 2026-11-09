@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { resetBrandingForTests } from "../shell/branding";
 import { SignInPage } from "./SignInPage";
 import {
   INVALID_CREDENTIALS_MESSAGE,
@@ -120,6 +121,50 @@ it("sends an invited sign-in through the form route that redeems the invite", as
     next: "/#/settings",
     invite: INVITE,
   });
+});
+
+it("co-brands under the Agent Relay lockup", async () => {
+  config = {
+    status: 200,
+    body: { ...fullConfig, logo_url: "https://cdn.example.test/logo.svg", org_name: "Example Corp" },
+  };
+  const { container } = show("sign-in");
+  expect(await screen.findByText("Example Corp")).toBeTruthy();
+  const logo = container.querySelector('[data-slot="co-brand"] img')!;
+  expect(logo.getAttribute("src")).toBe("https://cdn.example.test/logo.svg");
+  expect(logo.getAttribute("referrerpolicy")).toBe("no-referrer");
+  expect(container.querySelector("header hr")).toBeTruthy();
+  expect(container.querySelector("header a svg")).toBeTruthy();
+});
+
+it("starts the customer row under a profile logo instead of beside it", async () => {
+  window.__AGENT_RELAY_DASHBOARD_CONFIG__ = {
+    customerProfile: { productName: "Example Corp", logo: "/logo.svg" },
+  } as never;
+  resetBrandingForTests();
+  config = {
+    status: 200,
+    body: { ...fullConfig, logo_url: "https://cdn.example.test/logo.svg", org_name: "Example Corp" },
+  };
+  const { container } = show("sign-in");
+  await screen.findByText("Example Corp");
+  expect(container.querySelector('[data-slot="co-brand"]')!.className).toContain("col-span-2");
+  delete window.__AGENT_RELAY_DASHBOARD_CONFIG__;
+  resetBrandingForTests();
+});
+
+it.each([
+  ["no logo", { logo_url: null, org_name: "Example Corp" }],
+  ["a non-https logo", { logo_url: "http://cdn.example.test/logo.svg", org_name: "Example Corp" }],
+  ["a script URL", { logo_url: "javascript:alert(1)", org_name: "Example Corp" }],
+])("shows only Agent Relay with %s", async (_label, fields) => {
+  config = { status: 200, body: { ...fullConfig, ...fields } };
+  const { container } = show("sign-in");
+  await screen.findByRole("button", { name: "Sign in with password" });
+  expect(container.querySelector("header a svg")).toBeTruthy();
+  expect(container.querySelector("header hr")).toBeNull();
+  expect(container.querySelector('[data-slot="co-brand"]')).toBeNull();
+  expect(screen.queryByText("Example Corp")).toBeNull();
 });
 
 it("signs in and returns to next", async () => {

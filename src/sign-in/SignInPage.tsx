@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { appPath, redirectBrowser, serverLoginHref } from "../app-path";
-import { primaryAction, secondaryAction } from "../device/DevicePage";
+import { primaryAction } from "../device/DevicePage";
 import { BrandLockup } from "../shell/brand";
 import { branding } from "../shell/branding";
 import {
@@ -11,12 +11,15 @@ import {
   type SignInView,
 } from "./api";
 
+// Dark values match the device page; light values follow the same roles.
+const secondaryAction =
+  "inline-flex min-h-10 items-center justify-center rounded-md border border-[#b6c4d0] bg-transparent px-4 text-sm font-medium text-[#111827] transition-colors hover:bg-[#eef2f6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2f6f9f] disabled:cursor-not-allowed disabled:opacity-50 dark:border-[#496174] dark:text-[#e8f0f7] dark:hover:bg-[#24394b] dark:active:bg-[#1c3041] dark:focus-visible:outline-[#80bfe5]";
 const inputClass =
-  "mt-2 w-full rounded-md border border-[#30485e] bg-[#101c29] px-4 py-2.5 text-sm text-[#e8f0f7] outline-none transition-colors placeholder:text-[#8298aa] focus:border-[#80bfe5] focus-visible:ring-2 focus-visible:ring-[#80bfe5]/30";
-const labelClass = "block text-sm font-medium text-[#a9bdce]";
+  "mt-2 w-full rounded-md border border-[#b6c4d0] bg-white px-4 py-2.5 text-sm text-[#111827] outline-none transition-colors placeholder:text-[#6b7280] focus:border-[#2f6f9f] focus-visible:ring-2 focus-visible:ring-[#2f6f9f]/30 dark:border-[#30485e] dark:bg-[#101c29] dark:text-[#e8f0f7] dark:placeholder:text-[#8298aa] dark:focus:border-[#80bfe5] dark:focus-visible:ring-[#80bfe5]/30";
+const labelClass = "block text-sm font-medium text-[#4b5563] dark:text-[#a9bdce]";
 const linkClass =
-  "text-[#80bfe5] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#80bfe5]";
-const mutedClass = "text-sm leading-6 text-[#a9bdce]";
+  "text-[#2f6f9f] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2f6f9f] dark:text-[#80bfe5] dark:focus-visible:outline-[#80bfe5]";
+const mutedClass = "text-sm leading-6 text-[#4b5563] dark:text-[#a9bdce]";
 
 const HEADINGS: Record<SignInView, string> = {
   "sign-in": "Sign in",
@@ -40,7 +43,7 @@ function errorMessage(failure: unknown): string {
 
 function ErrorLine({ text }: { text: string }) {
   return (
-    <p role="alert" className="text-sm leading-6 text-[#f3a5ad]">
+    <p role="alert" className="text-sm leading-6 text-[#b3313b] dark:text-[#f3a5ad]">
       {text}
     </p>
   );
@@ -177,10 +180,10 @@ function EmailLinkForm({ target }: { target: Target }) {
 
 function Divider() {
   return (
-    <div className="my-5 flex items-center gap-3 text-xs text-[#a9bdce]">
-      <span className="flex-1 border-t border-[#30485e]" />
+    <div className="my-5 flex items-center gap-3 text-xs text-[#4b5563] dark:text-[#a9bdce]">
+      <span className="flex-1 border-t border-[#d7e0e8] dark:border-[#30485e]" />
       or
-      <span className="flex-1 border-t border-[#30485e]" />
+      <span className="flex-1 border-t border-[#d7e0e8] dark:border-[#30485e]" />
     </div>
   );
 }
@@ -248,7 +251,7 @@ function RequestLinkForm(props: {
   if (sent)
     return (
       <div className="space-y-4">
-        <p role="status" className="text-sm leading-6 text-[#e8f0f7]">
+        <p role="status" className="text-sm leading-6 text-[#111827] dark:text-[#e8f0f7]">
           {props.sentText}
         </p>
         <a href={props.backHref} className={linkClass}>
@@ -312,40 +315,56 @@ export function SignInPage(props: {
   const target = { next, invite };
   const backHref = viewHref("sign-in", target);
   const policy = config?.password_policy;
-  const logoUrl =
-    !brand.logo && config?.logo_url?.startsWith("https://")
-      ? config.logo_url
-      : null;
+  const logoUrl = config?.logo_url?.startsWith("https://")
+    ? config.logo_url
+    : null;
+  const orgName = config?.org_name?.trim() || null;
+  // A profile logo fills the lockup: no wordmark to align with, and no room beside it.
+  const coBrandPlacement = brand.logo ? "col-span-2" : "col-start-2";
 
   return (
-    <div className="min-h-dvh bg-[#101c29] text-[#e8f0f7]">
+    <div className="min-h-dvh bg-[#f9fafb] text-[#111827] dark:bg-[#101c29] dark:text-[#e8f0f7]">
       <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6 py-12 sm:py-16">
-        <a
-          href={appPath()}
-          aria-label={`${brand.productName} home`}
-          className="mb-8 flex w-fit shrink-0 items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#79b8de]"
-        >
-          {logoUrl ? (
-            <img
-              src={logoUrl}
-              alt=""
-              referrerPolicy="no-referrer"
-              className="h-6 w-auto max-w-[200px] object-contain object-left"
-            />
-          ) : (
+        <header className="mb-8 grid w-fit max-w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2.5">
+          <a
+            href={appPath()}
+            aria-label={`${brand.productName} home`}
+            className="col-span-2 grid grid-cols-subgrid items-center rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#2f6f9f] dark:focus-visible:outline-[#79b8de]"
+          >
             <BrandLockup
               brand={brand}
               markClassName="h-6"
-              wordmarkClassName="h-5 [--fg:#e8f0f7]"
+              wordmarkClassName="h-5 [--fg:#111827] dark:[--fg:#e8f0f7]"
               logoClassName="h-6 w-auto max-w-[200px] object-contain object-left"
-              variant="dark"
             />
+          </a>
+          {logoUrl && (
+            <>
+              <hr className={`${coBrandPlacement} my-3.5 w-[150px] max-w-full border-0 border-t border-[#d7e0e8] dark:border-[#30485e]`} />
+              <div
+                data-slot="co-brand"
+                className={`${coBrandPlacement} flex min-w-0 items-center gap-2.5`}
+              >
+                {/* An <img> never runs script inside an SVG. */}
+                <img
+                  src={logoUrl}
+                  alt={orgName ? "" : "Organization logo"}
+                  referrerPolicy="no-referrer"
+                  className="h-[22px] w-auto max-w-[160px] flex-none object-contain object-left"
+                />
+                {orgName && (
+                  <strong className="min-w-0 text-base font-bold break-words">
+                    {orgName}
+                  </strong>
+                )}
+              </div>
+            </>
           )}
-        </a>
+        </header>
         <h1 className="mb-6 text-3xl font-semibold tracking-tight">
           {HEADINGS[view]}
         </h1>
-        <section className="rounded-xl border border-[#30485e] bg-[#182838] p-6 sm:p-8">
+        <section className="rounded-xl border border-[#d7e0e8] bg-white p-6 sm:p-8 dark:border-[#30485e] dark:bg-[#182838]">
           {!config && (
             <p role="status" className={mutedClass}>
               Loading…
