@@ -203,3 +203,32 @@ export const integrationProvidersSchema = z.object({
   providers: z.array(integrationProviderSchema),
 }).passthrough();
 export const integrationConnectSchema = z.object({ connectLink: z.string().url() }).passthrough();
+
+export const feedProfilesSchema = z.object({
+  profiles: z.array(z.object({ id: z.string(), asset_prefix: z.string() })),
+});
+export type FeedProfile = z.infer<typeof feedProfilesSchema>["profiles"][number];
+export type FeedChannel = "stable" | "beta";
+
+const feedAssetSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  platform: z.string(),
+  arch: z.string(),
+  os_floor: z.number().optional(),
+  kind: z.string(),
+  size: z.number(),
+  sha256: z.string(),
+});
+export type FeedAsset = z.infer<typeof feedAssetSchema>;
+
+export const feedEnvelopeSchema = z.object({
+  manifest: z.object({
+    version: z.string(),
+    published_at: z.string(),
+    assets: z.array(feedAssetSchema),
+  }),
+});
+export type FeedManifest = z.infer<typeof feedEnvelopeSchema>["manifest"];
+
+export const feedDownloadUrlSchema = z.object({ url: z.string(), expires_at: z.string() });

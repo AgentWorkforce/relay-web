@@ -12,6 +12,12 @@ import {
   createdTokenSchema,
   envVarListSchema,
   envVarSchema,
+  feedDownloadUrlSchema,
+  feedEnvelopeSchema,
+  feedProfilesSchema,
+  type FeedChannel,
+  type FeedManifest,
+  type FeedProfile,
   membersSchema,
   invitationLinkSchema,
   invitationsSchema,
@@ -38,7 +44,12 @@ const enc = encodeURIComponent;
 async function call<T>(
   path: string,
   schema: z.ZodType<T> | null,
-  init: { method?: string; body?: unknown; signal?: AbortSignal } = {},
+  init: {
+    method?: string;
+    body?: unknown;
+    signal?: AbortSignal;
+    headers?: Record<string, string>;
+  } = {},
 ): Promise<T> {
   const response = await fetch(`${base}${path}`, {
     method: init.method ?? "GET",
@@ -51,6 +62,7 @@ async function call<T>(
       ...(init.body !== undefined
         ? { "Content-Type": "application/json" }
         : {}),
+      ...init.headers,
     },
     body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
   });
@@ -77,6 +89,41 @@ async function call<T>(
 }
 
 const ws = (id: string) => `/v1/workspaces/${enc(id)}`;
+
+const feedHeaders = (profile: string) => ({ "X-Agent-Relay-Profile": profile });
+
+/** A 404 is an answer here: the feed is off, or the channel has no release. */
+async function orNull<T>(request: Promise<T>): Promise<T | null> {
+  try {
+    return await request;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export const desktopFeedApi = {
+  profiles: async (signal?: AbortSignal): Promise<FeedProfile[]> =>
+    (await orNull(call("/v1/desktop/profiles", feedProfilesSchema, { signal })))?.profiles ?? [],
+  manifest: async (
+    profile: string,
+    channel: FeedChannel,
+    signal?: AbortSignal,
+  ): Promise<FeedManifest | null> =>
+    (
+      await orNull(
+        call(`/v1/desktop/feed/manifest?channel=${channel}`, feedEnvelopeSchema, {
+          signal,
+          headers: feedHeaders(profile),
+        }),
+      )
+    )?.manifest ?? null,
+  downloadUrl: (profile: string, assetId: string) =>
+    call(`/v1/desktop/feed/assets/${enc(assetId)}/download-url`, feedDownloadUrlSchema, {
+      method: "POST",
+      headers: feedHeaders(profile),
+    }),
+};
 
 export const adminApi = {
   context: (signal?: AbortSignal) =>
