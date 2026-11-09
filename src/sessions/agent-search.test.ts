@@ -79,6 +79,8 @@ it.each([
   ["agent_filter_not_ready", /isn’t available on this workspace yet/],
   ["agent_with_text", /can’t be combined/],
   ["agent_prefix_not_supported", /full name/],
+  ["param_agentMatch", /full name/],
+  ["agent_match_not_migrated", /full name/],
 ])("explains %s", async (reason, message) => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
     Response.json({ error: "unsupported_by_backend", reason }, { status: 501 }),

@@ -76,6 +76,8 @@ const AGENT_SEARCH_MESSAGES: Record<string, string> = {
   agent_filter_not_ready: "Search by agent isn’t available on this workspace yet.",
   agent_with_text: "Search by agent can’t be combined with other words yet. Remove the words or the @name.",
   agent_prefix_not_supported: "Searching by the start of an agent name isn’t available yet. Use the full name.",
+  param_agentMatch: "Searching by the start of an agent name isn’t available yet. Use the full name.",
+  agent_match_not_migrated: "Searching by the start of an agent name isn’t available yet. Use the full name.",
   agent_prefix_too_short: "Use at least 3 letters or digits before the *.",
   agent_prefix_too_broad: "That matches too many agents. Use more of the name.",
 };
