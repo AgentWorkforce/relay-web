@@ -47,7 +47,8 @@ const memberLists = new Map<string, Promise<Member[]>>();
 
 /**
  * Display names for a workspace, loaded once. A failure resolves to no names
- * so an outage never blocks sessions, and isn't kept, so the next read retries.
+ * so an outage never blocks sessions. Failures and empty lists aren't kept, so
+ * the next read retries.
  */
 export function rememberMembers(
   workspace: string,
@@ -55,10 +56,17 @@ export function rememberMembers(
 ): Promise<Member[]> {
   const known = memberLists.get(workspace);
   if (known) return known;
-  const loading = load().catch(() => {
-    memberLists.delete(workspace);
-    return [];
-  });
+  const forget = () => memberLists.delete(workspace);
+  const loading = load().then(
+    (names) => {
+      if (!names.length) forget();
+      return names;
+    },
+    () => {
+      forget();
+      return [];
+    },
+  );
   memberLists.set(workspace, loading);
   return loading;
 }

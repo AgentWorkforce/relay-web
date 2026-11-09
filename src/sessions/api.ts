@@ -14,12 +14,12 @@ import {
 } from "./read-api";
 
 const record = z.record(z.string(), z.unknown());
-const members = z
-  .array(z.object({ id: z.string(), name: z.string().nullish() }))
-  .default([])
-  .transform((rows): Member[] =>
-    rows.map((row) => ({ id: row.id, name: row.name ?? null })),
-  );
+const memberRows = z.array(
+  z.object({ id: z.string(), name: z.string().nullish() }),
+);
+const toMembers = (rows: z.infer<typeof memberRows>): Member[] =>
+  rows.map((row) => ({ id: row.id, name: row.name ?? null }));
+const members = memberRows.default([]).transform(toMembers);
 const cursor = z
   .string()
   .nullish()
@@ -109,17 +109,27 @@ export async function listSessions(
   return listViaControl(workspace, filters, next, signal);
 }
 
+/** How long a session read waits for names before showing the sessions without them. */
+const MEMBERS_DEADLINE_MS = 3_000;
+
 /**
  * The read API knows no Control users, so names come from Control. The request
- * is shared across callers, so it isn't tied to any one caller's signal.
+ * is shared across callers, so it has its own deadline instead of a caller's
+ * signal, and needs a real `members` array so a bad answer is retried.
  */
 function workspaceMembers(workspace: string) {
-  return rememberMembers(workspace, async () =>
-    z
-      .object({ members })
-      .parse(await read(path(workspace, "/members"), new AbortController().signal))
-      .members,
-  );
+  return rememberMembers(workspace, async () => {
+    const deadline = new AbortController();
+    const timer = setTimeout(() => deadline.abort(), MEMBERS_DEADLINE_MS);
+    try {
+      return z
+        .object({ members: memberRows.transform(toMembers) })
+        .parse(await read(path(workspace, "/members"), deadline.signal))
+        .members;
+    } finally {
+      clearTimeout(timer);
+    }
+  });
 }
 
 async function listDirect(

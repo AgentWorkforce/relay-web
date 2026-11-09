@@ -89,6 +89,8 @@ it("doesn't tie the shared names request to one caller's signal", async () => {
 it.each([
   ["a 404 from an older Control", () => json({ error: "not_found" }, { status: 404 })],
   ["a malformed body", () => json({ members: "nope" })],
+  ["a 200 without members", () => json({})],
+  ["an empty list", () => json({ members: [] })],
 ])("still lists sessions with no names after %s, and retries next time", async (_label, failure) => {
   const fetch = direct(failure);
   const page = await listSessions(WORKSPACE, {}, null, signal());
@@ -96,6 +98,37 @@ it.each([
   expect(page.items).toHaveLength(1);
   await listSessions(WORKSPACE, {}, null, signal());
   expect(memberCalls(fetch)).toHaveLength(2);
+});
+
+it("shows sessions without names when Control stalls, then retries", async () => {
+  vi.useFakeTimers();
+  try {
+    let stalled = true;
+    const fetch = vi.fn((input: string | URL, init: RequestInit = {}) => {
+      const url = String(input);
+      if (url === MEMBERS_URL && stalled)
+        return new Promise<Response>((_, reject) =>
+          init.signal!.addEventListener("abort", () =>
+            reject(new DOMException("Aborted", "AbortError")),
+          ),
+        );
+      if (url === MEMBERS_URL)
+        return Promise.resolve(json({ members: [{ id: "u1", name: "Example Person" }] }));
+      if (url.includes("/session-read/session")) return Promise.resolve(json(handoff()));
+      return Promise.resolve(attested({ sessions: [session], nextCursor: null }));
+    });
+    vi.stubGlobal("fetch", fetch);
+    const loading = listSessions(WORKSPACE, {}, null, signal());
+    await vi.advanceTimersByTimeAsync(3_000);
+    const page = await loading;
+    expect(page.items).toHaveLength(1);
+    expect(page.members).toEqual([]);
+    stalled = false;
+    const next = await listSessions(WORKSPACE, {}, null, signal());
+    expect(next.members).toEqual([{ id: "u1", name: "Example Person" }]);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it("never asks for the names route on the Control path", async () => {
