@@ -125,7 +125,7 @@ export function ProductFeature({
         </>
       ) : (
         <>
-          <h1>{label} is not enabled</h1>
+          <h1>{label} is not enabled on this installation</h1>
           <p>Contact your administrator if you need access.</p>
         </>
       )}

@@ -228,6 +228,33 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
+it.each([
+  ["feature_not_enabled", "Chief is not enabled on this installation.", "Chief is not enabled on this installation."],
+  ["feature_not_licensed", "Chief is not licensed on this installation.", "Chief is not enabled on this installation."],
+  ["forbidden", "Workspace admin role required", "Workspace admin role required"],
+])("shows the server's %s refusal, writes nothing on load and stops polling", async (error, message, shown) => {
+  const original = fetch;
+  let lists = 0;
+  const methods: string[] = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, options?: RequestInit) => {
+      if (String(url).includes("/chiefs")) methods.push(options?.method ?? "GET");
+      if (String(url).endsWith("/chiefs")) {
+        lists++;
+        return new Response(JSON.stringify({ error, message }), { status: 403 });
+      }
+      return original(url, options);
+    }),
+  );
+  render(<ChiefPage path="/chief" />);
+  expect((await screen.findByRole("alert")).textContent).toBe(shown);
+  const seen = lists;
+  await new Promise((done) => setTimeout(done, 1300));
+  expect(lists).toBe(seen);
+  expect(methods.every((method) => method === "GET")).toBe(true);
+});
+
 it("keeps a failed scan visible through list refreshes until retry or navigation", async () => {
   chiefs = [{ ...snapshot, status: "ready" }];
   window.location.hash = "#/chief/chief-1";

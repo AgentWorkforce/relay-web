@@ -78,7 +78,7 @@ it.each([
     render(<App />);
     const label = path.startsWith("#/chief") ? "Chief" : "Flows";
     expect(
-      await screen.findByRole("heading", { name: `${label} is not enabled` }),
+      await screen.findByRole("heading", { name: `${label} is not enabled on this installation` }),
     ).toBeInTheDocument();
     const nav = screen.getByRole("navigation", { name: "Workspace views" });
     expect(within(nav).queryByRole("link", { name: "Flows" })).toBeNull();
@@ -160,7 +160,7 @@ it("closes an active feature immediately on refresh, then honors revocation", as
   expect(screen.queryByRole("link", { name: "Flows" })).toBeNull();
   await act(async () => pending.resolve(response()));
   expect(
-    await screen.findByRole("heading", { name: "Flows is not enabled" }),
+    await screen.findByRole("heading", { name: "Flows is not enabled on this installation" }),
   ).toBeInTheDocument();
 });
 
@@ -172,7 +172,7 @@ it("does not let a stale earlier response restore an enabled feature", async () 
   render(<App />);
   fireEvent(window, new Event("focus"));
   await act(async () => fresh.resolve(response()));
-  await screen.findByRole("heading", { name: "Flows is not enabled" });
+  await screen.findByRole("heading", { name: "Flows is not enabled on this installation" });
   await act(async () => old.resolve(response({ ...OFF, flows: true })));
   expect(screen.queryByTestId("flows-page")).toBeNull();
   expect(screen.queryByRole("link", { name: "Flows" })).toBeNull();

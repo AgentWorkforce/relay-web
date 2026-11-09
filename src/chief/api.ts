@@ -67,6 +67,15 @@ const repositoryCatalogSchema = z.object({
 });
 export type GithubRepository = z.infer<typeof githubRepositorySchema>;
 export type RepositoryCatalog = z.infer<typeof repositoryCatalogSchema>;
+/** The server refused this person or installation: retrying won't change it. */
+export class ChiefRefused extends Error {}
+
+function refusalMessage(body: { error?: string; message?: string } | null) {
+  if (body?.error === "feature_not_enabled" || body?.error === "feature_not_licensed")
+    return "Chief is not enabled on this installation.";
+  return body?.message?.trim() || "You don't have permission to do that.";
+}
+
 async function call<T>(
   path: string,
   schema: z.ZodType<T>,
@@ -92,18 +101,19 @@ async function call<T>(
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as {
       error?: string;
+      message?: string;
     } | null;
+    if (response.status === 403 && body?.error !== "repository_access_changed" && body?.error !== "github_disconnected")
+      throw new ChiefRefused(refusalMessage(body));
     throw new Error(
       body?.error === "repository_access_changed" ||
         body?.error === "github_disconnected"
         ? "GitHub access changed. Go back to Project, refresh repositories, and select again."
         : body?.error === "project_already_configured"
           ? "This repository already has a chief. Return to your chiefs to open it."
-          : response.status === 403
-            ? "Only workspace owners and admins can change chief setup."
-            : response.status === 503
-              ? "Chief setup is not available on this installation yet."
-              : "Could not complete the request. Please try again.",
+          : response.status === 503
+            ? "Chief setup is not available on this installation yet."
+            : "Could not complete the request. Please try again.",
     );
   }
   return schema.parse(await response.json());

@@ -18,6 +18,7 @@ import { loginHref, redirectBrowser } from "../app-path";
 import { Badge, Button, ButtonLink, Input, PageSurface } from "../shell/ui";
 import { WorkspaceViewSlot } from "../shell/view-slots";
 import {
+  ChiefRefused,
   chiefApi,
   type ChiefList,
   type ProjectChief,
@@ -132,6 +133,7 @@ export function ChiefPage({ path }: { path: string }) {
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       const generation = listGeneration.current;
+      let refused = false;
       try {
         const value = await chiefApi.list(workspace, abort.signal);
         if (!abort.signal.aborted && generation === listGeneration.current) {
@@ -140,6 +142,7 @@ export function ChiefPage({ path }: { path: string }) {
         }
       } catch (failure) {
         if (!abort.signal.aborted && generation === listGeneration.current) {
+          refused = failure instanceof ChiefRefused;
           if (failure instanceof SignedOut) redirectBrowser(loginHref());
           else
             setError(
@@ -149,7 +152,7 @@ export function ChiefPage({ path }: { path: string }) {
             );
         }
       } finally {
-        if (!abort.signal.aborted) timer = setTimeout(poll, 1000);
+        if (!abort.signal.aborted && !refused) timer = setTimeout(poll, 1000);
       }
     };
     void poll();
