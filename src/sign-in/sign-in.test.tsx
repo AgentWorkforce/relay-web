@@ -93,6 +93,35 @@ it("hides methods the server does not offer", async () => {
   expect(screen.queryByRole("button", { name: "Email me a sign-in link" })).toBeNull();
 });
 
+it("posts the address and return path with the email-link form", async () => {
+  show("sign-in", INVITE);
+  const button = await screen.findByRole("button", { name: "Email me a sign-in link" });
+  const form = button.closest("form")!;
+  fireEvent.change(form.querySelector("input[type=email]")!, { target: { value: "a@example.test" } });
+  expect(form.getAttribute("action")).toBe("/login/email");
+  expect(Object.fromEntries(new FormData(form))).toEqual({
+    email: "a@example.test",
+    next: "/#/settings",
+    invite: INVITE,
+  });
+});
+
+it("sends an invited sign-in through the form route that redeems the invite", async () => {
+  show("sign-in", INVITE);
+  const button = await screen.findByRole("button", { name: "Sign in with password" });
+  const form = button.closest("form")!;
+  fireEvent.change(form.querySelector("input[type=email]")!, { target: { value: "a@example.test" } });
+  fireEvent.change(form.querySelector("input[type=password]")!, { target: { value: "correct horse battery" } });
+  expect(form.getAttribute("method")).toBe("post");
+  expect(form.getAttribute("action")).toBe("/login/password");
+  expect(Object.fromEntries(new FormData(form))).toEqual({
+    email: "a@example.test",
+    password: "correct horse battery",
+    next: "/#/settings",
+    invite: INVITE,
+  });
+});
+
 it("signs in and returns to next", async () => {
   answers["/cloud/api/v1/auth/password/login"] = { status: 200, body: { userId: "u" } };
   show("sign-in");

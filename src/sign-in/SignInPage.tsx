@@ -60,6 +60,7 @@ function EmailField(props: {
       <input
         id={props.id}
         type="email"
+        name="email"
         required
         value={props.value}
         onChange={(event) => props.onChange(event.target.value)}
@@ -97,8 +98,20 @@ function PasswordForm(props: {
     }
   }
 
+  // The JSON route takes no invite; relaycontrol's form route redeems it.
+  const invite = props.target.invite;
+  const formProps = invite
+    ? { method: "post", action: "/login/password" }
+    : { onSubmit: submit };
+
   return (
-    <form onSubmit={submit} className="space-y-4">
+    <form {...formProps} className="space-y-4">
+      {invite && (
+        <>
+          <input type="hidden" name="next" value={props.target.next} />
+          <input type="hidden" name="invite" value={invite} />
+        </>
+      )}
       <EmailField
         id="sign-in-email"
         value={email}
@@ -112,6 +125,7 @@ function PasswordForm(props: {
         <input
           id="sign-in-password"
           type="password"
+          name="password"
           required
           value={password}
           onChange={(event) => setPassword(event.target.value)}
