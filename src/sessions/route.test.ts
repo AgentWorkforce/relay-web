@@ -52,6 +52,12 @@ it("keeps list state in the URL", () => {
   expect(listHref("is:active", "activity")).toBe(
     "/?tab=activity&q=is%3Aactive",
   );
+  expect(listHref("project:example/project", "overlaps")).toBe(
+    "/?tab=overlaps&q=project%3Aexample%2Fproject",
+  );
+  expect(
+    parseRoute({ pathname: "/dashboard/", search: "?tab=overlaps" }),
+  ).toMatchObject({ view: "list", tab: "overlaps" });
   expect(
     parseRoute({ pathname: "/dashboard/", search: "?tab=search&q=x" }),
   ).toEqual({

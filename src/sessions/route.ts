@@ -3,7 +3,7 @@
 // paths (`…/dashboard/sessions/<id>?source=<source>`) are accepted as well.
 import { appPath } from "../app-path";
 export type SessionRoute =
-  | { view: "list"; q: string; tab: "sessions" | "activity" }
+  | { view: "list"; q: string; tab: SessionTab }
   | { view: "graph"; sessionId?: string; source?: string; workspaceId?: string }
   | {
       view: "session";
@@ -16,6 +16,7 @@ export type SessionRoute =
     };
 
 const base = () => appPath();
+export type SessionTab = "sessions" | "activity" | "overlaps";
 
 export function parseRoute(location: {
   pathname: string;
@@ -47,7 +48,7 @@ export function parseRoute(location: {
   return {
     view: "list",
     q: params.get("q") ?? "",
-    tab: tab === "activity" ? tab : "sessions",
+    tab: tab === "activity" || tab === "overlaps" ? tab : "sessions",
   };
 }
 
@@ -83,7 +84,7 @@ export function sessionHref(
 
 export function listHref(
   q = "",
-  tab: "sessions" | "activity" = "sessions",
+  tab: SessionTab = "sessions",
 ) {
   const params = new URLSearchParams();
   if (tab !== "sessions") params.set("tab", tab);
@@ -99,12 +100,12 @@ export function backHref(from: string | null) {
   const tab = params.get("tab");
   return listHref(
     params.get("q") ?? "",
-    tab === "activity" ? tab : "sessions",
+    tab === "activity" || tab === "overlaps" ? tab : "sessions",
   );
 }
 
 /** The `from` value for links out of a list view. */
-export function listState(q: string, tab: "sessions" | "activity") {
+export function listState(q: string, tab: SessionTab) {
   const params = new URLSearchParams();
   if (tab !== "sessions") params.set("tab", tab);
   if (q) params.set("q", q);

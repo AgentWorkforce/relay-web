@@ -9,7 +9,10 @@ import type { Member } from "./data";
 
 /** The read path failed or isn't available. A first page falls back to Control. */
 export class ReadApiUnavailable extends Error {
-  constructor(readonly reason: string) {
+  constructor(
+    readonly reason: string,
+    readonly code: string | null = null,
+  ) {
     super("Session history is temporarily unavailable. Please try again.");
   }
 }
@@ -177,7 +180,17 @@ export async function readApiGet(
       handoffs.delete(workspace);
       continue;
     }
-    if (!response.ok) throw new ReadApiUnavailable(`read_${response.status}`);
+    if (!response.ok) {
+      const failure: unknown = await response.json().catch(() => null);
+      const code =
+        failure &&
+        typeof failure === "object" &&
+        "error" in failure &&
+        typeof failure.error === "string"
+          ? failure.error
+          : null;
+      throw new ReadApiUnavailable(`read_${response.status}`, code);
+    }
     if (response.headers.get(WORKSPACE_HEADER) !== workspace)
       throw new ReadApiUnavailable("workspace_not_attested");
     const body: unknown = await response.json().catch(() => null);
