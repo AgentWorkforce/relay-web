@@ -18,17 +18,23 @@ function RemoteConnectionCard({
   workspaceId,
   canManage,
   onConflict,
+  readRevision,
+  currentReadRevision,
 }: {
   provider: RemoteProvider;
   workspaceId: string;
   canManage: boolean;
   onConflict(): void;
+  readRevision: number;
+  currentReadRevision(): number;
 }) {
   const [connection, setConnection] = useState(provider.connection);
-  const [snapshot, setSnapshot] = useState(provider.connection);
-  if (snapshot !== provider.connection) {
-    setSnapshot(provider.connection);
-    setConnection(provider.connection);
+  const [snapshot, setSnapshot] = useState(provider);
+  const [lastWriteRead, setLastWriteRead] = useState(0);
+  if (snapshot !== provider) {
+    setSnapshot(provider);
+    // Reads begun before the latest confirmed mutation cannot replace it.
+    if (readRevision > lastWriteRead) setConnection(provider.connection);
   }
   const [key, setKey] = useState("");
   const [orgId, setOrgId] = useState("");
@@ -52,7 +58,10 @@ function RemoteConnectionCard({
         ? (await remoteAgentApi.disconnect(workspaceId, provider.id), null)
         : (await remoteAgentApi.connect(workspaceId, provider.id, key, orgId))
             .connection;
-      if (active.current) setConnection(result);
+      if (active.current) {
+        setLastWriteRead(currentReadRevision());
+        setConnection(result);
+      }
     } catch (error) {
       if (active.current) {
         setError(message(error));
@@ -185,9 +194,11 @@ export function RemoteAgentsSection({
   const { data: catalog, error: catalogError } = useLoad((signal) =>
     remoteAgentApi.providers(workspaceId, signal),
   );
-  const { data, error, reload } = useLoad((signal) =>
-    remoteAgentApi.connections(workspaceId, signal),
-  );
+  const readsIssued = useRef(0);
+  const { data, error, reload } = useLoad(async (signal) => {
+    const readRevision = ++readsIssued.current;
+    return { ...await remoteAgentApi.connections(workspaceId, signal), readRevision };
+  });
   const amp = catalog?.providers.find((provider) => provider.id === "amp");
   const factory = catalog?.providers.find((provider) => provider.id === "factory");
   const unavailable = error instanceof ApiError && error.status === 404 && error.code === "not_found";
@@ -227,6 +238,8 @@ export function RemoteAgentsSection({
           provider={provider}
           canManage={canManage}
           onConflict={reload}
+          readRevision={data.readRevision}
+          currentReadRevision={() => readsIssued.current}
         />
       ))}
       {!data && !error && (
