@@ -36,7 +36,7 @@ it("shows a clear partial coverage notice and its notes", () => {
   render(<PartialCoverageNotice coverage={overlapsFixture.coverage} />);
   expect(screen.getByRole("status")).toHaveTextContent("Partial data");
   expect(screen.getByRole("status")).toHaveTextContent(
-    "2 sessions were truncated",
+    "more sessions exist but were left out because a read limit was reached.",
   );
   expect(screen.getByRole("status")).toHaveTextContent(
     "Two synthetic sessions ended before their uploads completed.",
@@ -69,4 +69,13 @@ it("renders findings in response order and resolves known member names", () => {
   ]);
   expect(screen.getAllByText(/Example One/).length).toBeGreaterThan(0);
   expect(screen.queryByText(/fake-user-one/)).not.toBeInTheDocument();
+});
+
+it("treats truncation as a flag, not a session count", () => {
+  render(
+    <PartialCoverageNotice
+      coverage={{ ...overlapsFixture.coverage, sessionsTruncated: 1 }}
+    />,
+  );
+  expect(screen.getByRole("status")).not.toHaveTextContent("1 sessions");
 });

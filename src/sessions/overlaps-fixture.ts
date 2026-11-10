@@ -32,7 +32,7 @@ export const overlapsFixture: OverlapsResponse = {
   coverage: {
     status: "partial",
     sessionsConsidered: 8,
-    sessionsTruncated: 2,
+    sessionsTruncated: 1,
     notes: ["Two synthetic sessions ended before their uploads completed."],
   },
   summary: {

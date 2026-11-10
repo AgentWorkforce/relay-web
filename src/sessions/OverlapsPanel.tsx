@@ -271,7 +271,7 @@ export function PartialCoverageNotice({
         <p className="text-muted-foreground">
           Results cover {coverage.sessionsConsidered.toLocaleString()} sessions
           {coverage.sessionsTruncated
-            ? `; ${coverage.sessionsTruncated.toLocaleString()} sessions were truncated.`
+            ? "; more sessions exist but were left out because a read limit was reached."
             : "."}
         </p>
         {coverage.notes.length > 0 && (
@@ -450,8 +450,9 @@ export function OverlapsPanel({
           )}
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <MessageCircleOff className="size-3.5" aria-hidden="true" />
-            Findings identify work that overlapped without observed
-            communication.
+            Findings are found after the fact from the work sessions recorded.
+            They don't predict overlap, and messages between agents aren't
+            recorded yet.
           </p>
         </>
       )}
