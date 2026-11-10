@@ -15,24 +15,6 @@ export const adminContextSchema = z.object({
 });
 export type AdminContext = z.infer<typeof adminContextSchema>;
 
-/** Server-owned provider availability; a browser never enables a provider. */
-export const remoteProvidersSchema = z.object({
-  providers: z.array(z.object({
-    id: z.string(), setup: z.string(), enabled: z.boolean(), implemented: z.boolean(),
-  })),
-});
-
-export const capyConnectionSchema = z.object({
-  connected: z.boolean(), key_hint: z.string().nullable(),
-  validated_at: z.string().nullable(), last_error: z.string().nullable(),
-});
-export const replicasConnectionSchema = z.object({
-  keyHint: z.string(), organizationId: z.string(), validatedAt: z.string(),
-}).nullable();
-export type RemoteKeyConnection = {
-  connected: boolean; keyHint: string | null; validatedAt: string | null; lastError: string | null;
-};
-
 /** Control's Factory connection responses never contain the saved API key. */
 export const factoryConnectionSchema = z.object({
   connected: z.boolean(),

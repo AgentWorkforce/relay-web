@@ -72,17 +72,15 @@ function FactoryConnectionCard({ workspaceId }: { workspaceId: string }) {
 }
 
 function FactorySessions({ workspaceId }: { workspaceId: string }) {
-  const { data, error, reload } = useLoad(async (signal) => {
-    const [computers, bindings] = await Promise.all([
-      adminApi.factoryComputers(workspaceId, signal), adminApi.factoryBindings(workspaceId, signal),
-    ]);
-    return { computers: computers.computers, bindings: bindings.bindings };
-  });
+  const computers = useLoad((signal) => adminApi.factoryComputers(workspaceId, signal));
+  const bindings = useLoad((signal) => adminApi.factoryBindings(workspaceId, signal));
   const [computer, setComputer] = useState("");
   const [removing, setRemoving] = useState<string | null>(null);
+  const [bindingBusy, setBindingBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
-  function changed() { reload(); setRevision((v) => v + 1); }
+  const connected = bindings.data?.bindings.filter((binding) => binding.state === "bound") ?? [];
+  function changed() { computers.reload(); bindings.reload(); setRevision((v) => v + 1); }
   async function unbind(id: string) {
     setRemoving(id); setFailure(null);
     try { await adminApi.unbindFactory(workspaceId, id); changed(); }
@@ -92,31 +90,35 @@ function FactorySessions({ workspaceId }: { workspaceId: string }) {
   return <div className="flex flex-col gap-3">
     <h3 className="font-semibold">Connected sessions</h3>
     <p className="text-sm text-muted-foreground">For this Mac, keep Factory open with Settings → Droid Computers → Remote Control connected. Connecting a session lets Relay messages start a turn in that chat.</p>
-    {error && <p role="alert">{message(error)} <Button variant="outline" size="sm" onClick={reload}>Try again</Button></p>}
-    {!data && !error && <p role="status">Loading Factory sessions…</p>}
-    {data && <>
-      {data.bindings.length === 0 ? <p>No Factory sessions connected yet.</p> : <ul className="flex flex-col gap-2">
-        {data.bindings.map((binding) => <li key={binding.id} className="flex flex-wrap items-center gap-3">
-          <span><code>@{binding.agent.name}</code> · {binding.state}</span>
-          <Button variant="outline" size="sm" disabled={removing !== null} onClick={() => void unbind(binding.id)}>Disconnect session {binding.session_id}</Button>
+    {bindings.error && <p role="alert">{message(bindings.error)} <Button variant="outline" size="sm" onClick={bindings.reload}>Try again</Button></p>}
+    {!bindings.data && !bindings.error && <p role="status">Loading Factory sessions…</p>}
+    {bindings.data && <>
+      {connected.length === 0 ? <p>No Factory sessions connected yet.</p> : <ul className="flex flex-col gap-2">
+        {connected.map((binding) => <li key={binding.id} className="flex flex-wrap items-center gap-3">
+          <span>{binding.agent.name ? <code>@{binding.agent.name}</code> : "Factory session"} · {binding.state}</span>
+          <Button variant="outline" size="sm" aria-label={`Disconnect ${binding.agent.name ? `@${binding.agent.name}` : "Factory session"}`} disabled={removing !== null || bindingBusy} onClick={() => void unbind(binding.id)}>Disconnect session</Button>
         </li>)}
       </ul>}
+    </>}
+    {computers.error && <p role="alert">{message(computers.error)} <Button variant="outline" size="sm" onClick={computers.reload}>Try again</Button></p>}
+    {!computers.data && !computers.error && <p role="status">Loading Factory computers…</p>}
+    {computers.data && <>
       <label className="flex max-w-md flex-col gap-1.5">Computer
-        <select value={computer} onChange={(event) => setComputer(event.target.value)}>
+        <select value={computer} disabled={bindingBusy || removing !== null} onChange={(event) => { if (!bindingBusy && removing === null) setComputer(event.target.value); }}>
           <option value="">Choose your computer</option>
-          {data.computers.map((item) => <option key={item.id} value={item.id} disabled={item.status !== "active"}>{item.name} · {item.status}</option>)}
+          {computers.data.computers.map((item) => <option key={item.id} value={item.id} disabled={item.status !== "active"}>{item.name} · {item.status}</option>)}
         </select>
       </label>
-      {data.computers.length === 0 && <p>No computers found for this Factory key.</p>}
-      {computer && <FactorySessionPicker key={`${computer}:${revision}`} workspaceId={workspaceId} computer={computer} onBound={changed} />}
-      <p className="text-sm text-muted-foreground">Factory transcript history is not available through this connection yet.</p>
+      {computers.data.computers.length === 0 && <p>No computers found for this Factory key.</p>}
+      {computer && <FactorySessionPicker key={`${computer}:${revision}`} workspaceId={workspaceId} computer={computer} onBound={changed} onPending={setBindingBusy} />}
     </>}
+    <p className="text-sm text-muted-foreground">Factory transcript history is not available through this connection yet.</p>
     {failure && <p role="alert">{failure}</p>}
   </div>;
 }
 
-function FactorySessionPicker({ workspaceId, computer, onBound }: {
-  workspaceId: string; computer: string; onBound(): void;
+function FactorySessionPicker({ workspaceId, computer, onBound, onPending }: {
+  workspaceId: string; computer: string; onBound(): void; onPending(pending: boolean): void;
 }) {
   const { data, error, reload } = useLoad((signal) => adminApi.factorySessions(workspaceId, computer, signal));
   const [session, setSession] = useState("");
@@ -125,10 +127,10 @@ function FactorySessionPicker({ workspaceId, computer, onBound }: {
   async function bind(event: FormEvent) {
     event.preventDefault();
     if (busy || !data?.sessions.some((item) => item.id === session && item.bound === null && item.computer_id === computer)) return;
-    setBusy(true); setFailure(null);
+    setBusy(true); onPending(true); setFailure(null);
     try { await adminApi.bindFactory(workspaceId, session, computer); onBound(); }
     catch (error) { setFailure(message(error)); }
-    finally { setBusy(false); }
+    finally { setBusy(false); onPending(false); }
   }
   return <div className="flex flex-col gap-3">
     {error && <p role="alert">{message(error)} <Button variant="outline" size="sm" onClick={reload}>Try again</Button></p>}

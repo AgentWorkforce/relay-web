@@ -1,10 +1,6 @@
 import type { z } from "zod";
 import {
   adminContextSchema,
-  remoteProvidersSchema,
-  capyConnectionSchema,
-  replicasConnectionSchema,
-  type RemoteKeyConnection,
   factoryConnectionSchema,
   factoryComputersSchema,
   factorySessionsSchema,
@@ -101,13 +97,6 @@ const ws = (id: string) => `/v1/workspaces/${enc(id)}`;
 
 const feedHeaders = (profile: string) => ({ "X-Agent-Relay-Profile": profile });
 
-function capyConnection(value: z.infer<typeof capyConnectionSchema>): RemoteKeyConnection {
-  return { connected: value.connected, keyHint: value.key_hint, validatedAt: value.validated_at, lastError: value.last_error };
-}
-function replicasConnection(value: z.infer<typeof replicasConnectionSchema>): RemoteKeyConnection {
-  return { connected: value !== null, keyHint: value?.keyHint ?? null, validatedAt: value?.validatedAt ?? null, lastError: null };
-}
-
 /** A 404 is an answer here: the feed is off, or the channel has no release. */
 async function orNull<T>(request: Promise<T>): Promise<T | null> {
   try {
@@ -145,24 +134,14 @@ export const adminApi = {
   context: (signal?: AbortSignal) =>
     call("/v1/auth/whoami", adminContextSchema, { signal }),
 
-  remoteProviders: (workspace: string, signal?: AbortSignal) =>
-    orNull(call(`${ws(workspace)}/providers`, remoteProvidersSchema, { signal })),
-  capyConnection: async (workspace: string, signal?: AbortSignal) =>
-    capyConnection(await call(`${ws(workspace)}/capy/connection`, capyConnectionSchema, { signal })),
-  connectCapy: async (workspace: string, key: string) =>
-    capyConnection(await call(`${ws(workspace)}/capy/connection`, capyConnectionSchema, { method: "PUT", body: { key } })),
-  disconnectCapy: (workspace: string) =>
-    call(`${ws(workspace)}/capy/connection`, null, { method: "DELETE" }),
-  replicasConnection: async (workspace: string, signal?: AbortSignal) =>
-    replicasConnection(await call(`${ws(workspace)}/replicas`, replicasConnectionSchema, { signal })),
-  connectReplicas: async (workspace: string, key: string) =>
-    replicasConnection(await call(`${ws(workspace)}/replicas`, replicasConnectionSchema, { method: "POST", body: { api_key: key } })),
-  disconnectReplicas: (workspace: string) =>
-    call(`${ws(workspace)}/replicas`, null, { method: "DELETE" }),
-
   // The API key is sent once to Control; only its masked hint comes back.
-  factoryConnection: (workspace: string, signal?: AbortSignal) =>
-    orNull(call(`${ws(workspace)}/factory/connection`, factoryConnectionSchema, { signal })),
+  factoryConnection: async (workspace: string, signal?: AbortSignal) => {
+    try { return await call(`${ws(workspace)}/factory/connection`, factoryConnectionSchema, { signal }); }
+    catch (error) {
+      if (error instanceof ApiError && error.status === 404 && error.code === "not_found") return null;
+      throw error;
+    }
+  },
   connectFactory: (workspace: string, key: string) =>
     call(`${ws(workspace)}/factory/connection`, factoryConnectionSchema, {
       method: "PUT", body: { key },
@@ -351,3 +330,6 @@ export const adminApi = {
 };
 
 export const canManage = (role: Role) => role === "owner" || role === "admin";
+
+// Shared authenticated JSON transport for workspace settings modules.
+export { call as adminRequest };

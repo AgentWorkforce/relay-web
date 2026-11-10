@@ -112,6 +112,23 @@ Desktop links here.
 
 `npm run check` runs lint, tests and the production build. Apache-2.0.
 
+### Remote coding agents
+
+Settings → Connections includes Amp, Capy, Replicas, Devin and Cursor Cloud,
+using Control's shared-cookie `/cloud/api` routes. No Cloud server actions,
+Cloud database or browser credential storage are used. Deploy the corresponding
+Control connection API and database migration before enabling these controls.
+An older server's 404 is shown as unavailable, never as a successful connection.
+
+Amp uses the existing enabled/configured Control module for discovery, explicit
+thread binding, delivery inspection and disconnect. Amp's background history
+issuer is still missing in Control, so the card reports history unavailable.
+The other four cards validate and manage encrypted workspace credentials;
+their Relay launch/binding and history workers still need to be ported. A saved
+API key is not displayed as proof of those capabilities. Full parity and live
+acceptance are prerequisites for retiring Cloud; see Control's
+`docs/remote-agent-parity.md`.
+
 ### Session visualizations
 
 `DASHBOARD_SESSION_READ_API_ENABLED=true` (default false) reads list, search, activity, turns and events directly from the session read API, using the access token Control hands the page at `POST /cloud/api/v1/workspaces/:id/session-read/session`. The refresh token stays server side. A first page that the read API can't serve falls back to the existing `/cloud/api` path; timing, output and catalog always use it. The read API must allow the dashboard origin in CORS and expose `X-Relayhistory-Workspace-Id`. In this mode people's names come from Control's `GET /cloud/api/v1/workspaces/:id/sessions/members`; that needs relay-control 0.5.8 or later, and an older version shows no names.
@@ -131,30 +148,23 @@ support renders no summary block; an empty stored result says “No summary yet�
 A failed read cannot delay the transcript or invent a summary. This requires
 the companion relaycontrol summary route; existing login and cookies are reused.
 
-## Remote agent connections
+## Factory sessions
 
-Settings → Connections accepts your Factory, Capy and Replicas API keys when
-Control advertises the corresponding provider as implemented and enabled at
-`GET /cloud/api/v1/workspaces/:id/providers`. Missing, disabled or invalid
-capabilities never mount a provider's credential form. Control needs its provider
-probes and the matching connection routes; a catalog entry alone does not enable
-the card. The server flags are `SELFHOST_FACTORY_ENABLED`,
-`SELFHOST_CAPY_ENABLED` and `SELFHOST_REPLICAS_ENABLED`, all off by default.
+Settings → Connections accepts your Factory API key when Control advertises
+Factory as implemented and enabled. Control's provider probes and Factory
+routes must be deployed first; `SELFHOST_FACTORY_ENABLED` is off by default.
+The key goes only to Control’s same-origin cookie-authenticated API, is stored
+encrypted there, and is cleared from the form on submission. Only its masked
+ending is displayed afterward. The person who connected Factory manages its
+key and session bindings.
 
-Keys go only to Control's same-origin API using the existing session cookie.
-Control validates and encrypts them; the page clears the submitted key and
-displays only its masked hint. Owners/admins can connect, replace or disconnect
-Capy and Replicas. Factory additionally requires the person who connected it to
-manage that key and its sessions. Disconnecting asks for confirmation; a failed
-write is not automatically repeated.
-
-For Factory, choose a listed computer and an existing session to connect it as a
-Relay agent. Keep the Factory Mac app open with Remote Control connected under
-Settings → Droid Computers. The dashboard creates no computers or Factory chats,
-does not enable Remote Control, and does not delete chats when disconnecting a
-binding. Factory history remains deferred by Control and is labelled unavailable
-in the card. Capy and Replicas use their separate credential routes rather than
-model-provider environment variables.
+Choose a listed computer and an existing session to connect it as a Relay
+agent. Keep the Factory Mac app open with Remote Control connected under
+Settings → Droid Computers. The dashboard creates no computers or Factory
+chats, does not enable Remote Control, and does not delete chats when a binding
+is disconnected. Factory transcript history remains unavailable through this
+connection. Capy, Replicas and the other remote-provider key cards use the
+separate Control remote-agent-connections API described below.
 
 ## Password sign-in (self-hosted)
 
