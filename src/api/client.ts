@@ -5,6 +5,7 @@ export class ReadError extends Error {
   constructor(
     message: string,
     readonly code: string | null,
+    readonly status?: number,
   ) {
     super(message);
   }
@@ -24,6 +25,7 @@ export async function read(path: string, signal: AbortSignal) {
     throw new ReadError(
       "Couldn’t load your sessions. Please try again.",
       typeof code === "string" ? code : null,
+      response.status,
     );
   }
   return response.json();

@@ -52,6 +52,7 @@ import {
 } from "./data";
 import {
   facetFilters,
+  clearAgentFilters,
   listServerFilters,
   filterValue,
   matchesSessionFilters,
@@ -829,9 +830,22 @@ function SessionList({
         </div>
       )}
       {error && (
-        <p role="alert">
-          {error instanceof SignedOut ? "Taking you to sign in…" : error.message}
-        </p>
+        <div role="alert" className="flex flex-wrap items-center gap-3">
+          <p>{error instanceof SignedOut ? "Taking you to sign in…" : error.message}</p>
+          {!(error instanceof SignedOut) && (
+            <>
+              <Button variant="outline" size="sm" disabled={busy} onClick={() => {
+                if (moreError) void loadMore();
+                else setReload((value) => value + 1);
+              }}>Retry</Button>
+              {filters.agent && (
+                <Button variant="ghost" size="sm" onClick={() => onQuery(clearAgentFilters(liveQuery))}>
+                  Clear agent filter
+                </Button>
+              )}
+            </>
+          )}
+        </div>
       )}
       {/* The skeleton is for the first load only; later loads keep the list. */}
       {busy && !page.data && !error && <SessionsSkeleton />}
@@ -1070,7 +1084,7 @@ function SessionList({
                   </tr>
                 );
               })}
-              {displayed.length === 0 && !busy && !pendingPick && (
+              {displayed.length === 0 && !busy && !pendingPick && !error && (
                 <tr>
                   <td
                     colSpan={8}
@@ -1096,10 +1110,12 @@ function SessionList({
         </div>
       )}
       <footer className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
-        <span>
-          {displayed.length} {displayed.length === 1 ? "session" : "sessions"}
-          {cursor ? " loaded · Filters apply to loaded sessions" : ""}
-        </span>
+        {!error && (!busy || displayed.length > 0) && (
+          <span>
+            {displayed.length} {displayed.length === 1 ? "session" : "sessions"}
+            {cursor ? " loaded · Filters apply to loaded sessions" : ""}
+          </span>
+        )}
         {cursor && (
           <button
             type="button"

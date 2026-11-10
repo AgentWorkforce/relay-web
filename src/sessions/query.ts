@@ -77,6 +77,13 @@ export function removeSessionFilter(query: string, token: string) {
   return parts.join(" ");
 }
 
+/** Explicit recovery action: remove agent restrictions, retaining every other term. */
+export function clearAgentFilters(query: string) {
+  return parseSessionQuery(query).filters
+    .filter((filter) => filter.field === "agent")
+    .reduce((next, filter) => removeSessionFilter(next, filter.raw), query);
+}
+
 /**
  * Compare a row date with an `updated:`/`created:` value. `null` means the
  * value is still being typed (rows stay visible); a row without a valid date

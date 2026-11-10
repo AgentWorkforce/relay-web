@@ -1,8 +1,10 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { listSessions } from "./api";
+import { ReadError } from "../api/client";
 import {
   agentDraft,
   completeAgent,
+  clearAgentFilters,
   listServerFilters,
   matchesSessionFilters,
   parseSessionQuery,
@@ -86,7 +88,7 @@ it("asks Control for the agent", async () => {
 });
 
 it.each([
-  ["agent_filter_not_ready", /isn’t available on this workspace yet/],
+  ["agent_filter_not_ready", /session agent index isn’t ready/],
   ["agent_with_text", /can’t be combined/],
   ["agent_prefix_not_supported", /full name/],
   ["param_agentMatch", /full name/],
@@ -101,4 +103,46 @@ it.each([
 it("keeps the generic message for a failure unrelated to agent search", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("down", { status: 503 })));
   await expect(listSessions("w1", { agent: "builder" }, null, signal())).rejects.toThrow(/Couldn’t load/);
+});
+
+it("keeps typed readiness and HTTP status on the mapped refusal", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+    Response.json({ error: "unsupported_by_backend", reason: "agent_filter_not_ready" }, { status: 501 }),
+  ));
+  const failure = await listSessions("w1", { agent: "builder" }, null, signal()).catch((error: unknown) => error);
+  expect(failure).toBeInstanceOf(ReadError);
+  expect(failure).toMatchObject({ status: 501, code: "agent_filter_not_ready" });
+});
+
+it("describes an old generic 501 as unavailable without inventing readiness state", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+    Response.json({ error: "unsupported_by_backend" }, { status: 501 }),
+  ));
+  const failure = await listSessions("w1", { agent: "builder" }, null, signal()).catch((error: unknown) => error);
+  expect(failure).toBeInstanceOf(ReadError);
+  expect(failure).toMatchObject({ status: 501, code: "unsupported_by_backend" });
+  expect((failure as Error).message).toMatch(/Agent search is unavailable/);
+  expect((failure as Error).message).not.toMatch(/index|indexing|ready/);
+});
+
+it.each([400, 403, 503])("does not infer readiness from the reason on HTTP %i", async (status) => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+    Response.json({ error: "unsupported_by_backend", reason: "agent_filter_not_ready" }, { status }),
+  ));
+  const failure = await listSessions("w1", { agent: "builder" }, null, signal()).catch((error: unknown) => error);
+  expect(failure).toMatchObject({ status, code: "agent_filter_not_ready" });
+  expect((failure as Error).message).toMatch(/Couldn’t load your sessions/);
+  expect((failure as Error).message).not.toMatch(/index|Agent search is unavailable/);
+});
+
+it("does not apply agent readiness messaging to a non-agent request", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+    Response.json({ reason: "agent_filter_not_ready" }, { status: 501 }),
+  ));
+  await expect(listSessions("w1", {}, null, signal())).rejects.toThrow(/Couldn’t load your sessions/);
+});
+
+it("clears all parsed agent restrictions and preserves other terms and quoted literals", () => {
+  expect(clearAgentFilters('needle @Builder project:"Team repo" @other updated:>=2026-01-01 harness:codex "@literal"'))
+    .toBe('needle project:"Team repo" updated:>=2026-01-01 harness:codex "@literal"');
 });
