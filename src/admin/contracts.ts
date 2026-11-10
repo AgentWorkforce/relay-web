@@ -15,6 +15,58 @@ export const adminContextSchema = z.object({
 });
 export type AdminContext = z.infer<typeof adminContextSchema>;
 
+/** Server-owned provider availability; a browser never enables a provider. */
+export const remoteProvidersSchema = z.object({
+  providers: z.array(z.object({
+    id: z.string(), setup: z.string(), enabled: z.boolean(), implemented: z.boolean(),
+  })),
+});
+
+export const capyConnectionSchema = z.object({
+  connected: z.boolean(), key_hint: z.string().nullable(),
+  validated_at: z.string().nullable(), last_error: z.string().nullable(),
+});
+export const replicasConnectionSchema = z.object({
+  keyHint: z.string(), organizationId: z.string(), validatedAt: z.string(),
+}).nullable();
+export type RemoteKeyConnection = {
+  connected: boolean; keyHint: string | null; validatedAt: string | null; lastError: string | null;
+};
+
+/** Control's Factory connection responses never contain the saved API key. */
+export const factoryConnectionSchema = z.object({
+  connected: z.boolean(),
+  key_hint: z.string().nullable(),
+  validated_at: z.string().nullable(),
+  user_is_owner: z.boolean(),
+  bindings_count: z.number().int().nonnegative(),
+  history: z.literal("deferred"),
+});
+export type FactoryConnection = z.infer<typeof factoryConnectionSchema>;
+export const factoryComputersSchema = z.object({
+  computers: z.array(z.object({ id: z.string(), name: z.string(), status: z.string() })),
+});
+export const factorySessionsSchema = z.object({
+  sessions: z.array(z.object({
+    id: z.string(), title: z.string(), computer_id: z.string(),
+    bound: z.enum(["here", "elsewhere"]).nullable(),
+  })),
+  warning: z.string().optional(),
+});
+export const factoryBindingSchema = z.object({
+  id: z.string(), session_id: z.string(), computer_id: z.string(), state: z.enum(["preparing", "bound", "retired"]),
+  agent: z.object({ name: z.string().nullable(), id: z.string().nullable() }),
+  history: z.literal("deferred"), created_at: z.string().nullable(),
+  updated_at: z.string().nullable(), retired_at: z.string().nullable(),
+});
+export const factoryBindingsSchema = z.object({
+  bindings: z.array(factoryBindingSchema), history: z.literal("deferred"),
+});
+export const factoryBoundSessionSchema = z.object({
+  binding_id: z.string(), session_id: z.string(),
+  agent: z.object({ name: z.string(), id: z.string().nullable() }),
+});
+
 export const sessionErasureSchema = z.object({
   status: z.enum(["in_progress", "completed", "failed"]),
   unreadable: z.boolean(),

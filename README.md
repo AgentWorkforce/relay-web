@@ -131,6 +131,31 @@ support renders no summary block; an empty stored result says “No summary yet�
 A failed read cannot delay the transcript or invent a summary. This requires
 the companion relaycontrol summary route; existing login and cookies are reused.
 
+## Remote agent connections
+
+Settings → Connections accepts your Factory, Capy and Replicas API keys when
+Control advertises the corresponding provider as implemented and enabled at
+`GET /cloud/api/v1/workspaces/:id/providers`. Missing, disabled or invalid
+capabilities never mount a provider's credential form. Control needs its provider
+probes and the matching connection routes; a catalog entry alone does not enable
+the card. The server flags are `SELFHOST_FACTORY_ENABLED`,
+`SELFHOST_CAPY_ENABLED` and `SELFHOST_REPLICAS_ENABLED`, all off by default.
+
+Keys go only to Control's same-origin API using the existing session cookie.
+Control validates and encrypts them; the page clears the submitted key and
+displays only its masked hint. Owners/admins can connect, replace or disconnect
+Capy and Replicas. Factory additionally requires the person who connected it to
+manage that key and its sessions. Disconnecting asks for confirmation; a failed
+write is not automatically repeated.
+
+For Factory, choose a listed computer and an existing session to connect it as a
+Relay agent. Keep the Factory Mac app open with Remote Control connected under
+Settings → Droid Computers. The dashboard creates no computers or Factory chats,
+does not enable Remote Control, and does not delete chats when disconnecting a
+binding. Factory history remains deferred by Control and is labelled unavailable
+in the card. Capy and Replicas use their separate credential routes rather than
+model-provider environment variables.
+
 ## Password sign-in (self-hosted)
 
 When relaycontrol lists `password` in `SELFHOST_SIGNIN_METHODS`, signed-out

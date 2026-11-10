@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { adminApi, canManage, SignedOut } from "./api";
 import { CodingAgentsSection } from "./coding-agents";
+import { RemoteConnectionsSection } from "./remote-connections";
 import { DesktopSection } from "./desktop";
 import { EnvironmentSection } from "./environment";
 import { MembersSection } from "./members";
@@ -220,6 +221,11 @@ export function Settings(props: { section: string }) {
                       context.currentWorkspace.name,
                       context.currentOrganization.name,
                     )}
+                  />
+                  <RemoteConnectionsSection
+                    key={`remote:${context.currentWorkspace.id}`}
+                    workspaceId={context.currentWorkspace.id}
+                    canManage={manage}
                   />
                 </div>
               )}
