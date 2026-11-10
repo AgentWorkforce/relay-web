@@ -164,7 +164,7 @@ Settings → Droid Computers. The dashboard creates no computers or Factory
 chats, does not enable Remote Control, and does not delete chats when a binding
 is disconnected. Factory transcript history remains unavailable through this
 connection. Capy, Replicas and the other remote-provider key cards use the
-separate Control remote-agent-connections API described below.
+separate Control remote-agent-connections API described above.
 
 ## Password sign-in (self-hosted)
 

@@ -136,6 +136,89 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
+it("keeps known provider cards when a newer server adds an unfamiliar provider shape", async () => {
+  override = (call) => call.url.endsWith("/remote-agent-connections")
+    ? Response.json({ providers: [
+      { id: "future-provider", futureConfig: { different: true } },
+      { id: "capy", product: "Capy", docsUrl: "https://capy.ai", connection: null,
+        capabilities: { connectionManagement: true, relayBinding: false, historySync: false } },
+    ] }) : null;
+  render(<RemoteAgentsSection workspaceId="w1" canManage />);
+  expect(await screen.findByLabelText("Capy API key")).toBeInTheDocument();
+  expect(screen.queryByText("future-provider")).not.toBeInTheDocument();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(calls.every((call) => !call.url.includes("future-provider"))).toBe(true);
+});
+
+it("refreshes and re-seeds a connection after a conflicting key write without resending", async () => {
+  override = (call) => {
+    if (call.url.endsWith("/remote-agent-connections/capy") && call.init.method === "POST") {
+      remoteConnected = true;
+      return Response.json({ error: "connection_changed", message: "This connection changed. Refresh settings." }, { status: 409 });
+    }
+    return null;
+  };
+  render(<RemoteAgentsSection workspaceId="w1" canManage />);
+  const field = await screen.findByLabelText("Capy API key");
+  const card = field.closest('[data-slot="card"]')! as HTMLElement;
+  fireEvent.change(field, { target: { value: secret } });
+  fireEvent.click(within(card).getByRole("button", { name: "Connect" }));
+  expect(await within(card).findByText("…ssss")).toBeInTheDocument();
+  expect(within(card).getByLabelText("Replace Capy API key")).toHaveValue("");
+  expect(calls.filter((call) => call.url.endsWith("/remote-agent-connections") && (call.init.method ?? "GET") === "GET")).toHaveLength(2);
+  expect(calls.filter((call) => call.init.method === "POST")).toHaveLength(1);
+});
+
+it.each(["not_found", "workspace_not_found"])("classifies connection-list 404 %s correctly", async (code) => {
+  override = (call) => call.url.endsWith("/remote-agent-connections")
+    ? Response.json({ error: code, message: "Workspace could not be read." }, { status: 404 }) : null;
+  render(<RemoteAgentsSection workspaceId="w1" canManage />);
+  if (code === "not_found") expect(await screen.findByText("Remote provider connection settings are not available on this server version.")).toBeInTheDocument();
+  else {
+    expect(await screen.findByRole("alert")).toHaveTextContent("Workspace could not be read.");
+    expect(screen.queryByText("Remote provider connection settings are not available on this server version.")).not.toBeInTheDocument();
+  }
+});
+
+it.each(["forbidden", "csrf_rejected"])("surfaces %s without retrying the key write", async (code) => {
+  override = (call) => call.url.endsWith("/remote-agent-connections/capy") && call.init.method === "POST"
+    ? Response.json({ error: code, message: code === "forbidden" ? "Only current owners and admins can manage provider connections." : "Cross-origin provider write refused." }, { status: 403 }) : null;
+  render(<RemoteAgentsSection workspaceId="w1" canManage />);
+  const field = await screen.findByLabelText("Capy API key");
+  const card = field.closest('[data-slot="card"]')! as HTMLElement;
+  fireEvent.change(field, { target: { value: secret } });
+  fireEvent.click(within(card).getByRole("button", { name: "Connect" }));
+  expect(await within(card).findByRole("alert")).toHaveTextContent(code === "forbidden" ? "Only current owners" : "Cross-origin provider write refused");
+  expect(field).toHaveValue("");
+  expect(calls.filter((call) => call.init.method === "POST")).toHaveLength(1);
+});
+
+it("accepts a non-null provider account without displaying that identity", async () => {
+  override = (call) => call.url.endsWith("/remote-agent-connections") ? Response.json({ providers: [
+    { id: "devin", product: "Devin", docsUrl: "https://app.devin.ai", connection: { ...connection, providerAccount: "private-provider-account" },
+      capabilities: { connectionManagement: true, relayBinding: false, historySync: false } },
+  ] }) : null;
+  render(<RemoteAgentsSection workspaceId="w1" canManage />);
+  expect(await screen.findByLabelText("Replace Devin API key")).toBeInTheDocument();
+  expect(screen.getByText("…ssss")).toBeInTheDocument();
+  expect(document.body).not.toHaveTextContent("private-provider-account");
+});
+
+it("requires the Cognition organization before sending the Devin key", async () => {
+  render(<RemoteAgentsSection workspaceId="w1" canManage />);
+  const field = await screen.findByLabelText("Devin API key");
+  const card = field.closest('[data-slot="card"]')! as HTMLElement;
+  const connect = within(card).getByRole("button", { name: "Connect" });
+  fireEvent.change(field, { target: { value: "cognition_test_secret_1234" } });
+  expect(connect).toBeDisabled();
+  fireEvent.change(within(card).getByLabelText("Cognition organization ID"), { target: { value: "cognition-org" } });
+  expect(connect).toBeEnabled();
+  fireEvent.click(connect);
+  expect(await within(card).findByText("…ssss")).toBeInTheDocument();
+  expect(calls.find((call) => call.url.endsWith("/remote-agent-connections/devin") && call.init.method === "POST")?.body)
+    .toEqual({ key: "cognition_test_secret_1234", orgId: "cognition-org" });
+});
+
 it("mounts remote provider connections in the real Settings Connections section", async () => {
   render(<Settings section="connections" />);
   expect(await screen.findByLabelText("Capy API key")).toBeInTheDocument();
@@ -247,11 +330,7 @@ it("members can see safe summaries but cannot enter keys or invoke Amp managemen
   expect(await screen.findAllByText("…ssss")).toHaveLength(4);
   expect(screen.queryByLabelText("Capy API key")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("Amp API key")).not.toBeInTheDocument();
-  expect(
-    screen
-      .getAllByRole("button", { name: "Disconnect" })
-      .every((button) => button.hasAttribute("disabled")),
-  ).toBe(true);
+  expect(screen.queryByRole("button", { name: "Disconnect" })).not.toBeInTheDocument();
   expect(
     calls.every((call) => !call.init.method || call.init.method === "GET"),
   ).toBe(true);

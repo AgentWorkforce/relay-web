@@ -128,7 +128,9 @@ export function AmpConnectionCard({
               <Input
                 id={`amp-key-${workspaceId}`}
                 type="password"
-                autoComplete="off"
+                autoComplete="new-password"
+                data-1p-ignore="true"
+                data-lpignore="true"
                 placeholder="sgamp_…"
                 value={key}
                 onChange={(e) => setKey(e.target.value)}

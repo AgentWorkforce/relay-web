@@ -8,20 +8,24 @@ const connectionSchema = z.object({
   validatedAt: z.string(),
   providerAccount: z.string().nullable(),
 });
+const remoteProviderIds = ["capy", "replicas", "devin", "cursor-cloud"] as const;
+const remoteProviderSchema = z.object({
+  id: z.enum(remoteProviderIds),
+  product: z.string(),
+  docsUrl: z.string().url(),
+  connection: connectionSchema.nullable(),
+  capabilities: z.object({
+    connectionManagement: z.boolean(),
+    relayBinding: z.boolean(),
+    historySync: z.boolean(),
+  }),
+});
 export const remoteConnectionsSchema = z.object({
-  providers: z.array(
-    z.object({
-      id: z.enum(["capy", "replicas", "devin", "cursor-cloud"]),
-      product: z.string(),
-      docsUrl: z.string().url(),
-      connection: connectionSchema.nullable(),
-      capabilities: z.object({
-        connectionManagement: z.boolean(),
-        relayBinding: z.boolean(),
-        historySync: z.boolean(),
-      }),
-    }),
-  ),
+  // Control and the dashboard deploy independently. New provider rows may have
+  // a different shape, so identify and drop them before validating known rows.
+  providers: z.array(z.object({ id: z.string() }).passthrough()).transform((rows) =>
+    rows.filter((row) => remoteProviderIds.some((id) => id === row.id))
+      .map((row) => remoteProviderSchema.parse(row))),
 });
 export type RemoteProvider = z.infer<
   typeof remoteConnectionsSchema

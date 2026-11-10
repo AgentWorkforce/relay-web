@@ -76,6 +76,8 @@ it("sends the API key only to Control and clears it after save", async () => {
   render(<FactoryConnectionSection workspaceId="w1" canManage />);
   const field = await screen.findByLabelText("Factory API key");
   expect(field).toHaveAttribute("type", "password");
+  expect(field).toHaveAttribute("autocomplete", "new-password");
+  expect(field).toHaveAttribute("data-1p-ignore", "true");
   fireEvent.change(field, { target: { value: secret } });
   fireEvent.click(screen.getByRole("button", { name: "Connect Factory" }));
   expect(await screen.findByText("…1234")).toBeInTheDocument();

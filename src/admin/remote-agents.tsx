@@ -17,12 +17,19 @@ function RemoteConnectionCard({
   provider,
   workspaceId,
   canManage,
+  onConflict,
 }: {
   provider: RemoteProvider;
   workspaceId: string;
   canManage: boolean;
+  onConflict(): void;
 }) {
   const [connection, setConnection] = useState(provider.connection);
+  const [snapshot, setSnapshot] = useState(provider.connection);
+  if (snapshot !== provider.connection) {
+    setSnapshot(provider.connection);
+    setConnection(provider.connection);
+  }
   const [key, setKey] = useState("");
   const [orgId, setOrgId] = useState("");
   const [pending, setPending] = useState(false);
@@ -47,7 +54,10 @@ function RemoteConnectionCard({
             .connection;
       if (active.current) setConnection(result);
     } catch (error) {
-      if (active.current) setError(message(error));
+      if (active.current) {
+        setError(message(error));
+        if (error instanceof ApiError && error.status === 409) onConflict();
+      }
     } finally {
       if (active.current) setPending(false);
     }
@@ -67,13 +77,13 @@ function RemoteConnectionCard({
             <span>
               Connected with <code>{connection.keyHint}</code>
             </span>
-            <Button
+            {canManage && <Button
               variant="outline"
-              disabled={!canManage || pending}
+              disabled={pending}
               onClick={() => void change(true)}
             >
               Disconnect
-            </Button>
+            </Button>}
           </div>
         )}
         {canManage && provider.capabilities.connectionManagement ? (
@@ -91,7 +101,9 @@ function RemoteConnectionCard({
               <Input
                 id={keyId}
                 type="password"
-                autoComplete="off"
+                autoComplete="new-password"
+                data-1p-ignore="true"
+                data-lpignore="true"
                 value={key}
                 onChange={(event) => setKey(event.target.value)}
               />
@@ -178,7 +190,7 @@ export function RemoteAgentsSection({
   );
   const amp = catalog?.providers.find((provider) => provider.id === "amp");
   const factory = catalog?.providers.find((provider) => provider.id === "factory");
-  const unavailable = error instanceof ApiError && error.status === 404;
+  const unavailable = error instanceof ApiError && error.status === 404 && error.code === "not_found";
   return (
     <section aria-label="Remote coding agents" className="flex flex-col gap-6">
       <header>
@@ -214,6 +226,7 @@ export function RemoteAgentsSection({
           workspaceId={workspaceId}
           provider={provider}
           canManage={canManage}
+          onConflict={reload}
         />
       ))}
       {!data && !error && (

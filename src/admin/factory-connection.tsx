@@ -55,7 +55,7 @@ function FactoryConnectionCard({ workspaceId }: { workspaceId: string }) {
     {connection && owned && <form className="flex flex-wrap items-end gap-3" onSubmit={(event) => void connect(event)}>
       <label className="flex min-w-64 flex-col gap-1.5" htmlFor={`factory-key-${workspaceId}`}>
         {connection.connected ? "Replace Factory API key" : "Factory API key"}
-        <Input id={`factory-key-${workspaceId}`} type="password" autoComplete="off" spellCheck={false}
+        <Input id={`factory-key-${workspaceId}`} type="password" autoComplete="new-password" data-1p-ignore="true" data-lpignore="true" spellCheck={false}
           placeholder="fk-…" value={key} disabled={busy} onChange={(event) => setKey(event.target.value)} />
       </label>
       <Button type="submit" disabled={busy || !key.trim()}>{busy ? "Checking…" : connection.connected ? "Replace key" : "Connect Factory"}</Button>
