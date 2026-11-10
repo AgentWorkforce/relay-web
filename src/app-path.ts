@@ -8,6 +8,7 @@ type RuntimeConfig = {
   loginPath?: unknown;
   sessionVisualizations?: unknown;
   sessionReadApi?: unknown;
+  sessionAgentNames?: unknown;
   analyticsEnabled?: unknown;
 };
 
@@ -76,6 +77,11 @@ export function loginHref(
 /** Missing or malformed runtime flags keep the standard conversation view. */
 export function sessionVisualizationsEnabled(): boolean {
   return runtimeConfig().sessionVisualizations === true;
+}
+
+/** Opt in only after Control and the reader support recorded agent metadata. */
+export function sessionAgentNamesEnabled(): boolean {
+  return runtimeConfig().sessionAgentNames === true;
 }
 
 /** Explicit operator opt-in; no URL, storage or hosted-key override. */

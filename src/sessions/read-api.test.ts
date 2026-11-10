@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { listSessions, sessionEvents, sessionTurns } from "./api";
 import { forgetReadApiAccess, ReadApiUnavailable, readApiGet } from "./read-api";
+import { sessionSubtitle } from "./data";
 
 const signal = () => new AbortController().signal;
 const WORKSPACE = "ws-1";
@@ -40,7 +41,47 @@ it("stays on Control when the setting is off", async () => {
   const fetch = route(() => json(controlPage));
   await listSessions(WORKSPACE, {}, null, signal());
   expect(fetch).toHaveBeenCalledTimes(1);
-  expect(String(fetch.mock.calls[0][0])).toContain(`/cloud/api/v1/workspaces/${WORKSPACE}/sessions`);
+  expect(String(fetch.mock.calls[0][0])).toBe(`/cloud/api/v1/workspaces/${WORKSPACE}/sessions?metadata=deferred`);
+});
+
+it("requests recorded-agent metadata through Control only with the operator flag and keeps agent routing", async () => {
+  window.__AGENT_RELAY_DASHBOARD_CONFIG__ = { sessionReadApi: true, sessionAgentNames: true };
+  const fetch = route(() => json({ ...controlPage, items: [{ ...session, agentName: "yo-1", models: ["gpt-6.1-sol"] }] }));
+  const page = await listSessions(WORKSPACE, { agent: "yo-1" }, null, signal());
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(String(fetch.mock.calls[0][0])).toBe(`/cloud/api/v1/workspaces/${WORKSPACE}/sessions?metadata=deferred&agent=yo-1&includeAgentName=recorded`);
+  expect(sessionSubtitle(page.items[0]!)).toBe("Claude Code · yo-1 · gpt-6.1-sol");
+});
+
+it("requests recorded-agent metadata on the attested direct-reader list without catalog fetches", async () => {
+  window.__AGENT_RELAY_DASHBOARD_CONFIG__ = { sessionReadApi: true, sessionAgentNames: true };
+  const fetch = route((url) => {
+    if (url === MEMBERS_URL) return json({ members: [] });
+    if (url.includes("/session-read/session")) return json(handoff());
+    return attested({ sessions: [{ ...session, agentName: "yo-1", models: ["gpt-6.1-sol"] }], nextCursor: null });
+  });
+  const page = await listSessions(WORKSPACE, {}, null, signal());
+  const reads = fetch.mock.calls.filter(([url]) => String(url).startsWith("https://read.example.com"));
+  expect(reads).toHaveLength(1);
+  expect(String(reads[0]![0])).toBe(`https://read.example.com/v1/sessions?limit=50&includeAgentName=recorded&workspace=${WORKSPACE}`);
+  expect(reads[0]![1]?.credentials).toBe("omit");
+  expect(sessionSubtitle(page.items[0]!)).toBe("Claude Code · yo-1 · gpt-6.1-sol");
+  expect(fetch.mock.calls.some(([url]) => String(url).includes("/catalog"))).toBe(false);
+});
+
+it.each([false, "true", 1, null])("keeps legacy Control query bytes for a non-true recorded-agent flag (%j)", async (sessionAgentNames) => {
+  window.__AGENT_RELAY_DASHBOARD_CONFIG__ = { sessionAgentNames };
+  const fetch = route(() => json(controlPage));
+  await listSessions(WORKSPACE, {}, null, signal());
+  expect(String(fetch.mock.calls[0][0])).toBe(`/cloud/api/v1/workspaces/${WORKSPACE}/sessions?metadata=deferred`);
+});
+
+it("does not strip the opt-in or retry an unsupported Control request", async () => {
+  window.__AGENT_RELAY_DASHBOARD_CONFIG__ = { sessionAgentNames: true };
+  const fetch = route(() => json({ error: "invalid_query" }, { status: 400 }));
+  await expect(listSessions(WORKSPACE, {}, null, signal())).rejects.toThrow();
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(String(fetch.mock.calls[0][0])).toContain("includeAgentName=recorded");
 });
 
 it("reads with an in-memory bearer, sends no cookies and marks the cursor", async () => {

@@ -37,6 +37,7 @@ import {
   sessionActivity,
   sessionKey,
   sessionTitle,
+  sessionSubtitle,
   toolKey,
   dateTime,
   workStates,
@@ -852,6 +853,8 @@ function SessionList({
             <tbody>
               {displayed.map((row) => {
                 const title = sessionTitle(row);
+                const subtitle = sessionSubtitle(row);
+                const subtitleId = `session-caption-${encodeURIComponent(sessionKey(row))}`;
                 const project = projectLabel(row);
                 const key = sessionActivity(row, now);
                 const names = row.userIds.map(
@@ -909,6 +912,7 @@ function SessionList({
                         onClick={onLinkClick}
                         title={title}
                         aria-label={row.shortSummary ? `${title}. ${row.shortSummary}` : title}
+                        aria-describedby={subtitle ? subtitleId : undefined}
                         className={`${styles.sessionLink} flex min-w-0 items-center gap-2 font-medium`}
                       >
                         <span className={styles.sessionTitle}>
@@ -918,10 +922,8 @@ function SessionList({
                               {row.shortSummary}
                             </span>
                           )}
-                          <span className={styles.executionDetails}>
-                            {[harnessName(row.source), row.models[0]]
-                              .filter(Boolean)
-                              .join(" · ")}
+                          <span id={subtitleId} className={styles.executionDetails}>
+                            {subtitle}
                           </span>
                         </span>
                       </a>

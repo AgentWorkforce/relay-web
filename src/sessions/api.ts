@@ -2,6 +2,7 @@
 // The control plane scopes every read to the signed-in workspace.
 import { z } from "zod";
 import { read, ReadError } from "../api/client";
+import { sessionAgentNamesEnabled } from "../app-path";
 import { sessionRow, type Member, type SessionRow } from "./data";
 import {
   fromDirectCursor,
@@ -142,7 +143,10 @@ async function listDirect(
     readApiGet(
       workspace,
       "/v1/sessions",
-      { limit: "50", source, cursor: fromDirectCursor(next) },
+      {
+        limit: "50", source, cursor: fromDirectCursor(next),
+        ...(sessionAgentNamesEnabled() ? { includeAgentName: "recorded" } : {}),
+      },
       signal,
     ),
     workspaceMembers(workspace),
@@ -184,6 +188,7 @@ async function listViaControl(
           since: filters.since,
           until: filters.until,
           cursor: next,
+          ...(sessionAgentNamesEnabled() ? { includeAgentName: "recorded" } : {}),
         }),
       ),
       signal,

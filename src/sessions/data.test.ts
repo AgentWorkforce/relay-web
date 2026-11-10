@@ -4,8 +4,31 @@ import {
   promptLabel,
   sessionRow,
   sessionTitle,
+  sessionSubtitle,
   shortProject,
 } from "./data";
+
+it("preserves only the explicit recorded top-level list agent metadata", () => {
+  const base = { sessionId: "s", source: "codex" };
+  expect(sessionRow({ ...base, agentName: "  yo-2  " }).agentName).toBe("yo-2");
+  expect(sessionRow({ ...base, catalog: { agentName: "old-detail" }, agentName: "yo-2" }).agentName).toBe("yo-2");
+  for (const agentName of [undefined, null, "", "  ", 1, ["yo-1"], { name: "yo-1" }]) {
+    expect(sessionRow({ ...base, catalog: { agentName }, agentName }).agentName).toBeNull();
+  }
+  expect(sessionRow({ ...base, title: "yo-1", actor: "yo-1", catalog: { agentName: "detail-only" }, agent_names: ["yo-1"], agent_name: "yo-1" }).agentName).toBeNull();
+});
+
+it.each([
+  [{ agentName: "yo-1", models: ["gpt-6.1-sol"] }, "Codex · yo-1 · gpt-6.1-sol"],
+  [{ models: ["gpt-6.1-sol"] }, "Codex · gpt-6.1-sol"],
+  [{ agentName: "yo-1" }, "Codex · yo-1"],
+  [{}, "Codex"],
+  [{ agentName: " CODEX ", models: ["codex"] }, "Codex"],
+  [{ agentName: " gpt-6.1-sol ", models: [" GPT-6.1-SOL "] }, "Codex · gpt-6.1-sol"],
+  [{ agentName: " \t yo-1\n ", models: [" ", "\t gpt-6.1-sol  ", "second-model"] }, "Codex · yo-1 · gpt-6.1-sol"],
+])("renders recorded execution metadata %# without blank or duplicate parts", (metadata, expected) => {
+  expect(sessionSubtitle(sessionRow({ sessionId: "s", source: "codex", ...metadata }))).toBe(expected);
+});
 
 it("preserves only recorded short summaries without using prompt text as a substitute", () => {
   const base = { sessionId: "s", source: "codex", summary: "A prompt, not a generated summary" };
