@@ -510,6 +510,29 @@ it("treats an old message-search link as the sessions list", async () => {
   expect(screen.queryByText(/every recorded message/)).toBeNull();
 });
 
+it("shows a recorded agent next to the harness/model without changing the session link or summary", async () => {
+  respond(/\/sessions$/, () => ({
+    items: [
+      {
+        ...sessions[0]!,
+        shortSummary: "The recorded short summary.",
+        models: ["gpt-6.1-sol"],
+        agentName: "  yo-1  ",
+      },
+      { ...sessions[1]!, models: ["claude-opus"] },
+    ],
+    members, nextCursor: null, error: false, now,
+  }));
+  render(<Dashboard />);
+  const link = await screen.findByRole("link", { name: "Fix session loading. The recorded short summary." });
+  expect(within(link).getByText("Codex · yo-1 · gpt-6.1-sol")).toBeVisible();
+  expect(link).toHaveAccessibleDescription("Codex · yo-1 · gpt-6.1-sol");
+  expect(within(link).getByText("The recorded short summary.")).toBeVisible();
+  expect(link).toHaveAttribute("href", expect.stringContaining("s%2F1"));
+  expect(within(screen.getByRole("link", { name: "Write docs" })).getByText("Claude Code · claude-opus")).toBeVisible();
+  expect(calls.some((url) => /\/sessions\/[^/]+\/catalog$/.test(url.pathname))).toBe(false);
+});
+
 it("charts team activity by agent", async () => {
   respond(/\/sessions\/activity$/, (url) => ({
     days: [
