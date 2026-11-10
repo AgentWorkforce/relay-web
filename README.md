@@ -114,7 +114,8 @@ Desktop links here.
 
 ### Remote coding agents
 
-Settings → Connections includes Amp, Capy, Replicas, Devin and Cursor Cloud,
+This extension adds Amp, Devin and Cursor Cloud to Settings → Connections,
+composed with the Factory/Capy/Replicas port in webapp #117. It uses
 using Control's shared-cookie `/cloud/api` routes. No Cloud server actions,
 Cloud database or browser credential storage are used. Deploy the corresponding
 Control connection API and database migration before enabling these controls.

@@ -203,14 +203,19 @@ export function RemoteAgentsSection({
           </CardContent>
         </Card>
       )}
-      {data?.providers.filter(provider => provider.id === "devin" || provider.id === "cursor-cloud").map((provider) => (
-        <RemoteConnectionCard
-          key={`${workspaceId}:${provider.id}`}
-          workspaceId={workspaceId}
-          provider={provider}
-          canManage={canManage}
-        />
-      ))}
+      {data?.providers
+        .filter(
+          (provider) =>
+            provider.id === "devin" || provider.id === "cursor-cloud",
+        )
+        .map((provider) => (
+          <RemoteConnectionCard
+            key={`${workspaceId}:${provider.id}`}
+            workspaceId={workspaceId}
+            provider={provider}
+            canManage={canManage}
+          />
+        ))}
       {!data && !error && (
         <p role="status">Loading remote provider connections…</p>
       )}

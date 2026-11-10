@@ -46,18 +46,43 @@ const amp = () => ({
 });
 function respond(call: Call) {
   const path = call.url;
-  if (path.endsWith("/auth/whoami")) return Response.json({
-    user: { id: "u1", name: "Owner", email: "owner@test.example" },
-    currentWorkspace: { id: "w1", name: "Primary" },
-    currentOrganization: { id: "o1", name: "Acme", role: "owner" },
-  });
-  if (path.endsWith("/cloud-agents")) return Response.json({ agents: [], providers: [], canManage: true });
+  if (path.endsWith("/auth/whoami"))
+    return Response.json({
+      user: { id: "u1", name: "Owner", email: "owner@test.example" },
+      currentWorkspace: { id: "w1", name: "Primary" },
+      currentOrganization: { id: "o1", name: "Acme", role: "owner" },
+    });
+  if (path.endsWith("/cloud-agents"))
+    return Response.json({ agents: [], providers: [], canManage: true });
   if (path.endsWith("/providers"))
     return Response.json({
       providers: [
-        { id: "amp", product: "Amp", implemented: true, configured, enabled },
+        {
+          id: "amp",
+          product: "Amp",
+          setup: "api_key",
+          implemented: true,
+          configured,
+          enabled,
+        },
+        ...["capy", "replicas"].map((id) => ({
+          id,
+          product: id,
+          setup: "api_key",
+          implemented: true,
+          configured: true,
+          enabled: true,
+        })),
       ],
     });
+  if (path.endsWith("/capy/connection"))
+    return Response.json({
+      connected: false,
+      key_hint: null,
+      validated_at: null,
+      last_error: null,
+    });
+  if (path.endsWith("/replicas")) return Response.json(null);
   if (path.endsWith("/remote-agent-connections"))
     return Response.json({
       providers: [
@@ -138,14 +163,18 @@ afterEach(() => vi.unstubAllGlobals());
 
 it("mounts remote provider connections in the real Settings Connections section", async () => {
   render(<Settings section="connections" />);
-  expect(await screen.findByLabelText("Cursor Cloud API key")).toBeInTheDocument();
+  expect(
+    await screen.findByLabelText("Cursor Cloud API key"),
+  ).toBeInTheDocument();
   expect(await screen.findByLabelText("Amp API key")).toBeInTheDocument();
+  expect(await screen.findByLabelText("Capy API key")).toBeInTheDocument();
+  expect(await screen.findByLabelText("Replicas API key")).toBeInTheDocument();
+  expect(screen.getAllByLabelText("Cursor Cloud API key")).toHaveLength(1);
 });
 
 it("renders each provider and saves/removes a key through same-origin Control API without retaining it", async () => {
   render(<RemoteAgentsSection workspaceId="w1" canManage />);
   const input = await screen.findByLabelText("Cursor Cloud API key");
-  expect(await screen.findByText("Replicas")).toBeInTheDocument();
   expect(screen.getByText("Devin")).toBeInTheDocument();
   expect(screen.getByText("Cursor Cloud")).toBeInTheDocument();
   const card = input.closest('[data-slot="card"]')! as HTMLElement;
@@ -168,7 +197,8 @@ it("renders each provider and saves/removes a key through same-origin Control AP
   );
   expect(
     calls.some(
-      (call) => call.init.method === "DELETE" && call.url.endsWith("/cursor-cloud"),
+      (call) =>
+        call.init.method === "DELETE" && call.url.endsWith("/cursor-cloud"),
     ),
   ).toBe(true);
 });
@@ -206,9 +236,7 @@ it("uses existing Amp discovery, binding, delivery-check and disconnect contract
   );
   fireEvent.click(within(card).getByRole("button", { name: "Choose threads" }));
   await within(card).findByText("Another thread");
-  fireEvent.click(
-    within(card).getByRole("button", { name: /^Disconnect$/ }),
-  );
+  fireEvent.click(within(card).getByRole("button", { name: /^Disconnect$/ }));
   await waitFor(() =>
     expect(
       within(card).queryByRole("button", { name: "Choose threads" }),
@@ -241,7 +269,9 @@ it("members can see safe summaries but cannot enter keys or invoke Amp managemen
   remoteConnected = true;
   render(<RemoteAgentsSection workspaceId="w1" canManage={false} />);
   expect(await screen.findAllByText("…ssss")).toHaveLength(2);
-  expect(screen.queryByLabelText("Cursor Cloud API key")).not.toBeInTheDocument();
+  expect(
+    screen.queryByLabelText("Cursor Cloud API key"),
+  ).not.toBeInTheDocument();
   expect(screen.queryByLabelText("Amp API key")).not.toBeInTheDocument();
   expect(
     screen
