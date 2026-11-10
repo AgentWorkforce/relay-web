@@ -5,6 +5,7 @@ import {
   screen,
   waitFor,
   within,
+  act,
 } from "@testing-library/react";
 import { RemoteAgentsSection } from "./remote-agents";
 import { remoteAgentApi } from "./remote-agent-api";
@@ -197,6 +198,47 @@ it("clears a locally saved connection when a conflict refresh reports it deleted
   expect(within(card).queryByRole("button", { name: "Disconnect" })).not.toBeInTheDocument();
   expect(calls.filter((call) => call.url.endsWith("/remote-agent-connections") && (call.init.method ?? "GET") === "GET")).toHaveLength(2);
   expect(writes).toBe(2);
+});
+
+it("keeps a newer successful save when an older conflict refresh returns empty", async () => {
+  let writes = 0;
+  let reads = 0;
+  let finishRefresh!: () => void;
+  override = (call) => {
+    if (call.url.endsWith("/remote-agent-connections/capy") && call.init.method === "POST" && ++writes === 2) {
+      remoteConnected = false;
+      return Response.json({ error: "connection_changed", message: "This connection changed. Refresh settings." }, { status: 409 });
+    }
+    if (call.url.endsWith("/remote-agent-connections") && ++reads === 2) {
+      const staleEmpty = respond(call);
+      return new Promise(resolve => { finishRefresh = () => resolve(staleEmpty); });
+    }
+    return null;
+  };
+  render(<RemoteAgentsSection workspaceId="w1" canManage />);
+  const field = await screen.findByLabelText("Capy API key");
+  const card = field.closest('[data-slot="card"]')! as HTMLElement;
+  const connect = () => within(card).getByRole("button", { name: "Connect" });
+  fireEvent.change(field, { target: { value: secret } });
+  fireEvent.click(connect());
+  await within(card).findByText("…ssss");
+
+  fireEvent.change(field, { target: { value: secret } });
+  fireEvent.click(connect());
+  await within(card).findByRole("alert");
+  await waitFor(() => expect(finishRefresh).toBeDefined());
+
+  fireEvent.change(field, { target: { value: secret } });
+  fireEvent.click(connect());
+  await waitFor(() => expect(writes).toBe(3));
+  await waitFor(() => expect(within(card).queryByRole("status")).not.toBeInTheDocument());
+  await waitFor(() => expect(field).toHaveValue(""));
+  await act(async () => { finishRefresh(); });
+  expect(within(card).getByText("…ssss")).toBeInTheDocument();
+  expect(within(card).getByRole("button", { name: "Disconnect" })).toBeEnabled();
+  expect(within(card).getByLabelText("Replace Capy API key")).toHaveValue("");
+  expect(writes).toBe(3);
+  expect(reads).toBe(2);
 });
 
 it.each(["not_found", "workspace_not_found"])("classifies connection-list 404 %s correctly", async (code) => {
