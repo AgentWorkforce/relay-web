@@ -259,7 +259,7 @@ it("keeps every facet option after one is picked, counting against the other fil
   expect(
     await screen.findByRole("link", { name: "Write docs" }),
   ).toBeInTheDocument();
-  expect(screen.getByLabelText("Search sessions")).toHaveValue("project:docs");
+  expect(screen.getByRole("button", { name: "Remove filter project:docs" })).toBeVisible();
   expect(facetRow("project", "relay").count).toBe("1");
 });
 
@@ -399,9 +399,9 @@ it("applies person and status filters in the browser and free text on the server
   const list = [...calls].reverse().find((url) => url.pathname === base)!;
   expect(list.searchParams.get("q")).toBe("loader");
   fireEvent.click(screen.getByRole("button", { name: "Alex" }));
-  expect(screen.getByLabelText("Search sessions")).toHaveValue(
-    "loader is:finished person:u1",
-  );
+  fireEvent.click(screen.getByRole("button", { name: "Search and filter sessions" }));
+  expect(screen.getByRole("combobox", { name: "Search sessions" })).toHaveValue("loader is:finished person:u1");
+  fireEvent.keyDown(screen.getByRole("combobox"), { key: "Escape" });
   expect(
     await screen.findByText("No sessions match these filters."),
   ).toBeInTheDocument();
@@ -502,7 +502,8 @@ it("opens hosted-style citation links and keeps the transcript when enrichments 
 it("treats an old message-search link as the sessions list", async () => {
   window.history.replaceState(null, "", "/?tab=search&q=loader");
   render(<Dashboard />);
-  expect(await screen.findByLabelText("Search sessions")).toHaveAttribute(
+  fireEvent.click(await screen.findByRole("button", { name: "Search and filter sessions" }));
+  expect(screen.getByRole("combobox", { name: "Search sessions" })).toHaveAttribute(
     "placeholder",
     expect.stringContaining("Search sessions"),
   );
@@ -533,6 +534,21 @@ it("shows a recorded agent next to the harness/model without changing the sessio
   expect(within(screen.getByRole("link", { name: "Write docs" })).getByText("Claude Code · claude-opus")).toBeVisible();
   expect(calls.some((url) => /\/sessions\/[^/]+\/catalog$/.test(url.pathname))).toBe(false);
   expect(calls.filter((url) => url.pathname === base).every((url) => url.searchParams.get("includeAgentName") === "recorded")).toBe(true);
+});
+
+it("keeps popover agent completion on the existing Sessions agent route without a text query", async () => {
+  respond(/\/session-agent-names$/, () => ({ names: ["builder@laptop"] }));
+  render(<Dashboard />);
+  fireEvent.click(await screen.findByRole("button", { name: "Search and filter sessions" }));
+  fireEvent.change(screen.getByRole("combobox", { name: "Search sessions" }), { target: { value: "@bui" } });
+  fireEvent.click(await screen.findByRole("option", { name: /@builder@laptop/ }));
+  fireEvent.submit(screen.getByRole("search"));
+  await waitFor(() => expect(calls.some((url) => url.pathname === base && url.searchParams.get("agent") === "builder@laptop")).toBe(true));
+  const agentRequests = calls.filter((url) => url.pathname === base && url.searchParams.has("agent"));
+  expect(agentRequests.every((url) => !url.searchParams.has("q"))).toBe(true);
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Remove filter @builder@laptop" })).toBeVisible();
+  expect(screen.queryByText("Search messages")).not.toBeInTheDocument();
 });
 
 it("charts team activity by agent", async () => {
