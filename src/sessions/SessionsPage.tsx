@@ -32,6 +32,12 @@ import {
 } from "./api";
 import { ActivityPanel } from "./ActivityPanel";
 import {
+  OverlapsPanel,
+  overlapsWindow,
+  type OverlapRange,
+} from "./OverlapsPanel";
+import { coordinationOverlaps } from "./overlaps-api";
+import {
   harnessName,
   projectLabel,
   sessionActivity,
@@ -58,6 +64,7 @@ import {
   listState,
   onLinkClick,
   sessionHref,
+  type SessionTab,
 } from "./route";
 import { SignedOut } from "../api/client";
 import { InitialsAvatar } from "../shell/account-menu";
@@ -140,7 +147,7 @@ export function relativeTime(value: string | null, now: number) {
   return `${Math.floor(days / 365)}y ago`;
 }
 
-type Tab = "sessions" | "activity";
+type Tab = SessionTab;
 
 function useSignedOut(error: Error | null | undefined, onSignedOut: () => void) {
   useEffect(() => {
@@ -169,11 +176,43 @@ export function SessionsPage({
   onSignedOut: () => void;
 }) {
   const [query, setQuery] = useState(initialQuery);
+  const [overlapRange, setOverlapRange] = useState<OverlapRange>(7);
+  const [overlapNow] = useState(() => new Date());
   const debounced = useDebounced(query);
+  const overlapProject = filterValue(debounced, "project") || undefined;
+  const overlapDates = useMemo(
+    () => overlapsWindow(overlapRange, overlapNow),
+    [overlapRange, overlapNow],
+  );
+  const overlapsKey = JSON.stringify([
+    workspaceId,
+    overlapDates,
+    overlapProject,
+  ]);
+  const overlaps = useLoad(
+    overlapsKey,
+    (signal) =>
+      coordinationOverlaps(
+        workspaceId,
+        { ...overlapDates, project: overlapProject },
+        signal,
+      ),
+    { keepPrevious: true },
+  );
   useEffect(() => {
     // Keep the URL shareable without adding history entries per keystroke.
     window.history.replaceState(null, "", listHref(debounced, tab));
   }, [debounced, tab]);
+  useEffect(() => {
+    if (tab !== "overlaps" || overlaps.loading || overlaps.data !== null) return;
+    window.history.replaceState(null, "", listHref(debounced));
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }, [debounced, overlaps.data, overlaps.loading, tab]);
+  const showOverlapsTab =
+    overlaps.data !== null &&
+    (overlaps.data !== undefined ||
+      overlaps.error !== null ||
+      tab === "overlaps");
 
   return (
     <section className={styles.sessions}>
@@ -182,19 +221,46 @@ export function SessionsPage({
           <h1>Sessions</h1>
         </div>
       </WorkspaceViewSlot>
-      {sessionVisualizationsEnabled() && (
-        <WorkspaceViewSlot name="toolbar">
-          <nav className="flex items-center gap-1" aria-label="Sessions views">
+      <WorkspaceViewSlot name="toolbar">
+        <nav className="flex items-center gap-1" aria-label="Sessions views">
+          {(["sessions", "activity"] as const).map((view) => (
+            <a
+              key={view}
+              href={listHref(query, view)}
+              onClick={onLinkClick}
+              aria-current={tab === view ? "page" : undefined}
+              className={buttonClass(
+                tab === view ? "secondary" : "ghost",
+                "sm",
+              )}
+            >
+              {view === "sessions" ? "Sessions" : "Activity"}
+            </a>
+          ))}
+          {showOverlapsTab && (
+            <a
+              href={listHref(query, "overlaps")}
+              onClick={onLinkClick}
+              aria-current={tab === "overlaps" ? "page" : undefined}
+              className={buttonClass(
+                tab === "overlaps" ? "secondary" : "ghost",
+                "sm",
+              )}
+            >
+              Overlaps
+            </a>
+          )}
+          {sessionVisualizationsEnabled() && (
             <a href={graphHref(workspaceId)} onClick={onLinkClick} className={buttonClass("ghost", "sm")}><Network data-icon="inline-start" /> Work graph</a>
-          </nav>
-        </WorkspaceViewSlot>
-      )}
-      {tab !== "sessions" && (
+          )}
+        </nav>
+      </WorkspaceViewSlot>
+      {tab === "activity" && (
         <div className={styles.tableToolbar}>
           <SessionSearch workspaceId={workspaceId} query={query} onChange={setQuery} tab={tab} />
         </div>
       )}
-      {tab !== "sessions" && <UnusedFilters query={query} />}
+      {tab === "activity" && <UnusedFilters query={query} />}
       {tab === "sessions" && (
         <ActivityPanel
           workspaceId={workspaceId}
@@ -215,6 +281,19 @@ export function SessionsPage({
         <ActivityPanel
           workspaceId={workspaceId}
           query={parseSessionQuery(debounced).text}
+          onSignedOut={onSignedOut}
+        />
+      )}
+      {tab === "overlaps" && overlaps.data !== null && (
+        <OverlapsPanel
+          workspaceId={workspaceId}
+          query={query}
+          onQuery={setQuery}
+          range={overlapRange}
+          onRange={setOverlapRange}
+          data={overlaps.data}
+          loading={overlaps.loading}
+          error={overlaps.error}
           onSignedOut={onSignedOut}
         />
       )}

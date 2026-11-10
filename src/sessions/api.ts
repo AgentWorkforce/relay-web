@@ -117,7 +117,7 @@ const MEMBERS_DEADLINE_MS = 3_000;
  * is shared across callers, so it has its own deadline instead of a caller's
  * signal, and needs a real `members` array so a bad answer is retried.
  */
-function workspaceMembers(workspace: string) {
+export function workspaceMembers(workspace: string) {
   return rememberMembers(workspace, async () => {
     const deadline = new AbortController();
     const timer = setTimeout(() => deadline.abort(), MEMBERS_DEADLINE_MS);
