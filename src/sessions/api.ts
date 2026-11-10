@@ -75,7 +75,6 @@ export type ListFilters = {
 
 /** What relaycontrol's refusal of an agent search means for the person searching. */
 const AGENT_SEARCH_MESSAGES: Record<string, string> = {
-  agent_filter_not_ready: "Search by agent isn’t available on this workspace yet.",
   agent_with_text: "Search by agent can’t be combined with other words yet. Remove the words or the @name.",
   agent_prefix_not_supported: "Searching by the start of an agent name isn’t available yet. Use the full name.",
   param_agentMatch: "Searching by the start of an agent name isn’t available yet. Use the full name.",
@@ -193,8 +192,15 @@ async function listViaControl(
       ),
       signal,
     ).catch((failure: unknown) => {
-      const message = failure instanceof ReadError && failure.code ? AGENT_SEARCH_MESSAGES[failure.code] : undefined;
-      throw filters.agent && message ? new Error(message) : failure;
+      if (!(filters.agent && failure instanceof ReadError)) throw failure;
+      let message: string | undefined;
+      if (failure.status === 501 && failure.code === "agent_filter_not_ready")
+        message = "The session agent index isn’t ready yet. Retry or clear the agent filter.";
+      else if (failure.status === 501 && failure.code === "unsupported_by_backend")
+        message = "Agent search is unavailable on this backend. Retry or clear the agent filter.";
+      else if (failure.code && failure.code !== "agent_filter_not_ready")
+        message = AGENT_SEARCH_MESSAGES[failure.code];
+      throw message ? new ReadError(message, failure.code, failure.status) : failure;
     }),
   );
   if (page.error) throw new HistoryUnavailable();

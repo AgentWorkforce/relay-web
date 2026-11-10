@@ -411,8 +411,9 @@ it("shows an API failure rather than a misleading empty list", async () => {
   respond(/\/sessions$/, () => new Response("unavailable", { status: 502 }));
   render(<Dashboard />);
   const alerts = await screen.findAllByText(/Couldn’t load your sessions/);
-  for (const alert of alerts) expect(alert).toHaveAttribute("role", "alert");
+  for (const message of alerts) expect(message.closest('[role="alert"]')).toBeInTheDocument();
   expect(screen.queryByText(/No sessions yet/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/^0 sessions/)).not.toBeInTheDocument();
 });
 
 it("renders the transcript with tool calls, results, diffs, timing, and subagents", async () => {
