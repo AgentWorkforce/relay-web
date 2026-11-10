@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from "vitest";
-import { appPath, loginHref, serverLoginHref, sessionVisualizationsEnabled } from "./app-path";
+import { appPath, loginHref, serverLoginHref, sessionVisualizationsEnabled, sessionAgentNamesEnabled } from "./app-path";
 
 afterEach(() => {
   delete window.__AGENT_RELAY_DASHBOARD_CONFIG__;
@@ -36,4 +36,14 @@ it.each([undefined, false, null, "true", 1])("requires an explicit boolean visua
 it("enables visualization views only for the explicit runtime boolean", () => {
   window.__AGENT_RELAY_DASHBOARD_CONFIG__ = { sessionVisualizations: true };
   expect(sessionVisualizationsEnabled()).toBe(true);
+});
+
+it.each([undefined, false, null, "true", "false", 1, {}, []])("keeps recorded-agent requests off for missing/malformed flags (%j)", (value) => {
+  window.__AGENT_RELAY_DASHBOARD_CONFIG__ = { sessionAgentNames: value };
+  expect(sessionAgentNamesEnabled()).toBe(false);
+});
+it("enables recorded-agent requests only for the operator's strict runtime boolean", () => {
+  expect(sessionAgentNamesEnabled()).toBe(false);
+  window.__AGENT_RELAY_DASHBOARD_CONFIG__ = { sessionAgentNames: true };
+  expect(sessionAgentNamesEnabled()).toBe(true);
 });

@@ -17,6 +17,8 @@ export type SessionRow = {
   pullRequest?: { url: string; number: string };
   sessionId: string;
   source: string;
+  /** Explicit recorded metadata only; never inferred from actors or the title. */
+  agentName: string | null;
   title: string | null;
   summary: string | null;
   shortSummary: string | null;
@@ -70,6 +72,10 @@ export const toolColor = (source: string) =>
 
 const text = (value: unknown) =>
   typeof value === "string" && value.trim() ? value.trim() : null;
+const captionText = (value: unknown) =>
+  typeof value === "string"
+    ? value.replace(/\p{Cc}/gu, " ").replace(/\s+/g, " ").trim() || null
+    : null;
 const strings = (value: unknown) =>
   Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string" && !!item)
@@ -102,6 +108,7 @@ export function sessionRow(value: Record<string, unknown>): SessionRow {
     ...(pullRequest ? { pullRequest } : {}),
     sessionId: String(value.sessionId),
     source: String(value.source),
+    agentName: captionText(value.agentName),
     title: text(catalog.title) ?? text(value.title),
     summary: text(value.summary),
     shortSummary: text(value.shortSummary),
@@ -187,6 +194,21 @@ export function sessionTitle(row: SessionRow): string {
     promptLabel(row.summary, 160) ??
     `${projectLabel(row)?.name ?? "Session"} · ${row.sessionId.slice(0, 8)}`
   );
+}
+
+/** The recorded execution caption; absent metadata leaves no empty separators. */
+export function sessionSubtitle(row: SessionRow): string {
+  const model = row.models.map(captionText).find(Boolean);
+  const seen = new Set<string>();
+  return [harnessName(row.source), row.agentName, model]
+    .map(captionText)
+    .filter((part) => {
+      const key = part?.toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .join(" · ");
 }
 
 const normalizePath = (value: string) =>
