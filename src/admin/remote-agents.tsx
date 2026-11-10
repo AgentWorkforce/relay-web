@@ -25,9 +25,9 @@ function RemoteConnectionCard({
   onConflict(): void;
 }) {
   const [connection, setConnection] = useState(provider.connection);
-  const [snapshot, setSnapshot] = useState(provider.connection);
-  if (snapshot !== provider.connection) {
-    setSnapshot(provider.connection);
+  const [snapshot, setSnapshot] = useState(provider);
+  if (snapshot !== provider) {
+    setSnapshot(provider);
     setConnection(provider.connection);
   }
   const [key, setKey] = useState("");

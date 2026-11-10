@@ -169,6 +169,36 @@ it("refreshes and re-seeds a connection after a conflicting key write without re
   expect(calls.filter((call) => call.init.method === "POST")).toHaveLength(1);
 });
 
+it("clears a locally saved connection when a conflict refresh reports it deleted", async () => {
+  let writes = 0;
+  override = (call) => {
+    if (call.url.endsWith("/remote-agent-connections/capy") && call.init.method === "POST") {
+      if (++writes === 2) {
+        // Another admin deleted the saved key while this replacement ran.
+        remoteConnected = false;
+        return Response.json({ error: "connection_changed", message: "This connection changed. Refresh settings." }, { status: 409 });
+      }
+    }
+    return null;
+  };
+  render(<RemoteAgentsSection workspaceId="w1" canManage />);
+  const field = await screen.findByLabelText("Capy API key");
+  const card = field.closest('[data-slot="card"]')! as HTMLElement;
+  fireEvent.change(field, { target: { value: secret } });
+  fireEvent.click(within(card).getByRole("button", { name: "Connect" }));
+  expect(await within(card).findByText("…ssss")).toBeInTheDocument();
+  expect(within(card).getByLabelText("Replace Capy API key")).toHaveValue("");
+
+  fireEvent.change(field, { target: { value: secret } });
+  fireEvent.click(within(card).getByRole("button", { name: "Connect" }));
+  expect(await within(card).findByRole("alert")).toHaveTextContent("This connection changed.");
+  expect(await within(card).findByLabelText("Capy API key")).toHaveValue("");
+  expect(within(card).queryByText("…ssss")).not.toBeInTheDocument();
+  expect(within(card).queryByRole("button", { name: "Disconnect" })).not.toBeInTheDocument();
+  expect(calls.filter((call) => call.url.endsWith("/remote-agent-connections") && (call.init.method ?? "GET") === "GET")).toHaveLength(2);
+  expect(writes).toBe(2);
+});
+
 it.each(["not_found", "workspace_not_found"])("classifies connection-list 404 %s correctly", async (code) => {
   override = (call) => call.url.endsWith("/remote-agent-connections")
     ? Response.json({ error: code, message: "Workspace could not be read." }, { status: 404 }) : null;
