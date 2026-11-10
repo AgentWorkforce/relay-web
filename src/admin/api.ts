@@ -351,3 +351,6 @@ export const adminApi = {
 };
 
 export const canManage = (role: Role) => role === "owner" || role === "admin";
+
+// Shared authenticated JSON transport for workspace settings modules.
+export { call as adminRequest };

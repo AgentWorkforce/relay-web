@@ -112,6 +112,23 @@ Desktop links here.
 
 `npm run check` runs lint, tests and the production build. Apache-2.0.
 
+### Remote coding agents
+
+Settings → Connections includes Amp, Capy, Replicas, Devin and Cursor Cloud,
+using Control's shared-cookie `/cloud/api` routes. No Cloud server actions,
+Cloud database or browser credential storage are used. Deploy the corresponding
+Control connection API and database migration before enabling these controls.
+An older server's 404 is shown as unavailable, never as a successful connection.
+
+Amp uses the existing enabled/configured Control module for discovery, explicit
+thread binding, delivery inspection and disconnect. Amp's background history
+issuer is still missing in Control, so the card reports history unavailable.
+The other four cards validate and manage encrypted workspace credentials;
+their Relay launch/binding and history workers still need to be ported. A saved
+API key is not displayed as proof of those capabilities. Full parity and live
+acceptance are prerequisites for retiring Cloud; see Control's
+`docs/remote-agent-parity.md`.
+
 ### Session visualizations
 
 `DASHBOARD_SESSION_READ_API_ENABLED=true` (default false) reads list, search, activity, turns and events directly from the session read API, using the access token Control hands the page at `POST /cloud/api/v1/workspaces/:id/session-read/session`. The refresh token stays server side. A first page that the read API can't serve falls back to the existing `/cloud/api` path; timing, output and catalog always use it. The read API must allow the dashboard origin in CORS and expose `X-Relayhistory-Workspace-Id`. In this mode people's names come from Control's `GET /cloud/api/v1/workspaces/:id/sessions/members`; that needs relay-control 0.5.8 or later, and an older version shows no names.
