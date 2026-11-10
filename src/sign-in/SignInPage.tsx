@@ -319,8 +319,9 @@ export function SignInPage(props: {
     ? config.logo_url
     : null;
   const orgName = config?.org_name?.trim() || null;
-  // A profile logo fills the lockup: no wordmark to align with, and no room beside it.
-  const coBrandPlacement = brand.logo ? "col-span-2" : "col-start-2";
+  // Co-brand option A, stacked: the rule and the customer lockup start flush
+  // with the Agent Relay mark (or a profile logo), one column below it.
+  const coBrandPlacement = "col-span-2";
 
   return (
     <div className="min-h-dvh bg-[#f9fafb] text-[#111827] dark:bg-[#101c29] dark:text-[#e8f0f7]">
