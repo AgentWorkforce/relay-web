@@ -205,8 +205,12 @@ export function selectSessionSuggestion(
     const filter = parseSessionQuery(part).filters[0];
     if (!filter || filter.field !== suggestion.field) return true;
     if (filter.exclude) return filter.value.toLowerCase() !== suggestion.value.toLowerCase();
-    return suggestion.field !== "is" || filter.value === suggestion.value ||
-      !(statuses.has(filter.value) && statuses.has(suggestion.value));
+    // Presets replace an earlier lower bound, preserving a separately typed
+    // upper bound (and negated dates) when widening the selected period.
+    if (suggestion.field === "updated" && /^>=?\d{4}-\d{2}-\d{2}$/.test(suggestion.value) &&
+      /^>=?\d{4}-\d{2}-\d{2}$/.test(filter.value)) return false;
+    return suggestion.field !== "is" || filter.value.toLowerCase() === suggestion.value.toLowerCase() ||
+      !(statuses.has(filter.value.toLowerCase()) && statuses.has(suggestion.value.toLowerCase()));
   });
   return (parts.some(same) ? parts : [...parts, token]).join(" ") + " ";
 }

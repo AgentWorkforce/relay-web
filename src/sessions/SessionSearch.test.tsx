@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { agentNames } from "./api";
 import { SessionSearch } from "./SessionSearch";
-import { listServerFilters } from "./query";
+import { listServerFilters, matchesSessionFilters } from "./query";
 import type { Member, SessionRow } from "./data";
 
 vi.mock("./api", () => ({ agentNames: vi.fn() }));
@@ -58,6 +58,22 @@ function open() {
 beforeEach(() => {
   roster.mockReset();
   roster.mockResolvedValue(["yo", "builder@node", "other"]);
+});
+
+it("widens date presets while keeping an independently typed upper bound", () => {
+  render(<SearchHarness initial="updated:>=2026-11-10 updated:<=2026-11-10 " />);
+  const input = open();
+  fireEvent.click(screen.getByRole("option", { name: /Last 7 days/ }));
+  expect(input).toHaveValue("updated:<=2026-11-10 updated:>=2026-11-04 ");
+  const row = { lastTs: "2026-11-06T12:00:00Z" } as SessionRow;
+  expect(matchesSessionFilters(row, (input as HTMLInputElement).value, now)).toBe(true);
+});
+
+it("replaces a mixed-case activity status when another status is selected", () => {
+  render(<SearchHarness initial="is:Active " />);
+  const input = open();
+  fireEvent.click(screen.getByRole("option", { name: /Idle.*is:idle/ }));
+  expect(input).toHaveValue("is:idle ");
 });
 
 it("opens the Cloud-style grouped command panel, preview tokens and supported syntax", () => {
