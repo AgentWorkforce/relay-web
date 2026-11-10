@@ -361,6 +361,24 @@
 .searchForm {
   padding: 12px;
 }
+.searchInputGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--input);
+  border-radius: 6px;
+  padding-left: 12px;
+}
+.searchInputGroup:focus-within {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+}
+.searchInputGroup input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+}
 .searchSuggestions {
   min-height: 0;
   overflow-y: auto;

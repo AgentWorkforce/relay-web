@@ -22,15 +22,12 @@ import {
   Inbox,
   Network,
   RefreshCw,
-  Search,
   Terminal,
   Users,
-  X,
   Zap,
 } from "lucide-react";
 import { useLoad } from "./use-load";
 import {
-  agentNames,
   listSessions,
 } from "./api";
 import { ActivityPanel } from "./ActivityPanel";
@@ -47,15 +44,11 @@ import {
   type SessionRow,
 } from "./data";
 import {
-  agentDraft,
-  completeAgent,
-  queryAgents,
   facetFilters,
   listServerFilters,
   filterValue,
   matchesSessionFilters,
   parseSessionQuery,
-  removeSessionFilter,
   sessionSuggestions,
   setSessionFilter,
 } from "./query";
@@ -73,6 +66,7 @@ import { Button, buttonClass, Skeleton } from "../shell/ui";
 import { WorkspaceViewSlot } from "../shell/view-slots";
 import styles from "./sessions.module.css";
 import { HarnessIcon } from "./harness-icon";
+import { SessionSearch } from "./SessionSearch";
 
 // Hosted session-table-data.ts: status dot colors and harness icons.
 const STATUS_COLORS = {
@@ -197,7 +191,7 @@ export function SessionsPage({
       )}
       {tab !== "sessions" && (
         <div className={styles.tableToolbar}>
-          <SearchBox workspaceId={workspaceId} query={query} onChange={setQuery} tab={tab} />
+          <SessionSearch workspaceId={workspaceId} query={query} onChange={setQuery} tab={tab} />
         </div>
       )}
       {tab !== "sessions" && <UnusedFilters query={query} />}
@@ -239,87 +233,6 @@ export function SessionsSkeleton({ label = "Loading sessions…" }: { label?: st
           <Skeleton key={row} className="h-14 w-full" />
         ))}
       </div>
-    </div>
-  );
-}
-
-/** Hosted session-search.tsx search bar (the inline field, without the command panel). */
-function SearchBox({
-  workspaceId,
-  query,
-  onChange,
-  tab,
-}: {
-  workspaceId: string;
-  query: string;
-  onChange: (value: string) => void;
-  tab: Tab;
-}) {
-  const filters = parseSessionQuery(query).filters;
-  const agents = queryAgents(query);
-  const draft = agentDraft(query);
-  // Fetched only once someone starts an @name; a failure just means no suggestions.
-  const roster = useLoad(
-    draft === null ? null : workspaceId,
-    (signal) => agentNames(workspaceId, signal),
-    { keepPrevious: true },
-  );
-  const suggestions = draft === null
-    ? []
-    : (roster.data ?? []).filter((name) => name.toLowerCase().startsWith(draft)).slice(0, 8);
-  return (
-    <div className={styles.searchControl}>
-      <div className={styles.searchBar}>
-        <label className={styles.searchTrigger}>
-          <Search className="size-4 shrink-0" aria-hidden="true" />
-          <input
-            type="search"
-            data-slot="input-group-control"
-            aria-label="Search sessions"
-            className="min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
-            placeholder="Search sessions, @agent, or filter with harness: project: is: person: updated:"
-            value={query}
-            onChange={(event) => onChange(event.target.value)}
-          />
-        </label>
-        {filters.length > 0 && (
-          <ul className={styles.searchChips} aria-label="Active filters">
-            {filters.map((filter) => (
-              <li key={filter.raw}>
-                <button
-                  type="button"
-                  aria-label={`Remove filter ${filter.raw}`}
-                  onClick={() => onChange(removeSessionFilter(query, filter.raw))}
-                >
-                  {filter.raw}
-                  <X className="size-3" aria-hidden="true" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-      {suggestions.length > 0 && (
-        <ul className="mt-1 flex flex-wrap gap-1" aria-label="Agent suggestions">
-          {suggestions.map((name) => (
-            <li key={name}>
-              <button
-                type="button"
-                className={buttonClass("ghost", "sm", "text-xs")}
-                onClick={() => onChange(completeAgent(query, name))}
-              >
-                @{name}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      {tab === "sessions" && agents.length > 0 && (
-        <p role="status" className="mt-1 text-[11px] text-muted-foreground">
-          {agents.length > 1 && `One agent at a time: showing @${agents[0]}. `}
-          Sessions still being uploaded aren’t included.
-        </p>
-      )}
     </div>
   );
 }
@@ -795,7 +708,7 @@ function SessionList({
         role="group"
         aria-label="Session view controls"
       >
-        <SearchBox workspaceId={workspaceId} query={liveQuery} onChange={onQuery} tab="sessions" />
+        <SessionSearch workspaceId={workspaceId} query={liveQuery} onChange={onQuery} tab="sessions" rows={facetRows} members={members} now={now} busy={busy} />
         <Button
           variant="ghost"
           size="icon-sm"

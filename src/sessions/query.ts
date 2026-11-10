@@ -162,6 +162,55 @@ export type SearchSuggestion = {
 export const suggestionToken = (s: SearchSuggestion) =>
   `${s.field}:${/\s/.test(s.value) ? JSON.stringify(s.value) : s.value}`;
 
+/** Selfhost stores IDs while showing project/person labels in the picker. */
+export function matchesSuggestionFragment(
+  suggestion: SearchSuggestion,
+  fragment: string,
+) {
+  const partial = parseSessionQuery(fragment).filters[0];
+  if (partial && (suggestion.field === "project" || suggestion.field === "person")) {
+    return (
+      partial.field === suggestion.field && !partial.exclude &&
+      [suggestion.value, suggestion.title].some((value) =>
+        value.toLowerCase().includes(partial.value.toLowerCase()),
+      )
+    );
+  }
+  return `${suggestionToken(suggestion)} ${suggestion.title}`.toLowerCase().includes(fragment.toLowerCase());
+}
+
+/** Cloud command-panel selection; preserve words and unrelated/negated tokens. */
+export function selectSessionSuggestion(
+  query: string,
+  suggestion: SearchSuggestion,
+  selected: boolean,
+) {
+  const token = suggestionToken(suggestion);
+  let parts: string[] = query.match(PARTS) ?? [];
+  const same = (part: string) => {
+    const filter = parseSessionQuery(part).filters[0];
+    return filter?.field === suggestion.field &&
+      filter.value.toLowerCase() === suggestion.value.toLowerCase() && !filter.exclude;
+  };
+  if (!selected) return parts.filter((part) => !same(part)).join(" ").trimEnd();
+  const last = parts.at(-1);
+  const partial = last ? parseSessionQuery(last).filters[0] : undefined;
+  if (last && !/\s$/.test(query) && !same(last) && (
+    (!partial && !last.includes('"') && matchesSuggestionFragment(suggestion, last)) ||
+    (partial?.field === suggestion.field && !partial.exclude && matchesSuggestionFragment(suggestion, last))
+  )) parts.pop();
+  // These existing selfhost activity statuses are mutually exclusive.
+  const statuses = new Set(["active", "inactive", "idle", "finished"]);
+  parts = parts.filter((part) => {
+    const filter = parseSessionQuery(part).filters[0];
+    if (!filter || filter.field !== suggestion.field) return true;
+    if (filter.exclude) return filter.value.toLowerCase() !== suggestion.value.toLowerCase();
+    return suggestion.field !== "is" || filter.value === suggestion.value ||
+      !(statuses.has(filter.value) && statuses.has(suggestion.value));
+  });
+  return (parts.some(same) ? parts : [...parts, token]).join(" ") + " ";
+}
+
 export function sessionSuggestions(
   rows: SessionRow[],
   members: Member[],
