@@ -1,6 +1,11 @@
 import type { z } from "zod";
 import {
   adminContextSchema,
+  factoryConnectionSchema,
+  factoryComputersSchema,
+  factorySessionsSchema,
+  factoryBindingsSchema,
+  factoryBoundSessionSchema,
   sessionErasureSchema,
   apiTokensSchema,
   codingAgentCheckSchema,
@@ -128,6 +133,33 @@ export const desktopFeedApi = {
 export const adminApi = {
   context: (signal?: AbortSignal) =>
     call("/v1/auth/whoami", adminContextSchema, { signal }),
+
+  // The API key is sent once to Control; only its masked hint comes back.
+  factoryConnection: async (workspace: string, signal?: AbortSignal) => {
+    try { return await call(`${ws(workspace)}/factory/connection`, factoryConnectionSchema, { signal }); }
+    catch (error) {
+      if (error instanceof ApiError && error.status === 404 && error.code === "not_found") return null;
+      throw error;
+    }
+  },
+  connectFactory: (workspace: string, key: string) =>
+    call(`${ws(workspace)}/factory/connection`, factoryConnectionSchema, {
+      method: "PUT", body: { key },
+    }),
+  disconnectFactory: (workspace: string) =>
+    call(`${ws(workspace)}/factory/connection`, null, { method: "DELETE" }),
+  factoryComputers: (workspace: string, signal?: AbortSignal) =>
+    call(`${ws(workspace)}/factory/computers`, factoryComputersSchema, { signal }),
+  factorySessions: (workspace: string, computer: string, signal?: AbortSignal) =>
+    call(`${ws(workspace)}/factory/computers/${enc(computer)}/sessions`, factorySessionsSchema, { signal }),
+  factoryBindings: (workspace: string, signal?: AbortSignal) =>
+    call(`${ws(workspace)}/factory/bindings`, factoryBindingsSchema, { signal }),
+  bindFactory: (workspace: string, session: string, computer: string) =>
+    call(`${ws(workspace)}/factory/bindings`, factoryBoundSessionSchema, {
+      method: "POST", body: { session_id: session, computer_id: computer },
+    }),
+  unbindFactory: (workspace: string, binding: string) =>
+    call(`${ws(workspace)}/factory/bindings/${enc(binding)}`, null, { method: "DELETE" }),
 
   listEnv: async (workspace: string, signal?: AbortSignal) =>
     (await call(`${ws(workspace)}/secrets`, envVarListSchema, { signal })).data
@@ -298,3 +330,6 @@ export const adminApi = {
 };
 
 export const canManage = (role: Role) => role === "owner" || role === "admin";
+
+// Shared authenticated JSON transport for workspace settings modules.
+export { call as adminRequest };
