@@ -511,6 +511,7 @@ it("treats an old message-search link as the sessions list", async () => {
 });
 
 it("shows a recorded agent next to the harness/model without changing the session link or summary", async () => {
+  window.__AGENT_RELAY_DASHBOARD_CONFIG__ = { sessionAgentNames: true };
   respond(/\/sessions$/, () => ({
     items: [
       {
@@ -531,6 +532,7 @@ it("shows a recorded agent next to the harness/model without changing the sessio
   expect(link).toHaveAttribute("href", expect.stringContaining("s%2F1"));
   expect(within(screen.getByRole("link", { name: "Write docs" })).getByText("Claude Code · claude-opus")).toBeVisible();
   expect(calls.some((url) => /\/sessions\/[^/]+\/catalog$/.test(url.pathname))).toBe(false);
+  expect(calls.filter((url) => url.pathname === base).every((url) => url.searchParams.get("includeAgentName") === "recorded")).toBe(true);
 });
 
 it("charts team activity by agent", async () => {
