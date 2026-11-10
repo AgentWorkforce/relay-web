@@ -428,12 +428,16 @@ it("owners invite by email; a link to copy is shown when email is not configured
 
 it("the invite dialog keeps focus inside, closes on Escape and returns focus", async () => {
   inviteFakes({ inviteEmail: true, delivery: "sent" });
-  render(<Settings section="members" />);
+  const { container } = render(<Settings section="members" />);
   const opener = await screen.findByRole("button", { name: "Invite member" });
   opener.focus();
   fireEvent.click(opener);
   const dialog = await screen.findByRole("dialog");
   const email = within(dialog).getByPlaceholderText("colleague@example.com");
+  expect(dialog).toHaveAttribute("aria-modal", "true");
+  expect(dialog).toHaveAccessibleName("Invite members");
+  expect(container).toHaveAttribute("aria-hidden", "true");
+  expect(container).toHaveAttribute("inert");
   expect(document.activeElement).toBe(email);
   const close = within(dialog).getByRole("button", { name: "Close" });
   close.focus();
@@ -444,6 +448,8 @@ it("the invite dialog keeps focus inside, closes on Escape and returns focus", a
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
   );
   expect(document.activeElement).toBe(opener);
+  expect(container).not.toHaveAttribute("aria-hidden");
+  expect(container).not.toHaveAttribute("inert");
 });
 
 it("pending invites: copy link issues a fresh link, resend emails it, cancel revokes", async () => {
@@ -652,4 +658,17 @@ it("API tokens: leaving the workflow purpose resets a Never expiry", async () =>
   expect(expires.value).toBe("never");
   fireEvent.change(purpose, { target: { value: "agent-runtime" } });
   expect(expires.value).toBe("90");
+});
+
+
+it("explains invalid environment names before a disabled Add can be submitted", async () => {
+  render(<Settings section="environment" />);
+  const name = await screen.findByPlaceholderText("NATIVE_API_KEY");
+  fireEvent.change(name, { target: { value: "bad-name" } });
+  fireEvent.change(screen.getByLabelText("Value"), { target: { value: "synthetic" } });
+  expect(name).toHaveAttribute("aria-invalid", "true");
+  expect(name).toHaveAccessibleDescription(/Use letters, digits, and underscores/);
+  expect(screen.getByText(/Spaces and hyphens are not allowed/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+  expect(calls.some((call) => call.method === "POST")).toBe(false);
 });

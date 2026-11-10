@@ -4,6 +4,7 @@
 // (owners and admins invite; only owners manage owners) and links that are
 // shown once, so "Copy link" issues a fresh one.
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { createPortal } from "react-dom";
 import { adminApi } from "./api";
 import type {
   EmailDelivery,
@@ -456,6 +457,7 @@ function InviteMemberDialog(props: {
   const [sending, setSending] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef(props.onClose);
   useEffect(() => {
     closeRef.current = props.onClose;
@@ -465,6 +467,19 @@ function InviteMemberDialog(props: {
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     input.current?.focus();
+    // The modal is portalled beside the app. Hide and disable every background
+    // sibling for screen readers, pointer input and programmatic focus.
+    const background = [...document.body.children]
+      .filter((element): element is HTMLElement => element instanceof HTMLElement && element !== overlayRef.current)
+      .map((element) => ({
+        element,
+        hidden: element.getAttribute("aria-hidden"),
+        inert: element.hasAttribute("inert"),
+      }));
+    for (const { element } of background) {
+      element.setAttribute("aria-hidden", "true");
+      element.setAttribute("inert", "");
+    }
     function onKey(event: KeyboardEvent) {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -491,6 +506,11 @@ function InviteMemberDialog(props: {
     document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("keydown", onKey);
+      for (const { element, hidden, inert } of background) {
+        if (hidden === null) element.removeAttribute("aria-hidden");
+        else element.setAttribute("aria-hidden", hidden);
+        if (!inert) element.removeAttribute("inert");
+      }
       previous?.focus?.();
     };
   }, []);
@@ -512,8 +532,8 @@ function InviteMemberDialog(props: {
   }
 
   const methods = props.methods;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  return createPortal(
+    <div ref={overlayRef} className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
         type="button"
         aria-label="Close invite dialog"
@@ -525,6 +545,7 @@ function InviteMemberDialog(props: {
         role="dialog"
         aria-modal="true"
         aria-labelledby="invite-title"
+        aria-describedby="invite-description"
         className="relative w-full max-w-lg"
       >
       <Card>
@@ -532,7 +553,7 @@ function InviteMemberDialog(props: {
           <div className="flex items-start justify-between gap-3">
             <div>
               <CardTitle id="invite-title">Invite members</CardTitle>
-              <CardDescription>
+              <CardDescription id="invite-description">
                 Invite people to {props.organizationName} by email.
               </CardDescription>
             </div>
@@ -599,6 +620,7 @@ function InviteMemberDialog(props: {
         </CardContent>
       </Card>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

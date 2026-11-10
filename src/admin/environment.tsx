@@ -17,6 +17,7 @@ export function EnvironmentSection(props: {
   const [status, setStatus] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
+  const nameInvalid = name.trim().length > 0 && !NAME.test(name.trim());
   const exists = Boolean(data?.some((row) => row.name === name.trim()));
 
   async function submit(event: FormEvent) {
@@ -76,12 +77,19 @@ export function EnvironmentSection(props: {
           <label>
             Name
             <input
+              aria-label="Name"
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="NATIVE_API_KEY"
               autoComplete="off"
               spellCheck={false}
+              aria-invalid={nameInvalid || undefined}
+              aria-describedby="environment-variable-name-help"
             />
+            <span id="environment-variable-name-help" className="note">
+              Use letters, digits, and underscores, starting with a letter or underscore.
+              {nameInvalid ? " Spaces and hyphens are not allowed." : ""}
+            </span>
           </label>
           <label>
             Value
@@ -92,7 +100,7 @@ export function EnvironmentSection(props: {
               autoComplete="new-password"
             />
           </label>
-          <button className="primary" type="submit" disabled={busy}>
+          <button className="primary" type="submit" disabled={busy || nameInvalid}>
             {exists ? "Replace" : "Add"}
           </button>
         </form>
