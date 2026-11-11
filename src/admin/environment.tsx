@@ -17,6 +17,8 @@ export function EnvironmentSection(props: {
   const [status, setStatus] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
+  const nameTooLong = name.trim().length > 128;
+  const nameInvalid = name.trim().length > 0 && !NAME.test(name.trim());
   const exists = Boolean(data?.some((row) => row.name === name.trim()));
 
   async function submit(event: FormEvent) {
@@ -26,7 +28,9 @@ export function EnvironmentSection(props: {
     setStatus(null);
     if (!NAME.test(key)) {
       setFailure(
-        "Names start with a letter or underscore and use only letters, digits, and underscores.",
+        nameTooLong
+          ? "Names must be 128 characters or fewer."
+          : "Names start with a letter or underscore and use only letters, digits, and underscores.",
       );
       return;
     }
@@ -76,12 +80,31 @@ export function EnvironmentSection(props: {
           <label>
             Name
             <input
+              aria-label="Name"
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="NATIVE_API_KEY"
               autoComplete="off"
               spellCheck={false}
+              aria-invalid={nameInvalid || undefined}
+              aria-describedby="environment-variable-name-help environment-variable-name-error"
             />
+            <span id="environment-variable-name-help" className="note">
+              Use letters, digits, and underscores, starting with a letter or
+              underscore. Names can be up to 128 characters.
+            </span>
+            <span
+              id="environment-variable-name-error"
+              className="note"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {nameInvalid
+                ? nameTooLong
+                  ? "Shorten the name to 128 characters or fewer."
+                  : "Spaces and hyphens are not allowed."
+                : ""}
+            </span>
           </label>
           <label>
             Value
@@ -92,7 +115,7 @@ export function EnvironmentSection(props: {
               autoComplete="new-password"
             />
           </label>
-          <button className="primary" type="submit" disabled={busy}>
+          <button className="primary" type="submit" disabled={busy || nameInvalid}>
             {exists ? "Replace" : "Add"}
           </button>
         </form>
