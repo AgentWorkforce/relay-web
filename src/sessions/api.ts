@@ -635,7 +635,9 @@ export async function findSessionSources(
     .sort((left, right) =>
       (right.lastTs ? Date.parse(right.lastTs) : 0) - (left.lastTs ? Date.parse(left.lastTs) : 0));
   const reasons = [...failures, ...[page, active].flatMap((result) => result.status === "rejected" ? [result.reason] : [])];
-  if (!matches.length && reasons.length)
-    throw reasons.find((reason) => reason instanceof SignedOut) ?? reasons[0];
+  // An expired sign-in always wins, even if a held read API token still found matches.
+  const signedOut = reasons.find((reason) => reason instanceof SignedOut);
+  if (signedOut) throw signedOut;
+  if (!matches.length && reasons.length) throw reasons[0];
   return { matches, complete };
 }
