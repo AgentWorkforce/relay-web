@@ -276,7 +276,7 @@ it("matches only the downloads path under the app path", () => {
 // GitHub releases fallback (relay-control GET /desktop/releases).
 
 const RELEASES = "/cloud/api/v1/desktop/releases";
-const REPO = "AgentWorkforce/relay-desktop-kind-releases";
+const REPO = "example-org/example-desktop-releases";
 const TAG = "v2026.11.1-beta.6";
 const ghSha = "cd".repeat(32);
 
@@ -410,6 +410,19 @@ it("does not offer a GitHub release asset that links anywhere but GitHub", async
   // The arm64 .deb points off GitHub, so the visitor is offered the x64 build.
   expect(await screen.findByRole("button", { name: "Download for Linux (x64)" })).toBeInTheDocument();
   expect(screen.queryByText("Desktop-q7m2k9-2026.11.1-beta.6-Linux-arm64.deb")).toBeNull();
+});
+
+it("keeps the empty state when no GitHub release asset links to GitHub", async () => {
+  withoutFeed();
+  replies[RELEASES] = {
+    status: 200,
+    body: ghRelease(
+      GH_ASSETS.map((entry) => ({ ...entry, url: `https://downloads.example.test/${entry.name}` })),
+    ),
+  };
+  render(<DesktopDownloads navigate={() => undefined} platform={LINUX} />);
+  expect(await screen.findByText("There are no Desktop downloads for this workspace.")).toBeInTheDocument();
+  expect(screen.queryByText(/Version 2026/)).toBeNull();
 });
 
 it("accepts only https GitHub download hosts", () => {

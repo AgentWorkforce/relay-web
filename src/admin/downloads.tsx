@@ -43,13 +43,18 @@ async function loadReleases(signal: AbortSignal): Promise<Loaded> {
 }
 
 /**
- * The fallback is best-effort: not configured (404), unreachable, malformed
- * or without a release all mean the existing empty state.
+ * The fallback is best-effort: not configured (404), unreachable, malformed,
+ * without a release, or without an installer on a GitHub download host all
+ * mean the existing empty state. Assets that would send the visitor anywhere
+ * but GitHub are dropped here, so they are never rendered.
  */
 async function loadGithubRelease(signal: AbortSignal): Promise<Loaded["github"]> {
   try {
     const found = await desktopFeedApi.githubReleases(signal);
-    return found?.release ? { source: found.source, release: found.release } : null;
+    if (!found?.release) return null;
+    const assets = found.release.assets.filter((asset) => isGithubDownloadUrl(asset.url));
+    if (!installers(assets).length) return null;
+    return { source: found.source, release: { ...found.release, assets } };
   } catch (error) {
     if (error instanceof SignedOut || signal.aborted) throw error;
     return null;
@@ -607,8 +612,7 @@ function feedReleases(feed: ProfileReleases[]): Release[] {
 
 function githubReleaseEntry(github: NonNullable<Loaded["github"]>): Release {
   const { source, release } = github;
-  // Assets that would send the visitor anywhere but GitHub are not offered.
-  const assets = release.assets.filter((asset) => isGithubDownloadUrl(asset.url));
+  const assets = release.assets;
   const urls = new Map(assets.map((asset) => [asset.id, asset.url]));
   return {
     key: `github:${release.tag}`,
