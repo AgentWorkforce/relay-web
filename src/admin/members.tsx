@@ -537,6 +537,8 @@ function InviteMemberDialog(props: {
       <button
         type="button"
         aria-label="Close invite dialog"
+        aria-hidden="true"
+        tabIndex={-1}
         className="absolute inset-0 bg-[var(--overlay)] backdrop-blur-sm"
         onClick={props.onClose}
       />

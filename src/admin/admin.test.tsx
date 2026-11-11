@@ -661,22 +661,39 @@ it("API tokens: leaving the workflow purpose resets a Never expiry", async () =>
 });
 
 
-it("explains invalid environment names before a disabled Add can be submitted", async () => {
+it("announces invalid environment names without moving focus or replacing the live region", async () => {
   render(<Settings section="environment" />);
   const name = await screen.findByPlaceholderText("NATIVE_API_KEY");
+  name.focus();
+  fireEvent.change(name, { target: { value: "VALID_NAME" } });
+  const live = name.closest("label")!.querySelector<HTMLElement>('[aria-live="polite"]')!;
+  expect(live).toBeInTheDocument();
+  expect(live).toHaveAttribute("aria-atomic", "true");
+  expect(live).toBeEmptyDOMElement();
+  expect(name.getAttribute("aria-describedby")!.split(/\s+/)).toContain(live.id);
   fireEvent.change(name, { target: { value: "bad-name" } });
   fireEvent.change(screen.getByLabelText("Value"), { target: { value: "synthetic" } });
   expect(name).toHaveAttribute("aria-invalid", "true");
   expect(name).toHaveAccessibleDescription(/Use letters, digits, and underscores/);
-  expect(screen.getByText(/Spaces and hyphens are not allowed/)).toBeInTheDocument();
+  expect(live).toHaveTextContent("Spaces and hyphens are not allowed.");
+  expect(document.activeElement).toBe(name);
+  expect(document.getElementById(live.id)).toBe(live);
   expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
   expect(calls.some((call) => call.method === "POST")).toBe(false);
+  fireEvent.change(name, { target: { value: "VALID_NAME" } });
+  expect(document.getElementById(live.id)).toBe(live);
+  expect(live).toBeEmptyDOMElement();
+  expect(name).not.toHaveAttribute("aria-invalid");
+  expect(document.activeElement).toBe(name);
 });
 
 it("explains overlong environment names and accepts the 128-character boundary", async () => {
   render(<Settings section="environment" />);
   const name = await screen.findByPlaceholderText("NATIVE_API_KEY");
   const boundaryName = "A".repeat(128);
+  const live = name.closest("label")!.querySelector<HTMLElement>('[aria-live="polite"]')!;
+  expect(live).toBeInTheDocument();
+  expect(live).toBeEmptyDOMElement();
   fireEvent.change(name, { target: { value: `${boundaryName}A` } });
   fireEvent.change(screen.getByLabelText("Value"), {
     target: { value: "synthetic" },
@@ -684,6 +701,7 @@ it("explains overlong environment names and accepts the 128-character boundary",
 
   expect(name).toHaveAttribute("aria-invalid", "true");
   expect(name).toHaveAccessibleDescription(/128 characters or fewer/);
+  expect(live).toHaveTextContent("128 characters or fewer");
   expect(name).not.toHaveAccessibleDescription(/Spaces and hyphens are not allowed/);
   expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
   // The form's submission guard must explain the same limit even if an event
@@ -693,6 +711,8 @@ it("explains overlong environment names and accepts the 128-character boundary",
   expect(calls.some((call) => call.method === "POST")).toBe(false);
 
   fireEvent.change(name, { target: { value: boundaryName } });
+  expect(document.getElementById(live.id)).toBe(live);
+  expect(live).toBeEmptyDOMElement();
   expect(name).not.toHaveAttribute("aria-invalid");
   expect(screen.getByRole("button", { name: "Add" })).toBeEnabled();
   fireEvent.click(screen.getByRole("button", { name: "Add" }));
@@ -702,4 +722,34 @@ it("explains overlong environment names and accepts the 128-character boundary",
     name: boundaryName,
     value: "synthetic",
   });
+});
+
+
+it("keeps the invite backdrop out of navigation while pointer dismissal restores focus", async () => {
+  inviteFakes({ inviteEmail: true, delivery: "sent" });
+  render(<Settings section="members" />);
+  const opener = await screen.findByRole("button", { name: "Invite member" });
+  opener.focus();
+  fireEvent.click(opener);
+  const dialog = await screen.findByRole("dialog");
+  const backdrop = document.body.querySelector<HTMLButtonElement>('button[aria-label="Close invite dialog"]')!;
+  expect(backdrop).toHaveAttribute("aria-hidden", "true");
+  expect(backdrop.tabIndex).toBe(-1);
+  expect(screen.queryByRole("button", { name: "Close invite dialog" })).not.toBeInTheDocument();
+  const close = within(dialog).getByRole("button", { name: "Close" });
+  const role = within(dialog).getByRole("combobox", { name: "Role" });
+  role.focus();
+  fireEvent.keyDown(document, { key: "Tab" });
+  expect(document.activeElement).toBe(close);
+  fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+  expect(document.activeElement).toBe(role);
+
+  fireEvent.click(backdrop);
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(document.activeElement).toBe(opener);
+  fireEvent.click(opener);
+  const reopened = await screen.findByRole("dialog");
+  fireEvent.click(within(reopened).getByRole("button", { name: "Close" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(document.activeElement).toBe(opener);
 });

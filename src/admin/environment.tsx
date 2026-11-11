@@ -87,15 +87,22 @@ export function EnvironmentSection(props: {
               autoComplete="off"
               spellCheck={false}
               aria-invalid={nameInvalid || undefined}
-              aria-describedby="environment-variable-name-help"
+              aria-describedby="environment-variable-name-help environment-variable-name-error"
             />
             <span id="environment-variable-name-help" className="note">
               Use letters, digits, and underscores, starting with a letter or
               underscore. Names can be up to 128 characters.
+            </span>
+            <span
+              id="environment-variable-name-error"
+              className="note"
+              aria-live="polite"
+              aria-atomic="true"
+            >
               {nameInvalid
                 ? nameTooLong
-                  ? " Shorten the name to 128 characters or fewer."
-                  : " Spaces and hyphens are not allowed."
+                  ? "Shorten the name to 128 characters or fewer."
+                  : "Spaces and hyphens are not allowed."
                 : ""}
             </span>
           </label>
