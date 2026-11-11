@@ -5,14 +5,14 @@ import { useEffect, useState } from "react";
 import { SignedOut } from "../api/client";
 import { Button } from "../shell/ui";
 import { findSessionSources, type SessionMatch } from "./api";
-import { harnessName } from "./data";
+import { harnessName, toolKey } from "./data";
 import { onLinkClick, sessionHref } from "./route";
 import { SessionsPage, SessionsSkeleton } from "./SessionsPage";
 
 type Lookup =
   | { status: "loading" }
   | { status: "missing" }
-  | { status: "choose"; matches: SessionMatch[] }
+  | { status: "choose"; matches: SessionMatch[]; complete: boolean }
   | { status: "failed"; error: Error };
 
 export function SessionLink({
@@ -39,14 +39,14 @@ export function SessionLink({
   useEffect(() => {
     const request = new AbortController();
     findSessionSources(workspaceId, sessionId, request.signal).then(
-      (matches) => {
+      ({ matches, complete }) => {
         if (request.signal.aborted) return;
-        if (matches.length === 1) {
+        if (matches.length === 1 && complete) {
           window.history.replaceState(null, "", sessionHref(sessionId, matches[0]!.source, event, from, routeWorkspaceId));
           window.dispatchEvent(new PopStateEvent("popstate"));
           return;
         }
-        setLookup(matches.length ? { status: "choose", matches } : { status: "missing" });
+        setLookup(matches.length ? { status: "choose", matches, complete } : { status: "missing" });
       },
       (error: unknown) => {
         if (request.signal.aborted) return;
@@ -56,6 +56,11 @@ export function SessionLink({
     );
     return () => request.abort();
   }, [workspaceId, sessionId, event, from, routeWorkspaceId, attempt, onSignedOut]);
+
+  const retry = () => {
+    setLookup({ status: "loading" });
+    setAttempt((value) => value + 1);
+  };
 
   if (lookup.status === "loading") return <SessionsSkeleton label="Opening session…" />;
   if (lookup.status === "failed")
@@ -67,10 +72,7 @@ export function SessionLink({
             : `Couldn’t open this session. ${lookup.error.message}`}
         </span>
         {!(lookup.error instanceof SignedOut) && (
-          <Button variant="outline" size="sm" onClick={() => {
-              setLookup({ status: "loading" });
-              setAttempt((value) => value + 1);
-            }}>
+          <Button variant="outline" size="sm" onClick={retry}>
             Retry
           </Button>
         )}
@@ -79,17 +81,29 @@ export function SessionLink({
   if (lookup.status === "choose")
     return (
       <div role="status" className="flex flex-col gap-2 p-6 text-sm">
-        <p>This session was recorded by more than one harness. Choose one to open:</p>
+        <p>
+          {lookup.matches.length > 1
+            ? "This session was recorded by more than one harness. Choose one to open:"
+            : "Found this session, but some harnesses couldn’t be checked, so there may be others:"}
+        </p>
         <ul className="flex flex-col gap-1">
           {lookup.matches.map((match) => (
             <li key={match.source}>
               <a className="underline" href={href(match.source)} onClick={onLinkClick}>
                 {harnessName(match.source)}
-                {harnessName(match.source) !== match.source ? ` (${match.source})` : ""}
+                {toolKey(match.source) !== match.source ? ` (${match.source})` : ""}
               </a>
             </li>
           ))}
         </ul>
+        {!lookup.complete && (
+          <div className="flex items-center gap-2">
+            {lookup.matches.length > 1 && <span>Some harnesses couldn’t be checked.</span>}
+            <Button variant="outline" size="sm" onClick={retry}>
+              Check again
+            </Button>
+          </div>
+        )}
       </div>
     );
   return (
