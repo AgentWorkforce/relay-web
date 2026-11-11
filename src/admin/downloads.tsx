@@ -577,13 +577,31 @@ export function DownloadsPage(props: {
         {current && (
           <div className={s.stack}>
             {releases.length > 1 && (
-              <div className={s.channels} role="radiogroup" aria-label="Release">
+              <div
+                className={s.channels}
+                role="radiogroup"
+                aria-label="Release"
+                onKeyDown={(event) => {
+                  const step: Record<string, number> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+                  const at = releases.findIndex((release) => release.key === current.key);
+                  const next =
+                    event.key === "Home" ? 0
+                    : event.key === "End" ? releases.length - 1
+                    : event.key in step ? (at + step[event.key]! + releases.length) % releases.length
+                    : -1;
+                  if (next === -1) return;
+                  event.preventDefault();
+                  setChosen(releases[next]!.key);
+                  event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus();
+                }}
+              >
                 {releases.map((release) => (
                   <button
                     key={release.key}
                     type="button"
                     role="radio"
                     aria-checked={release.key === current.key}
+                    tabIndex={release.key === current.key ? 0 : -1}
                     className={s.channel}
                     onClick={() => setChosen(release.key)}
                   >

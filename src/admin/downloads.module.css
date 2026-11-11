@@ -1,5 +1,6 @@
 /* Downloads: the settings detail column (settings.module.css .detail) with
    hosted card styling, so it reads like the other workspace pages. */
+@layer legacy {
 .page {
   min-height: 100%;
 }
@@ -144,11 +145,6 @@
   align-items: flex-start;
   gap: 8px;
   min-width: 0;
-}
-.pick > .action:first-child button {
-  height: 44px;
-  padding-inline: 20px;
-  font-size: 14px;
 }
 .caption {
   color: var(--text-muted);
@@ -317,4 +313,5 @@
   .row {
     flex-wrap: wrap;
   }
+}
 }

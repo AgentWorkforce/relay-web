@@ -132,9 +132,17 @@ it("switches between stable and beta", async () => {
   render(<DownloadsPage navigate={() => undefined} platform={LINUX} />);
   const beta = await screen.findByRole("radio", { name: "Beta · 2026.11.10-beta.1" });
   expect(screen.getByRole("radio", { name: "Stable · 2026.11.9" })).toHaveAttribute("aria-checked", "true");
+  const stable = screen.getByRole("radio", { name: "Stable · 2026.11.9" });
+  expect(stable).toHaveAttribute("tabindex", "0");
+  expect(beta).toHaveAttribute("tabindex", "-1");
   fireEvent.click(beta);
   expect(beta).toHaveAttribute("aria-checked", "true");
   expect(screen.getByText("Desktop-2026.11.10-beta.1-Linux-x64.deb")).toBeInTheDocument();
+  fireEvent.keyDown(beta, { key: "ArrowRight" });
+  expect(stable).toHaveAttribute("aria-checked", "true");
+  expect(stable).toHaveFocus();
+  fireEvent.keyDown(stable, { key: "End" });
+  expect(beta).toHaveAttribute("aria-checked", "true");
 });
 
 it("detects the platform from client hints, then the user agent", () => {
