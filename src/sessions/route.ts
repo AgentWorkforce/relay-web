@@ -13,6 +13,14 @@ export type SessionRoute =
       event: string | null;
       /** The list query (`q`, `tab`) to return to, so filters survive a visit. */
       from: string | null;
+    }
+  /** A session link without its source (Desktop's "View on web"): look the source up, then open it. */
+  | {
+      view: "resolve";
+      workspaceId?: string;
+      sessionId: string;
+      event: string | null;
+      from: string | null;
     };
 
 const base = () => appPath();
@@ -33,16 +41,15 @@ export function parseRoute(location: {
   const sessionId =
     params.get("session") ?? (hostedPath ? safeDecode(hostedPath[1]!) : null);
   const source = params.get("source");
-  if (sessionId && source) {
+  if (sessionId) {
     const anchor = location.hash?.replace(/^#/, "") || null;
-    return {
-      view: "session",
+    const rest = {
       ...(workspace ? { workspaceId: workspace } : {}),
       sessionId,
-      source,
       event: params.get("event") ?? anchorEvent(anchor),
       from: params.get("from"),
     };
+    return source ? { view: "session", source, ...rest } : { view: "resolve", ...rest };
   }
   const tab = params.get("tab");
   return {

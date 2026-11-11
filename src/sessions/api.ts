@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { read, ReadError } from "../api/client";
 import { sessionAgentNamesEnabled } from "../app-path";
-import { sessionRow, type Member, type SessionRow } from "./data";
+import { harnessSources, sessionRow, tools, type Member, type SessionRow } from "./data";
 import {
   fromDirectCursor,
   ReadApiUnavailable,
@@ -526,4 +526,79 @@ export async function sessionCatalog(
     commitLinks: body.commitLinks,
     truncated: body.truncated,
   };
+}
+
+export type SessionMatch = { source: string; lastTs: string | null };
+
+/** Every harness this dashboard knows, with its aliases (claude-code, …). */
+const knownSources = () => Object.keys(tools).flatMap(harnessSources);
+
+const newestFirst = (matches: SessionMatch[]) =>
+  [...matches].sort((left, right) =>
+    (right.lastTs ? Date.parse(right.lastTs) : 0) - (left.lastTs ? Date.parse(left.lastTs) : 0));
+
+/**
+ * The sources (harnesses) that hold this session id in the workspace, newest
+ * activity first. Every read needs a source, and a Desktop "View on web" link
+ * carries only the id. Looks, cheapest first, at the newest page of sessions,
+ * the read API's source-less event read (when enabled), and then one event per
+ * known or listed source. Empty means not found; a lookup that could not
+ * finish throws rather than reporting the session missing.
+ */
+export async function findSessionSources(
+  workspace: string,
+  sessionId: string,
+  signal: AbortSignal,
+): Promise<SessionMatch[]> {
+  const page = await listSessions(workspace, {}, null, signal);
+  const listed = page.items.filter((row) => row.sessionId === sessionId);
+  if (listed.length)
+    return newestFirst(listed.map((row) => ({ source: row.source, lastTs: row.lastTs })));
+
+  if (readApiEnabled()) {
+    try {
+      const body = await readApiGet(
+        workspace,
+        `/v1/sessions/${encodeURIComponent(sessionId)}/events`,
+        { order: "desc", limit: "100", maxContent: "1" },
+        signal,
+      );
+      const events = z.array(eventSchema).parse(body.events);
+      const latest = new Map<string, string>();
+      for (const event of events) {
+        if (event.sessionId !== undefined && event.sessionId !== sessionId) continue;
+        const source = text(event.source);
+        if (source && !latest.has(source)) latest.set(source, String(event.ts));
+      }
+      if (latest.size)
+        return newestFirst([...latest].map(([source, lastTs]) => ({ source, lastTs })));
+    } catch (error) {
+      if (signal.aborted) throw error;
+      // Fall through to the per-source reads below.
+    }
+  }
+
+  const candidates = [...new Set([...knownSources(), ...page.items.map((row) => row.source)])];
+  const probes = await Promise.allSettled(
+    candidates.map(async (source): Promise<SessionMatch | null> => {
+      const body = z
+        .object({ events: z.array(eventSchema), error: z.boolean().optional() })
+        .parse(
+          await read(
+            `${sessionPath(workspace, sessionId, "events")}${query({ source, order: "desc", limit: "1" })}`,
+            signal,
+          ),
+        );
+      if (body.error) throw new HistoryUnavailable();
+      const event = body.events[0];
+      return event ? { source, lastTs: String(event.ts) } : null;
+    }),
+  );
+  if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+  const found = probes.flatMap((probe) =>
+    probe.status === "fulfilled" && probe.value ? [probe.value] : []);
+  if (found.length) return newestFirst(found);
+  const failure = probes.find((probe) => probe.status === "rejected");
+  if (failure) throw failure.reason;
+  return [];
 }
