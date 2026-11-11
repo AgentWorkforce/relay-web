@@ -50,6 +50,13 @@ case "$session_agent_names" in
   true|false) ;;
   *) echo "40-runtime-config: DASHBOARD_SESSION_AGENT_NAMES_ENABLED must be true or false" >&2; exit 1 ;;
 esac
+# The Sessions page's Overlaps view. Off by default even when the read API
+# serves /v1/coordination/overlaps (Khaliq, 2026-11-10).
+coordination_overlaps="${DASHBOARD_COORDINATION_OVERLAPS_ENABLED-false}"
+case "$coordination_overlaps" in
+  true|false) ;;
+  *) echo "40-runtime-config: DASHBOARD_COORDINATION_OVERLAPS_ENABLED must be true or false" >&2; exit 1 ;;
+esac
 app_path="${DASHBOARD_APP_PATH:-/}"
 api_base_path="${DASHBOARD_API_BASE_PATH:-/cloud/api}"
 login_path="${DASHBOARD_LOGIN_PATH:-/login}"
@@ -93,6 +100,7 @@ tmp="${target}.tmp.$$"
   printf '  sessionVisualizations: %s,\n' "$session_visualizations"
   printf '  sessionReadApi: %s,\n' "$session_read_api"
   printf '  sessionAgentNames: %s,\n' "$session_agent_names"
+  printf '  coordinationOverlaps: %s,\n' "$coordination_overlaps"
   printf '  appPath: %s,\n' "$(json_string "$app_path" DASHBOARD_APP_PATH)"
   printf '  apiBasePath: %s,\n' "$(json_string "$api_base_path" DASHBOARD_API_BASE_PATH)"
   printf '  loginPath: %s,\n' "$(json_string "$login_path" DASHBOARD_LOGIN_PATH)"
