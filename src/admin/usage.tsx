@@ -95,9 +95,11 @@ export function UsageSection({ organizationId }: { organizationId: string }) {
   const summariesUnavailable =
     !!data &&
     (data.totals.summaries === null || data.unavailable.includes("summaries"));
+  // An unavailable (null) metric is unknown, not zero: never call that empty.
   const empty =
     !!data &&
-    METRICS.every(({ id }) => !data.totals[id]) &&
+    data.unavailable.length === 0 &&
+    METRICS.every(({ id }) => data.totals[id] === 0) &&
     data.days.every((day) => METRICS.every(({ id }) => !day[id]));
 
   return (

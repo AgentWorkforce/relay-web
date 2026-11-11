@@ -202,6 +202,19 @@ it("all-zero usage shows the empty state", async () => {
   expect(screen.queryByRole("img")).not.toBeInTheDocument();
 });
 
+it("zero counts with summaries unavailable are not reported as empty", async () => {
+  usageReply = (days) => ({
+    body: usage(Number(days), {
+      totals: { activeUsers: 0, sessionsUploaded: 0, searches: 0, summaries: null },
+      days: [day("2026-11-09", { summaries: null }), day("2026-11-10", { summaries: null })],
+      unavailable: ["summaries"],
+    }),
+  });
+  renderSettings("usage");
+  expect(await screen.findByTestId("usage-total-summaries")).toHaveTextContent("n/a");
+  expect(screen.queryByText("No usage recorded in this period")).not.toBeInTheDocument();
+});
+
 it("switching the range requests days=7, 90 and back to 30", async () => {
   renderSettings("usage");
   await screen.findByTestId("usage-total-activeUsers");
