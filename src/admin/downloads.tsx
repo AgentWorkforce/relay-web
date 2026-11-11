@@ -226,7 +226,9 @@ export function recommend(
     const builds = forOs.filter((asset) => asset.arch === arch);
     const asset = builds[0]!;
     const alternative = builds.find((other) => other.kind !== asset.kind) ?? null;
-    const showArch = os === "macOS" || many || arch !== "x64";
+    // Name the CPU when it is not the one detected (no build for it here).
+    const fallback = detected.arch !== null && detected.arch !== arch;
+    const showArch = os === "macOS" || many || fallback || arch !== "x64";
     return {
       asset,
       alternative,
@@ -582,6 +584,7 @@ export function DownloadsPage(props: {
                 role="radiogroup"
                 aria-label="Release"
                 onKeyDown={(event) => {
+                  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
                   const step: Record<string, number> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
                   const at = releases.findIndex((release) => release.key === current.key);
                   const next =

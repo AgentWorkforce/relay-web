@@ -141,6 +141,8 @@ it("switches between stable and beta", async () => {
   fireEvent.keyDown(beta, { key: "ArrowRight" });
   expect(stable).toHaveAttribute("aria-checked", "true");
   expect(stable).toHaveFocus();
+  fireEvent.keyDown(stable, { key: "ArrowRight", altKey: true });
+  expect(stable).toHaveAttribute("aria-checked", "true");
   fireEvent.keyDown(stable, { key: "End" });
   expect(beta).toHaveAttribute("aria-checked", "true");
 });
@@ -169,9 +171,9 @@ it("picks a recommendation per OS and CPU", () => {
   expect(pick({ os: "Linux", arch: "arm64" })).toEqual([
     ["Download for Linux (ARM64)", "Desktop-2026.11.9-Linux-arm64.deb", null],
   ]);
-  // Windows on ARM has no build here: offer what there is.
+  // Windows on ARM has no build here: offer what there is, named.
   expect(pick({ os: "Windows", arch: "arm64" })).toEqual([
-    ["Download for Windows", "Desktop-2026.11.9-Windows-x64-Setup.exe", "Desktop-2026.11.9-Windows-x64.zip"],
+    ["Download for Windows (x64)", "Desktop-2026.11.9-Windows-x64-Setup.exe", "Desktop-2026.11.9-Windows-x64.zip"],
   ]);
   expect(pick({ os: null, arch: null })).toEqual([]);
 });
