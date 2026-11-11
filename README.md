@@ -94,6 +94,16 @@ Example:
 DASHBOARD_CUSTOMER_PROFILE='{"productName":"Acme Relay","logo":{"light":"https://acme.example/logo-dark-text.svg","dark":"https://acme.example/logo-light-text.svg"},"favicon":"https://acme.example/favicon.svg","accentColor":"#7c3aed","brandColor":"#5b21b6","supportUrl":"mailto:support@acme.example","poweredByAgentRelay":true}'
 ```
 
+#### Hosted logo (`/brand/`)
+
+Files under `/usr/share/nginx/html/brand/` are served at `/brand/<file>` with
+`Content-Security-Policy: default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox`,
+`X-Content-Type-Options: nosniff` and a five-minute cache; a missing file is a
+404, not the app shell. The infra chart mounts its `global.branding.logo`
+ConfigMap there, so an install can host its customer logo next to the
+dashboard (`customerProfile.logo: /brand/logo.svg`, and relay-control's
+`SELFHOST_LOGIN_LOGO_URL` for the sign-in page) without another web server.
+
 #### Agent Relay Desktop links
 
 Settings › Workspace shows **Connect your agents** with an

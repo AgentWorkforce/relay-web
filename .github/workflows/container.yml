@@ -77,9 +77,15 @@ jobs:
           docker run --rm --read-only --user 101:101 \
             -v "$html:/work" relay-webapp:ci \
             sh -ec 'cp -a /usr/share/nginx/html/. /work/'
+          # The chart's optional logo (global.branding.logo), mounted read-only.
+          brand="$RUNNER_TEMP/dashboard-brand"
+          mkdir -p "$brand"
+          printf '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>' > "$brand/logo.svg"
+          chmod -R a+rX "$brand"
           docker run -d --name dashboard --read-only --user 101:101 \
             --tmpfs /tmp:uid=101,gid=101 \
             -v "$html:/usr/share/nginx/html" \
+            -v "$brand:/usr/share/nginx/html/brand:ro" \
             -e DASHBOARD_PUBLIC_URL=https://dashboard.example.test \
             -e DASHBOARD_APP_PATH=/ \
             -e DASHBOARD_API_BASE_PATH=/cloud/api \
@@ -107,6 +113,15 @@ jobs:
           curl -fsS -o /dev/null -w '%{http_code} %{content_type}\n' "http://127.0.0.1:8080${asset}" | tee /tmp/asset.txt
           grep -q '^200 .*javascript' /tmp/asset.txt
           curl -fsS http://127.0.0.1:8080/some/client/route | grep -q '<div id="root"'
+          # /brand/ serves the mounted logo as an image with a script-free CSP,
+          # and a missing file is a 404 rather than the app shell.
+          curl -fsS -D /tmp/brand-headers.txt -o /tmp/logo.svg http://127.0.0.1:8080/brand/logo.svg
+          grep -q '<svg' /tmp/logo.svg
+          grep -qi '^content-type: image/svg+xml' /tmp/brand-headers.txt
+          grep -qi "^content-security-policy: default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox" /tmp/brand-headers.txt
+          grep -qi '^x-content-type-options: nosniff' /tmp/brand-headers.txt
+          grep -qi '^cache-control: public, max-age=300' /tmp/brand-headers.txt
+          test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/brand/missing.svg)" = 404
 
       - name: Show container logs
         if: always()
