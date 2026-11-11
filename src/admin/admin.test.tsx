@@ -615,6 +615,9 @@ it("the retired #/downloads link lands on Settings > Workspace with the download
   await waitFor(() => expect(window.location.hash).toBe("#/settings/workspace"));
   expect(await screen.findByRole("region", { name: /^Download / })).toBeInTheDocument();
   expect(screen.queryByRole("link", { name: "Downloads" })).toBeNull();
+  // Following the same retired link again is rewritten again.
+  window.location.hash = "#/downloads";
+  await waitFor(() => expect(window.location.hash).toBe("#/settings/workspace"));
 });
 
 it("organization rename sends the trimmed name and reports the result", async () => {

@@ -35,6 +35,18 @@ function isDownloadsLink(hash: string): boolean {
   return hash === "#/downloads" || (!hash && isDownloadsPath(window.location.pathname));
 }
 
+/**
+ * The location's hash, after rewriting a retired Downloads link to its new
+ * home (replaceState, so history stays clean). Every read goes through here,
+ * so following the same old link again is rewritten again.
+ */
+function currentHash(): string {
+  if (isDownloadsLink(window.location.hash)) {
+    window.history.replaceState(window.history.state, "", `${appPath()}#/settings/workspace`);
+  }
+  return window.location.hash;
+}
+
 /** Hash routes keep the static host simple (no SPA fallback needed). */
 function route(hash: string) {
   // Downloads moved into Settings > Workspace; old links land there.
@@ -98,18 +110,12 @@ function chrome(current: ReturnType<typeof route>) {
 }
 
 export function App() {
-  const [hash, setHash] = useState(() => window.location.hash);
-  // Rewrite a retired Downloads link to its new home, keeping history clean.
-  // route() already renders Settings > Workspace for it, so only the URL changes.
-  useEffect(() => {
-    if (!isDownloadsLink(hash)) return;
-    window.history.replaceState(window.history.state, "", `${appPath()}#/settings/workspace`);
-  }, [hash]);
+  const [hash, setHash] = useState(currentHash);
   // In-app session links use pushState + popstate; re-render for the heading.
   const [, setSearch] = useState(() => window.location.search);
   useEffect(() => {
     const update = () => {
-      setHash(window.location.hash);
+      setHash(currentHash());
       setSearch(window.location.search);
     };
     window.addEventListener("hashchange", update);
