@@ -3,7 +3,8 @@ import { Dashboard } from "./dashboard";
 import { FlowsApp, parseFlowsRoute } from "./flows/flows-app";
 import { Settings } from "./admin/settings";
 import { USAGE_RANGES, type UsageRange } from "./admin/usage";
-import { DownloadsPage, isDownloadsPath } from "./admin/downloads";
+import { isDownloadsPath } from "./admin/downloads";
+import { appPath } from "./app-path";
 import { DevicePage } from "./device/DevicePage";
 import { userCodeFromHash } from "./device/api";
 import { SignInPage } from "./sign-in/SignInPage";
@@ -29,10 +30,28 @@ function usageDays(value?: string): UsageRange | undefined {
   return USAGE_RANGES.find((range) => range === days);
 }
 
+/** The retired Downloads page: `#/downloads` or the `/downloads` path. */
+function isDownloadsLink(hash: string): boolean {
+  return hash === "#/downloads" || (!hash && isDownloadsPath(window.location.pathname));
+}
+
+/**
+ * The location's hash, after rewriting a retired Downloads link to its new
+ * home (replaceState, so history stays clean). Every read goes through here,
+ * so following the same old link again is rewritten again.
+ */
+function currentHash(): string {
+  if (isDownloadsLink(window.location.hash)) {
+    window.history.replaceState(window.history.state, "", `${appPath()}#/settings/workspace`);
+  }
+  return window.location.hash;
+}
+
 /** Hash routes keep the static host simple (no SPA fallback needed). */
 function route(hash: string) {
-  if (hash === "#/downloads" || (!hash && isDownloadsPath(window.location.pathname)))
-    return { page: "downloads" as const, path: "", section: "" };
+  // Downloads moved into Settings > Workspace; old links land there.
+  if (isDownloadsLink(hash))
+    return { page: "settings" as const, path: "", section: "workspace" };
   const featureHash = hash.split("?")[0] ?? hash;
   const chief = /^#(\/chief(?:\/.*)?)$/.exec(featureHash);
   if (chief) return { page: "chief" as const, path: chief[1]!, section: "" };
@@ -83,8 +102,6 @@ function chrome(current: ReturnType<typeof route>) {
   }
   if (current.page === "settings")
     return { rail: "Settings" as const, label: "Settings" };
-  if (current.page === "downloads")
-    return { rail: "Downloads" as const, label: "Downloads" };
   return {
     rail: "Agents" as const,
     label:
@@ -93,12 +110,12 @@ function chrome(current: ReturnType<typeof route>) {
 }
 
 export function App() {
-  const [hash, setHash] = useState(() => window.location.hash);
+  const [hash, setHash] = useState(currentHash);
   // In-app session links use pushState + popstate; re-render for the heading.
   const [, setSearch] = useState(() => window.location.search);
   useEffect(() => {
     const update = () => {
-      setHash(window.location.hash);
+      setHash(currentHash());
       setSearch(window.location.search);
     };
     window.addEventListener("hashchange", update);
@@ -137,7 +154,6 @@ export function App() {
             days={"days" in current ? current.days : undefined}
           />
         )}
-        {current.page === "downloads" && <DownloadsPage />}
         {current.page === "sessions" && <Dashboard />}
       </Shell>
     </ProductCapabilitiesProvider>

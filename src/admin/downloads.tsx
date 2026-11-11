@@ -533,7 +533,11 @@ function releaseLabel(release: Release, showProfile: boolean): string {
   return `${channel} · ${release.manifest.version}${showProfile ? ` · ${release.profile.asset_prefix}` : ""}`;
 }
 
-export function DownloadsPage(props: {
+/**
+ * Desktop downloads, shown on Settings > Workspace below "Connect your
+ * agents" (there is no separate Downloads page; #/downloads redirects there).
+ */
+export function DesktopDownloads(props: {
   navigate?: (url: string) => void;
   /** Tests fix the visitor's platform; the browser's is detected otherwise. */
   platform?: DetectedPlatform;
@@ -549,8 +553,9 @@ export function DownloadsPage(props: {
   const current = releases.find((release) => release.key === chosen) ?? releases[0];
   const showProfile = (data?.length ?? 0) > 1;
   return (
-    <div className={s.page}>
-      <div className={s.detail}>
+    <section aria-labelledby="desktop-downloads-title" className="card">
+      <div className={s.embedded}>
+        <h2 id="desktop-downloads-title">Download {productName()}</h2>
         <p className={s.intro}>
           Install {productName()} to connect the agents on your computer to this workspace.
         </p>
@@ -636,6 +641,6 @@ export function DownloadsPage(props: {
           </div>
         )}
       </div>
-    </div>
+    </section>
   );
 }

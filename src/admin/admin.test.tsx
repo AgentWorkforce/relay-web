@@ -606,6 +606,20 @@ it("hash routes switch between sessions and settings", async () => {
   ).toBeInTheDocument();
 });
 
+it("the retired #/downloads link lands on Settings > Workspace with the downloads card", async () => {
+  window.location.hash = "#/downloads";
+  render(<App />);
+  expect(
+    await screen.findByRole("heading", { name: "Workspace", level: 1 }),
+  ).toBeInTheDocument();
+  await waitFor(() => expect(window.location.hash).toBe("#/settings/workspace"));
+  expect(await screen.findByRole("region", { name: /^Download / })).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Downloads" })).toBeNull();
+  // Following the same retired link again is rewritten again.
+  window.location.hash = "#/downloads";
+  await waitFor(() => expect(window.location.hash).toBe("#/settings/workspace"));
+});
+
 it("organization rename sends the trimmed name and reports the result", async () => {
   extra = (call) =>
     call.method === "PATCH" && call.path === "/cloud/api/v1/organizations/o1"
