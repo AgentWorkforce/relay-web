@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BarChart3 } from "lucide-react";
 import { adminApi, ApiError } from "./api";
 import type { Usage, UsageMetric } from "./contracts";
@@ -23,8 +23,55 @@ import { PeopleSection } from "./usage-people";
 export const USAGE_RANGES = [7, 30, 90] as const;
 export type UsageRange = (typeof USAGE_RANGES)[number];
 
+const USAGE_BASE = "#/settings/usage";
+
+/** A usage route with its period (30 days is the default and is left out). */
+export function rangeHash(base: string, days: UsageRange) {
+  return days === 30 ? base : `${base}?days=${days}`;
+}
+
 export function usageHash(days: UsageRange) {
-  return days === 30 ? "#/settings/usage" : `#/settings/usage?days=${days}`;
+  return rangeHash(USAGE_BASE, days);
+}
+
+/**
+ * The selected period, kept in the route: choosing one rewrites the link in
+ * place, and a navigation to this route with another period (or none, e.g.
+ * the Usage nav link) switches to it.
+ */
+export function useRoutedDays(
+  base: string,
+  initial: UsageRange,
+): [UsageRange, (days: UsageRange) => void] {
+  const [days, setDays] = useState<UsageRange>(initial);
+  useEffect(() => {
+    const sync = () => {
+      const hash = window.location.hash;
+      if (hash !== base && !hash.startsWith(`${base}?`)) return;
+      const requested = Number(
+        new URLSearchParams(hash.slice(base.length + 1)).get("days"),
+      );
+      setDays(USAGE_RANGES.find((range) => range === requested) ?? 30);
+    };
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
+  }, [base]);
+  // Keep the period in the link so the drill-down's back link returns here.
+  const choose = (next: UsageRange) => {
+    window.history.replaceState(null, "", rangeHash(base, next));
+    setDays(next);
+  };
+  return [days, choose];
+}
+
+/** Calls `reload` whenever `days` changes after the first render. */
+export function useReloadOnChange(days: UsageRange, reload: () => void) {
+  const requested = useRef(days);
+  useEffect(() => {
+    if (requested.current === days) return;
+    requested.current = days;
+    reload();
+  }, [days, reload]);
 }
 
 /** The shared 7/30/90 period switch. */
@@ -103,6 +150,8 @@ export function UsageRefused({
   );
 }
 
+const noop = () => {};
+
 const count = (value: number | null) =>
   value === null ? "n/a" : value.toLocaleString();
 
@@ -121,23 +170,18 @@ export function UsageSection({
   people?: boolean;
   initialDays?: UsageRange;
 }) {
-  const [days, setDays] = useState<UsageRange>(initialDays);
+  const [days, choose] = useRoutedDays(USAGE_BASE, initialDays);
   const loaded = useLoad((signal) =>
     counts
       ? adminApi.usage(organizationId, days, signal)
       : Promise.resolve(null),
   );
   const { error, reload } = loaded;
+  const reloadCounts = counts ? reload : noop;
+  useReloadOnChange(days, reloadCounts);
   // useLoad keeps the last response across reloads: never show another
   // period's counts under the selected one.
   const data = loaded.data?.range.days === days ? loaded.data : null;
-  const choose = (next: UsageRange) => {
-    if (next === days) return;
-    setDays(next);
-    // Keep the period in the link so the drill-down's back link returns here.
-    window.history.replaceState(null, "", usageHash(next));
-    if (counts) reload();
-  };
 
   if (error instanceof ApiError && error.status === 403)
     return (

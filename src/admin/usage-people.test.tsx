@@ -234,8 +234,34 @@ it("null and truncated session counts show n/a and a lower-bound note", async ()
   expect(screen.getByText(/Session counts are lower bounds/)).toBeInTheDocument();
 });
 
+it("search-only activity keeps the table", async () => {
+  peopleReply = (days) => ({
+    body: people(Number(days), [member({ sessionsUploaded: 0, searches: 4 })]),
+  });
+  renderSettings({ section: "usage" });
+  expect(await screen.findByRole("table", { name: "People usage" })).toBeInTheDocument();
+  expect(screen.queryByText("No sessions in this period")).not.toBeInTheDocument();
+});
+
+it("navigating to the Usage link resets the period it shows", async () => {
+  renderSettings({ section: "usage" });
+  await screen.findByRole("table", { name: "People usage" });
+  fireEvent.click(screen.getByRole("button", { name: "7 days" }));
+  await waitFor(() =>
+    expect(peopleRequests().at(-1)).toBe("/cloud/api/v1/organizations/o1/usage/people?days=7"),
+  );
+  expect(window.location.hash).toBe("#/settings/usage?days=7");
+  window.location.hash = "#/settings/usage";
+  await waitFor(() =>
+    expect(peopleRequests().at(-1)).toBe("/cloud/api/v1/organizations/o1/usage/people?days=30"),
+  );
+  expect(
+    screen.getByRole("button", { name: "30 days" }),
+  ).toHaveAttribute("aria-pressed", "true");
+});
+
 it("no members with sessions shows the empty state", async () => {
-  peopleReply = (days) => ({ body: people(Number(days), [member({ sessionsUploaded: 0 })]) });
+  peopleReply = (days) => ({ body: people(Number(days), [member({ sessionsUploaded: 0, searches: 0 })]) });
   renderSettings({ section: "usage" });
   expect(await screen.findByText("No sessions in this period")).toBeInTheDocument();
   expect(screen.queryByRole("table", { name: "People usage" })).not.toBeInTheDocument();
@@ -334,10 +360,9 @@ it("the drill-down renders sessions with summaries, detail links and Load more",
     "href",
     sessionHref("s1", "claude", null, null, "w1"),
   );
-  expect(within(list).getByRole("link", { name: "Session s2" })).toHaveAttribute(
-    "href",
-    sessionHref("s2", "claude", null, null, "w2"),
-  );
+  // The session viewer only opens the current workspace: no dead link.
+  expect(within(list).queryByRole("link", { name: "Session s2" })).not.toBeInTheDocument();
+  expect(within(list).getByText("In another workspace")).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole("button", { name: "Load more" }));
   expect(await within(list).findByRole("link", { name: "Untitled session" })).toBeInTheDocument();
@@ -347,7 +372,7 @@ it("the drill-down renders sessions with summaries, detail links and Load more",
   ]);
   expect(
     within(list).getAllByRole("link").map((link) => link.textContent),
-  ).toEqual(["Session s1", "Session s2", "Untitled session"]);
+  ).toEqual(["Session s1", "Untitled session"]);
   expect(screen.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument();
   // Only the people endpoints: the counts page is not fetched here.
   expect(paths.some((path) => /\/usage\?days=/.test(path))).toBe(false);

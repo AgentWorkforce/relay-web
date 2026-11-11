@@ -297,6 +297,7 @@ export function Settings(props: {
                     key={`${context.currentOrganization.id}:${props.person}`}
                     organizationId={context.currentOrganization.id}
                     userId={props.person}
+                    workspaceId={context.currentWorkspace.id}
                     initialDays={props.days}
                   />
                 ) : props.person === undefined && usageAllowed ? (

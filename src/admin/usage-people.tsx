@@ -12,6 +12,9 @@ import {
   UsageRangePicker,
   UsageRefused,
   usageHash,
+  rangeHash,
+  useReloadOnChange,
+  useRoutedDays,
   type UsageRange,
 } from "./usage";
 import {
@@ -32,9 +35,11 @@ import { HarnessIcon } from "../sessions/harness-icon";
 import { onLinkClick, sessionHref } from "../sessions/route";
 
 /** The drill-down for one member, keeping the selected period. */
+const personBase = (userId: string) =>
+  `#/settings/usage/people/${encodeURIComponent(userId)}`;
+
 export function usagePersonHash(userId: string, days: UsageRange) {
-  const path = `#/settings/usage/people/${encodeURIComponent(userId)}`;
-  return days === 30 ? path : `${path}?days=${days}`;
+  return rangeHash(personBase(userId), days);
 }
 
 /**
@@ -47,12 +52,7 @@ function useRangeLoad<T extends { range: { days: number } }>(
 ) {
   const loaded = useLoad(load);
   const { reload } = loaded;
-  const requested = useRef(days);
-  useEffect(() => {
-    if (requested.current === days) return;
-    requested.current = days;
-    reload();
-  }, [days, reload]);
+  useReloadOnChange(days, reload);
   const data = loaded.data?.range.days === days ? loaded.data : null;
   return { data, error: loaded.error, reload };
 }
@@ -212,8 +212,10 @@ function PeopleTable({
     ),
     sort,
   );
-  // Unknown (null) session counts are not zero: never call that empty.
-  const empty = members.every((member) => member.sessionsUploaded === 0);
+  // Unknown (null) counts are not zero, and search-only activity still shows.
+  const empty = members.every(
+    (member) => member.sessionsUploaded === 0 && member.searches === 0,
+  );
   if (empty)
     return (
       <Empty className="border">
@@ -340,13 +342,16 @@ function PeopleTable({
 export function UsagePersonPage({
   organizationId,
   userId,
+  workspaceId,
   initialDays = 30,
 }: {
   organizationId: string;
   userId: string;
+  /** The viewer's current workspace: sessions elsewhere are not linked. */
+  workspaceId: string;
   initialDays?: UsageRange;
 }) {
-  const [days, setDays] = useState<UsageRange>(initialDays);
+  const [days, setDays] = useRoutedDays(personBase(userId), initialDays);
   const { data, error, reload } = useRangeLoad(days, (signal) =>
     adminApi.usagePersonSessions(organizationId, userId, days, null, signal),
   );
@@ -369,7 +374,6 @@ export function UsagePersonPage({
   const choose = (next: UsageRange) => {
     setDays(next);
     setMoreError(null);
-    window.history.replaceState(null, "", usagePersonHash(userId, next));
   };
   const loadMore = () => {
     if (!data || !nextCursor) return;
@@ -506,7 +510,7 @@ export function UsagePersonPage({
         <ul aria-label="Sessions" className="flex list-none flex-col gap-2 p-0">
           {sessions.map((session) => (
             <li key={`${session.source}:${session.sessionId}`}>
-              <SessionRow session={session} />
+              <SessionRow session={session} workspaceId={workspaceId} />
             </li>
           ))}
         </ul>
@@ -524,27 +528,44 @@ export function UsagePersonPage({
   );
 }
 
-function SessionRow({ session }: { session: UsagePersonSession }) {
+function SessionRow({
+  session,
+  workspaceId,
+}: {
+  session: UsagePersonSession;
+  workspaceId: string;
+}) {
   const title = session.title || "Untitled session";
+  // The session viewer only opens the current workspace's sessions.
+  const elsewhere = !!session.workspaceId && session.workspaceId !== workspaceId;
   const time = formatTime(session.lastTs ?? session.firstTs);
   return (
     <Card>
       <CardHeader className="gap-1 p-4">
         <div className="flex min-w-0 items-center gap-2">
           <HarnessIcon source={session.source} className="size-4 shrink-0" />
-          <a
-            href={sessionHref(
-              session.sessionId,
-              session.source,
-              null,
-              null,
-              session.workspaceId ?? undefined,
-            )}
-            onClick={onLinkClick}
-            className="truncate font-medium underline-offset-4 hover:underline"
-          >
-            {title}
-          </a>
+          {elsewhere ? (
+            <>
+              <span className="truncate font-medium">{title}</span>
+              <span className="shrink-0 text-xs text-muted-foreground">
+                In another workspace
+              </span>
+            </>
+          ) : (
+            <a
+              href={sessionHref(
+                session.sessionId,
+                session.source,
+                null,
+                null,
+                workspaceId,
+              )}
+              onClick={onLinkClick}
+              className="truncate font-medium underline-offset-4 hover:underline"
+            >
+              {title}
+            </a>
+          )}
         </div>
         {session.summary && (
           <p className="text-sm text-muted-foreground">{session.summary}</p>
