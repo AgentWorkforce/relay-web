@@ -31,6 +31,8 @@ import {
   signInMethodsSchema,
   workspacesSchema,
   usageSchema,
+  usagePeopleSchema,
+  usagePersonSessionsSchema,
   type TokenPurpose,
   type Role,
 } from "./contracts";
@@ -321,6 +323,34 @@ export const adminApi = {
         { signal },
       )
     ).usage,
+  /** Owner-only; 403 `feature_not_enabled` while `usage_people` is off. */
+  usagePeople: async (
+    organization: string,
+    days: 7 | 30 | 90,
+    signal?: AbortSignal,
+  ) =>
+    (
+      await call(
+        `/v1/organizations/${enc(organization)}/usage/people?days=${days}`,
+        usagePeopleSchema,
+        { signal },
+      )
+    ).people,
+  /** One member's sessions, newest first; 404 `user_not_found` for a non-member. */
+  usagePersonSessions: (
+    organization: string,
+    userId: string,
+    days: 7 | 30 | 90,
+    cursor: string | null,
+    signal?: AbortSignal,
+  ) =>
+    call(
+      `/v1/organizations/${enc(organization)}/usage/people/${enc(userId)}/sessions?${new URLSearchParams(
+        { days: String(days), ...(cursor ? { cursor } : {}) },
+      )}`,
+      usagePersonSessionsSchema,
+      { signal },
+    ),
   signInMethods: (signal?: AbortSignal) =>
     call("/v1/auth/methods", signInMethodsSchema, { signal }),
   workspaces: async (organization: string, signal?: AbortSignal) =>
