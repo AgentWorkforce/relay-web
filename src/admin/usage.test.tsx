@@ -139,6 +139,32 @@ it.each([false, undefined])(
   },
 );
 
+it("a range whose request fails does not keep the previous period's counts", async () => {
+  renderSettings("usage");
+  await screen.findByTestId("usage-total-activeUsers");
+  usageReply = () => ({ status: 500, body: { error: "boom", message: "Usage failed." } });
+  fireEvent.click(screen.getByRole("button", { name: "7 days" }));
+  expect(await screen.findByText(/Usage failed\./)).toBeInTheDocument();
+  expect(screen.queryByTestId("usage-total-activeUsers")).not.toBeInTheDocument();
+});
+
+it("a failed capability check offers a retry instead of saying usage is off", async () => {
+  const realFetch = globalThis.fetch;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: string, init?: RequestInit) =>
+      input === "/cloud/api/v1/capabilities"
+        ? new Response("{}", { status: 503 })
+        : realFetch(input, init),
+    ),
+  );
+  renderSettings("usage");
+  expect(
+    await screen.findByText("We couldn’t check whether usage is enabled"),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+});
+
 it("owners on other sections see the nav entry only when enabled", async () => {
   renderSettings("workspace");
   expect(await within(await screen.findByRole("navigation", { name: "Settings" })).findByText("Usage")).toBeInTheDocument();

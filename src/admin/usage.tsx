@@ -34,7 +34,13 @@ const NOT_ENABLED = "Usage is not enabled on this installation";
 const SUMMARIES_NOTE = "Summary counts need a newer sessions pipeline";
 
 /** Shown instead of the page when the route is refused before any request. */
-export function UsageRefused({ reason }: { reason: "owner" | "disabled" }) {
+export function UsageRefused({
+  reason,
+  onRetry,
+}: {
+  reason: "owner" | "disabled" | "unchecked";
+  onRetry?: () => void;
+}) {
   return (
     <div className="p-6">
       <Empty className="border">
@@ -43,9 +49,18 @@ export function UsageRefused({ reason }: { reason: "owner" | "disabled" }) {
             <BarChart3 aria-hidden="true" />
           </EmptyMedia>
           <EmptyTitle role="alert">
-            {reason === "owner" ? OWNER_ONLY : NOT_ENABLED}
+            {reason === "owner"
+              ? OWNER_ONLY
+              : reason === "disabled"
+                ? NOT_ENABLED
+                : "We couldn’t check whether usage is enabled"}
           </EmptyTitle>
         </EmptyHeader>
+        {onRetry && (
+          <Button variant="outline" size="sm" onClick={onRetry}>
+            Try again
+          </Button>
+        )}
       </Empty>
     </div>
   );
@@ -57,9 +72,13 @@ const count = (value: number | null) =>
 /** Organization usage counts (owner-only). Never shows who did what. */
 export function UsageSection({ organizationId }: { organizationId: string }) {
   const [days, setDays] = useState<UsageRange>(30);
-  const { data, error, reload } = useLoad((signal) =>
+  const loaded = useLoad((signal) =>
     adminApi.usage(organizationId, days, signal),
   );
+  const { error, reload } = loaded;
+  // useLoad keeps the last response across reloads: never show another
+  // period's counts under the selected one.
+  const data = loaded.data?.range.days === days ? loaded.data : null;
   const choose = (next: UsageRange) => {
     if (next === days) return;
     setDays(next);

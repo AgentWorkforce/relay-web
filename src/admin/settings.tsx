@@ -111,7 +111,11 @@ export function settingsHash(section: SettingsSectionId) {
 }
 
 export function Settings(props: { section: string }) {
-  const { capabilities, status: capabilityStatus } = useProductCapabilities();
+  const {
+    capabilities,
+    status: capabilityStatus,
+    reload: reloadCapabilities,
+  } = useProductCapabilities();
   const {
     data: context,
     error,
@@ -276,6 +280,11 @@ export function Settings(props: { section: string }) {
                   <div role="status" aria-label="Checking availability…">
                     <Skeleton className="m-6 h-24" />
                   </div>
+                ) : capabilityStatus === "unavailable" ? (
+                  <UsageRefused
+                    reason="unchecked"
+                    onRetry={reloadCapabilities}
+                  />
                 ) : (
                   <UsageRefused reason="disabled" />
                 ))}
