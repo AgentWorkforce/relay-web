@@ -225,20 +225,17 @@ export function SessionsPage({
       </WorkspaceViewSlot>
       <WorkspaceViewSlot name="toolbar">
         <nav className="flex items-center gap-1" aria-label="Sessions views">
-          {(["sessions", "activity"] as const).map((view) => (
-            <a
-              key={view}
-              href={listHref(query, view)}
-              onClick={onLinkClick}
-              aria-current={tab === view ? "page" : undefined}
-              className={buttonClass(
-                tab === view ? "secondary" : "ghost",
-                "sm",
-              )}
-            >
-              {view === "sessions" ? "Sessions" : "Activity"}
-            </a>
-          ))}
+          <a
+            href={listHref(query, "sessions")}
+            onClick={onLinkClick}
+            aria-current={tab === "sessions" ? "page" : undefined}
+            className={buttonClass(
+              tab === "sessions" ? "secondary" : "ghost",
+              "sm",
+            )}
+          >
+            Sessions
+          </a>
           {showOverlapsTab && (
             <a
               href={listHref(query, "overlaps")}
