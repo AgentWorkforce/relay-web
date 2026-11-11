@@ -212,19 +212,27 @@ async function call(
   path: string,
   init: { method?: string; body?: unknown; signal?: AbortSignal } = {},
 ): Promise<unknown> {
+  const method = init.method ?? "GET";
+  // Control's CSRF check refuses a cookie-authenticated write unless it is
+  // application/json with an allowed Origin, so a bodiless write still sends
+  // an empty JSON object.
+  const requestBody =
+    init.body === undefined && method !== "GET" && method !== "HEAD"
+      ? {}
+      : init.body;
   const response = await fetch(`/cloud/api/v1${path}`, {
-    method: init.method ?? "GET",
+    method,
     signal: init.signal,
     credentials: "same-origin",
     cache: "no-store",
     redirect: "error",
     headers: {
       Accept: "application/json",
-      ...(init.body !== undefined
+      ...(requestBody !== undefined
         ? { "Content-Type": "application/json" }
         : {}),
     },
-    ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+    ...(requestBody !== undefined ? { body: JSON.stringify(requestBody) } : {}),
   });
   if (response.status === 401) throw new SignedOut();
   const body = await response.json().catch(() => null);
