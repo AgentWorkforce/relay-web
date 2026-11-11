@@ -77,6 +77,8 @@ it("asks for a signed URL and then goes to it", async () => {
   const call = seen.find((entry) => entry.path.endsWith("/download-url"));
   expect(call?.method).toBe("POST");
   expect(call?.headers["X-Agent-Relay-Profile"]).toBe("x7k2q");
+  // Control refuses cookie-authenticated writes that are not application/json.
+  expect(call?.headers["Content-Type"]).toBe("application/json");
 });
 
 it("refuses a download link that is not https", async () => {

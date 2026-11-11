@@ -57,20 +57,28 @@ async function call<T>(
     headers?: Record<string, string>;
   } = {},
 ): Promise<T> {
+  const method = init.method ?? "GET";
+  // Control's CSRF check refuses a cookie-authenticated write (POST, PUT,
+  // PATCH, and DELETE on several routes) unless it is application/json with an
+  // allowed Origin, so a bodiless write still sends an empty JSON object.
+  const requestBody =
+    init.body === undefined && method !== "GET" && method !== "HEAD"
+      ? {}
+      : init.body;
   const response = await fetch(`${base}${path}`, {
-    method: init.method ?? "GET",
+    method,
     signal: init.signal,
     credentials: "same-origin",
     cache: "no-store",
     redirect: "error",
     headers: {
       Accept: "application/json",
-      ...(init.body !== undefined
+      ...(requestBody !== undefined
         ? { "Content-Type": "application/json" }
         : {}),
       ...init.headers,
     },
-    body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
+    body: requestBody !== undefined ? JSON.stringify(requestBody) : undefined,
   });
   if (response.status === 401) throw new SignedOut();
   const text = response.status === 204 ? "" : await response.text();
