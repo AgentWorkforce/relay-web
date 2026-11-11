@@ -118,7 +118,8 @@ jobs:
           curl -fsS -D /tmp/brand-headers.txt -o /tmp/logo.svg http://127.0.0.1:8080/brand/logo.svg
           grep -q '<svg' /tmp/logo.svg
           grep -qi '^content-type: image/svg+xml' /tmp/brand-headers.txt
-          grep -qi "^content-security-policy: default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox" /tmp/brand-headers.txt
+          csp=$(tr -d '\r' < /tmp/brand-headers.txt | sed -n 's/^[Cc]ontent-[Ss]ecurity-[Pp]olicy: //p')
+          test "$csp" = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox"
           grep -qi '^x-content-type-options: nosniff' /tmp/brand-headers.txt
           grep -qi '^cache-control: public, max-age=300' /tmp/brand-headers.txt
           test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/brand/missing.svg)" = 404
