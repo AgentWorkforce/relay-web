@@ -3,7 +3,8 @@ import { Dashboard } from "./dashboard";
 import { FlowsApp, parseFlowsRoute } from "./flows/flows-app";
 import { Settings } from "./admin/settings";
 import { USAGE_RANGES, type UsageRange } from "./admin/usage";
-import { DownloadsPage, isDownloadsPath } from "./admin/downloads";
+import { isDownloadsPath } from "./admin/downloads";
+import { appPath } from "./app-path";
 import { DevicePage } from "./device/DevicePage";
 import { userCodeFromHash } from "./device/api";
 import { SignInPage } from "./sign-in/SignInPage";
@@ -29,10 +30,16 @@ function usageDays(value?: string): UsageRange | undefined {
   return USAGE_RANGES.find((range) => range === days);
 }
 
+/** The retired Downloads page: `#/downloads` or the `/downloads` path. */
+function isDownloadsLink(hash: string): boolean {
+  return hash === "#/downloads" || (!hash && isDownloadsPath(window.location.pathname));
+}
+
 /** Hash routes keep the static host simple (no SPA fallback needed). */
 function route(hash: string) {
-  if (hash === "#/downloads" || (!hash && isDownloadsPath(window.location.pathname)))
-    return { page: "downloads" as const, path: "", section: "" };
+  // Downloads moved into Settings > Workspace; old links land there.
+  if (isDownloadsLink(hash))
+    return { page: "settings" as const, path: "", section: "workspace" };
   const featureHash = hash.split("?")[0] ?? hash;
   const chief = /^#(\/chief(?:\/.*)?)$/.exec(featureHash);
   if (chief) return { page: "chief" as const, path: chief[1]!, section: "" };
@@ -83,8 +90,6 @@ function chrome(current: ReturnType<typeof route>) {
   }
   if (current.page === "settings")
     return { rail: "Settings" as const, label: "Settings" };
-  if (current.page === "downloads")
-    return { rail: "Downloads" as const, label: "Downloads" };
   return {
     rail: "Agents" as const,
     label:
@@ -94,6 +99,12 @@ function chrome(current: ReturnType<typeof route>) {
 
 export function App() {
   const [hash, setHash] = useState(() => window.location.hash);
+  // Rewrite a retired Downloads link to its new home, keeping history clean.
+  // route() already renders Settings > Workspace for it, so only the URL changes.
+  useEffect(() => {
+    if (!isDownloadsLink(hash)) return;
+    window.history.replaceState(window.history.state, "", `${appPath()}#/settings/workspace`);
+  }, [hash]);
   // In-app session links use pushState + popstate; re-render for the heading.
   const [, setSearch] = useState(() => window.location.search);
   useEffect(() => {
@@ -137,7 +148,6 @@ export function App() {
             days={"days" in current ? current.days : undefined}
           />
         )}
-        {current.page === "downloads" && <DownloadsPage />}
         {current.page === "sessions" && <Dashboard />}
       </Shell>
     </ProductCapabilitiesProvider>

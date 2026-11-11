@@ -21,7 +21,6 @@ import {
   Settings2,
   X,
   Compass,
-  Download,
 } from "lucide-react";
 import { appPath } from "../app-path";
 import { BrandLockup } from "./brand";
@@ -41,8 +40,7 @@ export type RailSection =
   | "Agents"
   | "Flows"
   | "Settings"
-  | "Chief"
-  | "Downloads";
+  | "Chief";
 
 const compactQuery = "(max-width: 759px)";
 function subscribeCompact(onChange: () => void) {
@@ -261,12 +259,6 @@ export function WorkspaceChrome({
           },
         ]
       : []),
-    {
-      href: "#/downloads",
-      label: "Downloads",
-      icon: Download,
-      rail: "Downloads",
-    },
   ];
 
   const context = (

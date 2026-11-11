@@ -4,6 +4,10 @@
 .page {
   min-height: 100%;
 }
+.embedded {
+  min-width: 0;
+  width: 100%;
+}
 .detail {
   min-width: 0;
   width: 100%;

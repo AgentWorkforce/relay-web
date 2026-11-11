@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import {
-  DownloadsPage,
+  DesktopDownloads,
   detectPlatform,
   groupByOs,
   installScripts,
@@ -81,7 +81,7 @@ afterEach(() => {
 });
 
 it("lists the workspace's installers with version, size and sha256, without probes", async () => {
-  render(<DownloadsPage navigate={() => undefined} platform={LINUX} />);
+  render(<DesktopDownloads navigate={() => undefined} platform={LINUX} />);
   expect(await screen.findByText(/Version 2026\.11\.9/)).toBeInTheDocument();
   expect(screen.getByText("Desktop-2026.11.9-Linux-x64.deb")).toBeInTheDocument();
   expect(screen.getAllByText(/64\.0 MB/).length).toBeGreaterThan(0);
@@ -95,7 +95,7 @@ it("lists the workspace's installers with version, size and sha256, without prob
 
 it("recommends the visitor's build first, with the other format beside it", async () => {
   replies[`${FEED}/manifest?channel=stable`] = { status: 200, body: envelope("2026.11.9", "stable", RELEASE) };
-  render(<DownloadsPage navigate={() => undefined} platform={LINUX} />);
+  render(<DesktopDownloads navigate={() => undefined} platform={LINUX} />);
   expect(await screen.findByRole("button", { name: "Download for Linux" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Or .tar.gz" })).toBeInTheDocument();
   const all = screen.getByRole("region", { name: "All downloads" });
@@ -118,7 +118,7 @@ it("recommends the visitor's build first, with the other format beside it", asyn
 
 it("offers both Mac builds when the chip is unknown", async () => {
   replies[`${FEED}/manifest?channel=stable`] = { status: 200, body: envelope("2026.11.9", "stable", RELEASE) };
-  render(<DownloadsPage navigate={() => undefined} platform={{ os: "macOS", arch: null }} />);
+  render(<DesktopDownloads navigate={() => undefined} platform={{ os: "macOS", arch: null }} />);
   expect(await screen.findByRole("button", { name: "Download for macOS (Apple Silicon)" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Download for macOS (Intel)" })).toBeInTheDocument();
   expect(screen.getByText(/Not sure which Mac you have/)).toBeInTheDocument();
@@ -129,7 +129,7 @@ it("switches between stable and beta", async () => {
     status: 200,
     body: envelope("2026.11.10-beta.1", "beta", [asset("a_debbeta1", "Desktop-2026.11.10-beta.1-Linux-x64.deb", "deb")]),
   };
-  render(<DownloadsPage navigate={() => undefined} platform={LINUX} />);
+  render(<DesktopDownloads navigate={() => undefined} platform={LINUX} />);
   const beta = await screen.findByRole("radio", { name: "Beta · 2026.11.10-beta.1" });
   expect(screen.getByRole("radio", { name: "Stable · 2026.11.9" })).toHaveAttribute("aria-checked", "true");
   const stable = screen.getByRole("radio", { name: "Stable · 2026.11.9" });
@@ -188,18 +188,20 @@ it("groups installers by OS and keeps probes and scripts out", () => {
   ]);
 });
 
-it("puts Downloads in the workspace nav for every member", () => {
+it("has no Downloads item in the workspace nav (it lives under Settings > Workspace)", () => {
   render(
-    <WorkspaceChrome rail="Downloads" label="Downloads">
+    <WorkspaceChrome rail="Agents" label="Sessions">
       <p>content</p>
     </WorkspaceChrome>,
   );
   const views = screen.getByRole("navigation", { name: "Workspace views" });
-  const link = within(views).getByRole("link", { name: "Downloads" });
-  expect(link).toHaveAttribute("href", "#/downloads");
-  expect(link).toHaveAttribute("aria-current", "page");
-  expect(within(views).getByRole("link", { name: "Sessions" })).not.toHaveAttribute("aria-current");
-  expect(screen.getAllByRole("heading", { name: "Downloads" })).toHaveLength(1);
+  expect(within(views).queryByRole("link", { name: "Downloads" })).toBeNull();
+  expect(within(views).getByRole("link", { name: "Sessions" })).toBeInTheDocument();
+});
+
+it("renders as a titled card for the Workspace settings page", async () => {
+  render(<DesktopDownloads navigate={() => undefined} platform={LINUX} />);
+  expect(screen.getByRole("region", { name: /^Download / })).toBeInTheDocument();
 });
 
 it("asks for a signed URL and then goes to it", async () => {
@@ -209,7 +211,7 @@ it("asks for a signed URL and then goes to it", async () => {
     body: { url, expires_at: "2026-11-08T10:05:00.000Z" },
   };
   const navigate = vi.fn();
-  render(<DownloadsPage navigate={navigate} platform={LINUX} />);
+  render(<DesktopDownloads navigate={navigate} platform={LINUX} />);
   fireEvent.click(await screen.findByRole("button", { name: "Download Desktop-2026.11.9-Linux-x64.deb" }));
   await waitFor(() => expect(navigate).toHaveBeenCalledWith(url));
   const call = seen.find((entry) => entry.path.endsWith("/download-url"));
@@ -225,7 +227,7 @@ it("refuses a download link that is not https", async () => {
     body: { url: "http://feed.example.test/a", expires_at: "2026-11-08T10:05:00.000Z" },
   };
   const navigate = vi.fn();
-  render(<DownloadsPage navigate={navigate} platform={LINUX} />);
+  render(<DesktopDownloads navigate={navigate} platform={LINUX} />);
   fireEvent.click(await screen.findByRole("button", { name: "Download for Linux" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("not secure");
   expect(navigate).not.toHaveBeenCalled();
@@ -233,18 +235,18 @@ it("refuses a download link that is not https", async () => {
 
 it("says so when the site only streams", async () => {
   replies[`${FEED}/assets/a_deb00001/download-url`] = { status: 501, body: { error: "no_object_storage", message: "x" } };
-  render(<DownloadsPage navigate={() => undefined} platform={LINUX} />);
+  render(<DesktopDownloads navigate={() => undefined} platform={LINUX} />);
   fireEvent.click(await screen.findByRole("button", { name: "Download for Linux" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("does not offer direct downloads");
 });
 
 it("shows an empty state without an entitlement or when the feed is off", async () => {
   replies["/cloud/api/v1/desktop/profiles"] = { status: 200, body: { profiles: [] } };
-  const first = render(<DownloadsPage navigate={() => undefined} platform={LINUX} />);
+  const first = render(<DesktopDownloads navigate={() => undefined} platform={LINUX} />);
   expect(await screen.findByText("There are no Desktop downloads for this workspace.")).toBeInTheDocument();
   first.unmount();
   replies["/cloud/api/v1/desktop/profiles"] = { status: 404, body: { error: "not_found", message: "Not found" } };
-  render(<DownloadsPage navigate={() => undefined} platform={LINUX} />);
+  render(<DesktopDownloads navigate={() => undefined} platform={LINUX} />);
   expect(await screen.findByText("There are no Desktop downloads for this workspace.")).toBeInTheDocument();
 });
 
@@ -253,7 +255,7 @@ it("reports a refused manifest", async () => {
     status: 403,
     body: { error: "not_entitled", message: "Not entitled to this profile" },
   };
-  render(<DownloadsPage navigate={() => undefined} platform={LINUX} />);
+  render(<DesktopDownloads navigate={() => undefined} platform={LINUX} />);
   expect(await screen.findByRole("alert")).toHaveTextContent("Not entitled to this profile");
 });
 
