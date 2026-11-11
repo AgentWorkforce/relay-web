@@ -59,6 +59,7 @@ beforeEach(() => {
     flows: true,
     chief: false,
     relayfile: false,
+    usage: false,
   });
   window.location.hash = "";
   vi.mocked(getAccount).mockResolvedValue({

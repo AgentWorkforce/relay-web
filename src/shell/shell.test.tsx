@@ -63,7 +63,7 @@ it("marks the current rail and keeps hosted-only views out", () => {
     <WorkspaceChrome
       rail="Flows"
       label="Flows"
-      capabilities={{ flows: true, chief: false, relayfile: false }}
+      capabilities={{ flows: true, chief: false, relayfile: false, usage: false }}
     >
       <p>content</p>
     </WorkspaceChrome>,
@@ -90,7 +90,7 @@ it("marks only the open agents view when sessions and messages share a rail", ()
     <WorkspaceChrome
       rail="Agents"
       label={label}
-      capabilities={{ flows: true, chief: false, relayfile: false }}
+      capabilities={{ flows: true, chief: false, relayfile: false, usage: false }}
     >
       <p>content</p>
     </WorkspaceChrome>
