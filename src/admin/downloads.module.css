@@ -154,6 +154,16 @@
   color: var(--text-muted);
   font-size: 12px;
 }
+.source {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.source a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 .hint {
   margin-top: 20px;
   color: var(--text-muted);
