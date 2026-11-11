@@ -10,13 +10,13 @@ const workflow = readFileSync(
 describe("release candidate workflow", () => {
   it("dispatches the successful manual-main publication identity", () => {
     const publishJob = workflow.match(
-      /^  publish:\n[\s\S]*?(?=^  notify-release-candidate:)/m,
+      /^ {2}publish:\n[\s\S]*?(?=^ {2}notify-release-candidate:)/m,
     )?.[0];
-    const notifyJob = workflow.match(/^  notify-release-candidate:\n[\s\S]*$/m)?.[0];
+    const notifyJob = workflow.match(/^ {2}notify-release-candidate:\n[\s\S]*$/m)?.[0];
     expect(publishJob).toBeDefined();
     expect(notifyJob).toBeDefined();
     expect(publishJob).toMatch(
-      /    outputs:\n      digest: \$\{\{ steps\.build\.outputs\.digest \}\}\n      source_sha: \$\{\{ steps\.source\.outputs\.source_sha \}\}/,
+      / {4}outputs:\n {6}digest: \$\{\{ steps\.build\.outputs\.digest \}\}\n {6}source_sha: \$\{\{ steps\.source\.outputs\.source_sha \}\}/,
     );
     expect(notifyJob).toMatch(/needs: publish/);
     expect(notifyJob).toMatch(
