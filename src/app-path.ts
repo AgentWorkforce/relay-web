@@ -9,6 +9,7 @@ type RuntimeConfig = {
   sessionVisualizations?: unknown;
   sessionReadApi?: unknown;
   sessionAgentNames?: unknown;
+  coordinationOverlaps?: unknown;
   analyticsEnabled?: unknown;
 };
 

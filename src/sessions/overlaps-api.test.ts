@@ -15,7 +15,10 @@ const handoff = {
 
 beforeEach(() => {
   forgetReadApiAccess();
-  window.__AGENT_RELAY_DASHBOARD_CONFIG__ = { sessionReadApi: true };
+  window.__AGENT_RELAY_DASHBOARD_CONFIG__ = {
+    sessionReadApi: true,
+    coordinationOverlaps: true,
+  };
 });
 
 afterEach(() => {
@@ -114,4 +117,24 @@ it("keeps other read errors visible to the panel", async () => {
       new AbortController().signal,
     ),
   ).rejects.toMatchObject({ reason: "read_404", code: "unexpected" });
+});
+
+it("requests nothing and hides the view unless the dashboard enables it", async () => {
+  const fetchMock = vi.fn();
+  vi.stubGlobal("fetch", fetchMock);
+  for (const config of [
+    { sessionReadApi: true },
+    { sessionReadApi: true, coordinationOverlaps: false },
+    { sessionReadApi: true, coordinationOverlaps: "true" },
+  ]) {
+    window.__AGENT_RELAY_DASHBOARD_CONFIG__ = config;
+    await expect(
+      coordinationOverlaps(
+        WORKSPACE,
+        { since: "2026-10-01T00:00:00Z", until: "2026-10-08T00:00:00Z" },
+        new AbortController().signal,
+      ),
+    ).resolves.toBeNull();
+  }
+  expect(fetchMock).not.toHaveBeenCalled();
 });
