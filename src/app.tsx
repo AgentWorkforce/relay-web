@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Dashboard } from "./dashboard";
 import { FlowsApp, parseFlowsRoute } from "./flows/flows-app";
 import { Settings } from "./admin/settings";
+import { USAGE_RANGES, type UsageRange } from "./admin/usage";
 import { DownloadsPage, isDownloadsPath } from "./admin/downloads";
 import { DevicePage } from "./device/DevicePage";
 import { userCodeFromHash } from "./device/api";
@@ -15,6 +16,19 @@ import {
   ProductFeature,
 } from "./features/product-capabilities";
 
+function safeDecode(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function usageDays(value?: string): UsageRange | undefined {
+  const days = Number(value);
+  return USAGE_RANGES.find((range) => range === days);
+}
+
 /** Hash routes keep the static host simple (no SPA fallback needed). */
 function route(hash: string) {
   if (hash === "#/downloads" || (!hash && isDownloadsPath(window.location.pathname)))
@@ -27,6 +41,16 @@ function route(hash: string) {
     return { page: "device" as const, path: "", section: "" };
   const flows = /^#(\/flows(?:\/.*)?)$/.exec(featureHash);
   if (flows) return { page: "flows" as const, path: flows[1]!, section: "" };
+  // Usage keeps its period (`?days=`) and has a per-person drill-down.
+  const usage = /^#\/settings\/usage(?:\/people\/([^/?#]+))?(?:\?days=(\d+))?$/.exec(hash);
+  if (usage)
+    return {
+      page: "settings" as const,
+      path: "",
+      section: "usage",
+      person: usage[1] ? safeDecode(usage[1]) : undefined,
+      days: usageDays(usage[2]),
+    };
   const settings = /^#\/settings(?:\/([a-z-]+))?$/.exec(hash);
   if (settings)
     return {
@@ -106,7 +130,13 @@ export function App() {
             <FlowsApp path={current.path} />
           </ProductFeature>
         )}
-        {current.page === "settings" && <Settings section={current.section} />}
+        {current.page === "settings" && (
+          <Settings
+            section={current.section}
+            person={"person" in current ? current.person : undefined}
+            days={"days" in current ? current.days : undefined}
+          />
+        )}
         {current.page === "downloads" && <DownloadsPage />}
         {current.page === "sessions" && <Dashboard />}
       </Shell>

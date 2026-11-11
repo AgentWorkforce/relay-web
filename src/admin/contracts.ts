@@ -293,6 +293,74 @@ export const usageSchema = z.object({
 export type Usage = z.infer<typeof usageSchema>["usage"];
 
 /**
+ * relay-control GET /organizations/{id}/usage/people (owner-only, behind the
+ * `usage_people` capability): per-member counts for the selected range.
+ */
+const usageRange = z.object({
+  days: z.number().int(),
+  from: z.string(),
+  to: z.string(),
+});
+const projectCount = z.object({
+  name: z.string(),
+  sessions: usageCount,
+});
+export const usagePersonSchema = z.object({
+  userId: z.string(),
+  name: z.string().nullable().default(null),
+  email: z.string().nullable().default(null),
+  role: z.string(),
+  sessionsUploaded: usageCount.nullable(),
+  searches: usageCount.nullable().default(null),
+  lastActiveAt: z.string().nullable().default(null),
+  lastSessionAt: z.string().nullable().default(null),
+  topProjects: z.array(projectCount).default([]),
+});
+export type UsagePerson = z.infer<typeof usagePersonSchema>;
+export const usagePeopleSchema = z.object({
+  people: z.object({
+    range: usageRange,
+    members: z.array(usagePersonSchema),
+    truncated: z.boolean().default(false),
+    unavailable: z.array(z.string()).default([]),
+  }),
+});
+export type UsagePeople = z.infer<typeof usagePeopleSchema>["people"];
+
+/** GET /organizations/{id}/usage/people/{userId}/sessions: newest first. */
+export const usagePersonSessionSchema = z.object({
+  sessionId: z.string(),
+  source: z.string(),
+  workspaceId: z.string().nullable().default(null),
+  title: z.string().nullable().default(null),
+  summary: z.string().nullable().default(null),
+  agentName: z.string().nullable().default(null),
+  project: z.string().nullable().default(null),
+  firstTs: z.string().nullable().default(null),
+  lastTs: z.string().nullable().default(null),
+});
+export type UsagePersonSession = z.infer<typeof usagePersonSessionSchema>;
+export const usagePersonSessionsSchema = z.object({
+  person: z.object({
+    userId: z.string(),
+    name: z.string().nullable().default(null),
+    email: z.string().nullable().default(null),
+    role: z.string(),
+  }),
+  range: usageRange,
+  rollup: z
+    .object({
+      titles: z.array(z.string()).default([]),
+      projects: z.array(projectCount).default([]),
+    })
+    .nullable()
+    .default(null),
+  sessions: z.array(usagePersonSessionSchema),
+  nextCursor: z.string().nullable().default(null),
+});
+export type UsagePersonSessions = z.infer<typeof usagePersonSessionsSchema>;
+
+/**
  * relay-control capture policy (docs/capture-policy.md). A key present in
  * `settings` is enforced by Agent Relay Desktop; an absent key is each
  * person's choice. `revision` only goes up and is sent back as If-Match.

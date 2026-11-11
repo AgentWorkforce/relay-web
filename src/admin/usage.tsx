@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BarChart3 } from "lucide-react";
 import { adminApi, ApiError } from "./api";
 import type { Usage, UsageMetric } from "./contracts";
@@ -18,9 +18,90 @@ import {
   Skeleton,
 } from "../shell/ui";
 import { cn } from "../shell/cn";
+import { PeopleSection } from "./usage-people";
 
 export const USAGE_RANGES = [7, 30, 90] as const;
 export type UsageRange = (typeof USAGE_RANGES)[number];
+
+const USAGE_BASE = "#/settings/usage";
+
+/** A usage route with its period (30 days is the default and is left out). */
+export function rangeHash(base: string, days: UsageRange) {
+  return days === 30 ? base : `${base}?days=${days}`;
+}
+
+export function usageHash(days: UsageRange) {
+  return rangeHash(USAGE_BASE, days);
+}
+
+/**
+ * The selected period, kept in the route: choosing one rewrites the link in
+ * place, and a navigation to this route with another period (or none, e.g.
+ * the Usage nav link) switches to it.
+ */
+export function useRoutedDays(
+  base: string,
+  initial: UsageRange,
+): [UsageRange, (days: UsageRange) => void] {
+  const [days, setDays] = useState<UsageRange>(initial);
+  useEffect(() => {
+    const sync = () => {
+      const hash = window.location.hash;
+      if (hash !== base && !hash.startsWith(`${base}?`)) return;
+      const requested = Number(
+        new URLSearchParams(hash.slice(base.length + 1)).get("days"),
+      );
+      setDays(USAGE_RANGES.find((range) => range === requested) ?? 30);
+    };
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
+  }, [base]);
+  // Keep the period in the link so the drill-down's back link returns here.
+  const choose = (next: UsageRange) => {
+    window.history.replaceState(null, "", rangeHash(base, next));
+    setDays(next);
+  };
+  return [days, choose];
+}
+
+/** Calls `reload` whenever `days` changes after the first render. */
+export function useReloadOnChange(days: UsageRange, reload: () => void) {
+  const requested = useRef(days);
+  useEffect(() => {
+    if (requested.current === days) return;
+    requested.current = days;
+    reload();
+  }, [days, reload]);
+}
+
+/** The shared 7/30/90 period switch. */
+export function UsageRangePicker({
+  days,
+  onChange,
+}: {
+  days: UsageRange;
+  onChange: (days: UsageRange) => void;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="Usage period"
+      className="inline-flex rounded-md border border-[var(--border-default)] p-0.5"
+    >
+      {USAGE_RANGES.map((range) => (
+        <Button
+          key={range}
+          size="sm"
+          variant={range === days ? "secondary" : "ghost"}
+          aria-pressed={range === days}
+          onClick={() => range !== days && onChange(range)}
+        >
+          {range} days
+        </Button>
+      ))}
+    </div>
+  );
+}
 
 const METRICS: ReadonlyArray<{ id: UsageMetric; label: string }> = [
   { id: "activeUsers", label: "Active users" },
@@ -31,6 +112,7 @@ const METRICS: ReadonlyArray<{ id: UsageMetric; label: string }> = [
 
 export const OWNER_ONLY = "Only organization owners can view usage";
 const NOT_ENABLED = "Usage is not enabled on this installation";
+const PEOPLE_NOT_ENABLED = "People usage is not enabled on this installation";
 const SUMMARIES_NOTE = "Summary counts need a newer sessions pipeline";
 
 /** Shown instead of the page when the route is refused before any request. */
@@ -38,7 +120,7 @@ export function UsageRefused({
   reason,
   onRetry,
 }: {
-  reason: "owner" | "disabled" | "unchecked";
+  reason: "owner" | "disabled" | "people-disabled" | "unchecked";
   onRetry?: () => void;
 }) {
   return (
@@ -53,7 +135,9 @@ export function UsageRefused({
               ? OWNER_ONLY
               : reason === "disabled"
                 ? NOT_ENABLED
-                : "We couldn’t check whether usage is enabled"}
+                : reason === "people-disabled"
+                  ? PEOPLE_NOT_ENABLED
+                  : "We couldn’t check whether usage is enabled"}
           </EmptyTitle>
         </EmptyHeader>
         {onRetry && (
@@ -66,24 +150,38 @@ export function UsageRefused({
   );
 }
 
+const noop = () => {};
+
 const count = (value: number | null) =>
   value === null ? "n/a" : value.toLocaleString();
 
-/** Organization usage counts (owner-only). Never shows who did what. */
-export function UsageSection({ organizationId }: { organizationId: string }) {
-  const [days, setDays] = useState<UsageRange>(30);
+/**
+ * Organization usage (owner-only). The counts (`usage`) never show who did
+ * what; the People section (`usage_people`) does, and is gated separately.
+ */
+export function UsageSection({
+  organizationId,
+  counts = true,
+  people = false,
+  initialDays = 30,
+}: {
+  organizationId: string;
+  counts?: boolean;
+  people?: boolean;
+  initialDays?: UsageRange;
+}) {
+  const [days, choose] = useRoutedDays(USAGE_BASE, initialDays);
   const loaded = useLoad((signal) =>
-    adminApi.usage(organizationId, days, signal),
+    counts
+      ? adminApi.usage(organizationId, days, signal)
+      : Promise.resolve(null),
   );
   const { error, reload } = loaded;
+  const reloadCounts = counts ? reload : noop;
+  useReloadOnChange(days, reloadCounts);
   // useLoad keeps the last response across reloads: never show another
   // period's counts under the selected one.
   const data = loaded.data?.range.days === days ? loaded.data : null;
-  const choose = (next: UsageRange) => {
-    if (next === days) return;
-    setDays(next);
-    reload();
-  };
 
   if (error instanceof ApiError && error.status === 403)
     return (
@@ -105,23 +203,7 @@ export function UsageSection({ organizationId }: { organizationId: string }) {
   return (
     <div className="flex flex-col gap-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div
-          role="group"
-          aria-label="Usage period"
-          className="inline-flex rounded-md border border-[var(--border-default)] p-0.5"
-        >
-          {USAGE_RANGES.map((range) => (
-            <Button
-              key={range}
-              size="sm"
-              variant={range === days ? "secondary" : "ghost"}
-              aria-pressed={range === days}
-              onClick={() => choose(range)}
-            >
-              {range} days
-            </Button>
-          ))}
-        </div>
+        <UsageRangePicker days={days} onChange={choose} />
         {data && (
           <p className="text-xs text-muted-foreground">
             {data.range.from} – {data.range.to}
@@ -138,7 +220,7 @@ export function UsageSection({ organizationId }: { organizationId: string }) {
         </p>
       )}
 
-      {!data && !error && (
+      {counts && !data && !error && (
         <div role="status" aria-label="Loading usage…" className="grid gap-4 md:grid-cols-4">
           <span className="sr-only">Loading usage…</span>
           {METRICS.map(({ id }) => (
@@ -217,6 +299,8 @@ export function UsageSection({ organizationId }: { organizationId: string }) {
           </p>
         </>
       )}
+
+      {people && <PeopleSection organizationId={organizationId} days={days} />}
     </div>
   );
 }

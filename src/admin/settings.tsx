@@ -8,7 +8,8 @@ import { MembersSection } from "./members";
 import { OrganizationSection, WorkspaceSection } from "./organization";
 import { PoliciesSection } from "./policies";
 import { TokensSection } from "./tokens";
-import { UsageRefused, UsageSection } from "./usage";
+import { UsageRefused, UsageSection, type UsageRange } from "./usage";
+import { UsagePersonPage } from "./usage-people";
 import { useLoad } from "./use-load";
 import "./admin.css";
 import { loginHref } from "../app-path";
@@ -120,7 +121,12 @@ export function settingsHash(section: SettingsSectionId) {
   return `#/settings/${section}`;
 }
 
-export function Settings(props: { section: string }) {
+export function Settings(props: {
+  section: string;
+  /** Usage drill-down: `#/settings/usage/people/<userId>`. */
+  person?: string;
+  days?: UsageRange;
+}) {
   const {
     capabilities,
     status: capabilityStatus,
@@ -138,8 +144,11 @@ export function Settings(props: { section: string }) {
   }, [error]);
 
   const manage = context ? canManage(context.currentOrganization.role) : false;
-  const usageAllowed =
-    capabilities.usage && context?.currentOrganization.role === "owner";
+  const owner = context?.currentOrganization.role === "owner";
+  // The counts (`usage`) and the per-person view (`usage_people`) are gated
+  // independently; either one opens the owner-only Usage page.
+  const peopleAllowed = capabilities.usage_people && owner;
+  const usageAllowed = (capabilities.usage || capabilities.usage_people) && owner;
   const visible = SETTINGS_SECTIONS.filter(
     (item) =>
       (manage || !item.adminOnly) && (item.id !== "usage" || usageAllowed),
@@ -208,7 +217,11 @@ export function Settings(props: { section: string }) {
         <div className={s.detail}>
           <header className={s.heading}>
             <h1>{activeLabel ?? "Settings"}</h1>
-            <p>{DESCRIPTIONS[heading]}</p>
+            <p>
+              {heading === "usage" && peopleAllowed
+                ? "How your organization and its members use Relay."
+                : DESCRIPTIONS[heading]}
+            </p>
           </header>
           {error && !(error instanceof SignedOut) && (
             <p role="alert">
@@ -279,10 +292,21 @@ export function Settings(props: { section: string }) {
                 />
               )}
               {active === "usage" &&
-                (usageAllowed ? (
+                (props.person !== undefined && peopleAllowed ? (
+                  <UsagePersonPage
+                    key={`${context.currentOrganization.id}:${props.person}`}
+                    organizationId={context.currentOrganization.id}
+                    userId={props.person}
+                    workspaceId={context.currentWorkspace.id}
+                    initialDays={props.days}
+                  />
+                ) : props.person === undefined && usageAllowed ? (
                   <UsageSection
                     key={context.currentOrganization.id}
                     organizationId={context.currentOrganization.id}
+                    counts={capabilities.usage}
+                    people={peopleAllowed}
+                    initialDays={props.days}
                   />
                 ) : context.currentOrganization.role !== "owner" ? (
                   <UsageRefused reason="owner" />
@@ -296,7 +320,9 @@ export function Settings(props: { section: string }) {
                     onRetry={reloadCapabilities}
                   />
                 ) : (
-                  <UsageRefused reason="disabled" />
+                  <UsageRefused
+                    reason={props.person !== undefined ? "people-disabled" : "disabled"}
+                  />
                 ))}
               {active === "policies" && manage && (
                 <PoliciesSection
