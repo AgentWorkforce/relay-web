@@ -28,6 +28,7 @@ import {
   invitationsSchema,
   signInMethodsSchema,
   workspacesSchema,
+  usageSchema,
   type TokenPurpose,
   type Role,
 } from "./contracts";
@@ -301,6 +302,15 @@ export const adminApi = {
       null,
       { method: "DELETE" },
     ),
+  /** Owner-only; 403 `feature_not_enabled` while the install's usage flag is off. */
+  usage: async (organization: string, days: 7 | 30 | 90, signal?: AbortSignal) =>
+    (
+      await call(
+        `/v1/organizations/${enc(organization)}/usage?days=${days}`,
+        usageSchema,
+        { signal },
+      )
+    ).usage,
   signInMethods: (signal?: AbortSignal) =>
     call("/v1/auth/methods", signInMethodsSchema, { signal }),
   workspaces: async (organization: string, signal?: AbortSignal) =>

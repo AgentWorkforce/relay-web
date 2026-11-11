@@ -7,10 +7,12 @@ import { EnvironmentSection } from "./environment";
 import { MembersSection } from "./members";
 import { OrganizationSection, WorkspaceSection } from "./organization";
 import { TokensSection } from "./tokens";
+import { UsageRefused, UsageSection } from "./usage";
 import { useLoad } from "./use-load";
 import "./admin.css";
 import { loginHref } from "../app-path";
 import {
+  BarChart3,
   Building2,
   KeyRound,
   LockKeyhole,
@@ -75,6 +77,14 @@ export const SETTINGS_SECTIONS = [
     adminOnly: false,
     icon: Users2,
   },
+  {
+    // Owner-only, and only while the install reports the usage capability.
+    id: "usage",
+    label: "Usage",
+    group: "Organization",
+    adminOnly: true,
+    icon: BarChart3,
+  },
 ] as const;
 export type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number]["id"];
 
@@ -86,6 +96,7 @@ const DESCRIPTIONS: Record<SettingsSectionId, string> = {
   environment: "Encrypted variables and API keys available to your workspace.",
   organization: "Your organization’s identity and shared settings.",
   members: "The people who share this workspace.",
+  usage: "How your organization uses Relay. Counts only.",
 };
 
 /** Hosted: a workspace still named "Default" is shown by its organization's name. */
@@ -100,7 +111,7 @@ export function settingsHash(section: SettingsSectionId) {
 }
 
 export function Settings(props: { section: string }) {
-  const { capabilities } = useProductCapabilities();
+  const { capabilities, status: capabilityStatus } = useProductCapabilities();
   const {
     data: context,
     error,
@@ -113,9 +124,17 @@ export function Settings(props: { section: string }) {
   }, [error]);
 
   const manage = context ? canManage(context.currentOrganization.role) : false;
-  const visible = SETTINGS_SECTIONS.filter((item) => manage || !item.adminOnly);
-  const active =
-    visible.find((item) => item.id === props.section)?.id ?? "workspace";
+  const usageAllowed =
+    capabilities.usage && context?.currentOrganization.role === "owner";
+  const visible = SETTINGS_SECTIONS.filter(
+    (item) =>
+      (manage || !item.adminOnly) && (item.id !== "usage" || usageAllowed),
+  );
+  // A direct #/settings/usage link stays on Usage so a refusal is explicit.
+  const active: SettingsSectionId =
+    props.section === "usage"
+      ? "usage"
+      : (visible.find((item) => item.id === props.section)?.id ?? "workspace");
   const shown = visible.filter((item) =>
     item.label.toLowerCase().includes(filter.trim().toLowerCase()),
   );
@@ -245,6 +264,21 @@ export function Settings(props: { section: string }) {
                   onRenamed={reload}
                 />
               )}
+              {active === "usage" &&
+                (usageAllowed ? (
+                  <UsageSection
+                    key={context.currentOrganization.id}
+                    organizationId={context.currentOrganization.id}
+                  />
+                ) : context.currentOrganization.role !== "owner" ? (
+                  <UsageRefused reason="owner" />
+                ) : capabilityStatus === "loading" ? (
+                  <div role="status" aria-label="Checking availability…">
+                    <Skeleton className="m-6 h-24" />
+                  </div>
+                ) : (
+                  <UsageRefused reason="disabled" />
+                ))}
               {active === "members" && (
                 <MembersSection
                   organizationId={context.currentOrganization.id}

@@ -266,3 +266,28 @@ export const feedEnvelopeSchema = z.object({
 export type FeedManifest = z.infer<typeof feedEnvelopeSchema>["manifest"];
 
 export const feedDownloadUrlSchema = z.object({ url: z.string(), expires_at: z.string() });
+
+/** relay-control GET /organizations/{id}/usage: counts only, never identities. */
+const usageCount = z.number().int().nonnegative();
+export const usageMetricSchema = z.enum([
+  "activeUsers",
+  "sessionsUploaded",
+  "searches",
+  "summaries",
+]);
+export type UsageMetric = z.infer<typeof usageMetricSchema>;
+const usageCounts = z.object({
+  activeUsers: usageCount,
+  sessionsUploaded: usageCount,
+  searches: usageCount,
+  summaries: usageCount.nullable(),
+});
+export const usageSchema = z.object({
+  usage: z.object({
+    range: z.object({ days: z.number().int(), from: z.string(), to: z.string() }),
+    totals: usageCounts,
+    days: z.array(usageCounts.extend({ date: z.string() })),
+    unavailable: z.array(z.string()).default([]),
+  }),
+});
+export type Usage = z.infer<typeof usageSchema>["usage"];
