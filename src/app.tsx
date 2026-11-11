@@ -60,7 +60,7 @@ function chrome(current: ReturnType<typeof route>) {
   if (current.page === "settings")
     return { rail: "Settings" as const, label: "Settings" };
   if (current.page === "downloads")
-    return { rail: "Settings" as const, label: "Downloads" };
+    return { rail: "Downloads" as const, label: "Downloads" };
   return {
     rail: "Agents" as const,
     label:
