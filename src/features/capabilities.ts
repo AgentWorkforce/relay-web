@@ -8,6 +8,10 @@ const responseSchema = z.object({
     flows: z.boolean(),
     chief: z.boolean(),
     relayfile: z.boolean(),
+    // Newer key: an install that predates it reports no usage page.
+    usage: z.boolean().default(false),
+    // Owner-only per-person drill-down; independent of `usage`.
+    usage_people: z.boolean().default(false),
   }),
 });
 export type ProductCapabilities = z.infer<
@@ -17,6 +21,8 @@ export const NO_CAPABILITIES: ProductCapabilities = Object.freeze({
   flows: false,
   chief: false,
   relayfile: false,
+  usage: false,
+  usage_people: false,
 });
 
 export async function getProductCapabilities(signal: AbortSignal) {

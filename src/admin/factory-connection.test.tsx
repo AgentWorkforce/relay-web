@@ -98,7 +98,7 @@ it("connects an existing chat by exact computer/session and disconnects only its
   expect(writes[0]).toEqual({ path: `${prefix}/bindings`, method: "POST", body: { session_id: "s1", computer_id: "c1" } });
   fireEvent.click(screen.getByRole("button", { name: "Disconnect @factory-owned" }));
   await waitFor(() => expect(screen.queryByText("@factory-owned")).not.toBeInTheDocument());
-  expect(writes[1]).toEqual({ path: `${prefix}/bindings/b1`, method: "DELETE", body: undefined });
+  expect(writes[1]).toEqual({ path: `${prefix}/bindings/b1`, method: "DELETE", body: {} });
   expect(writes).toHaveLength(2);
 });
 
@@ -132,7 +132,7 @@ it("requires explicit confirmation before removing the key and its bindings", as
   expect(screen.getByRole("alertdialog", { name: "Disconnect Factory" })).toHaveTextContent("Your Factory chats will stay in Factory");
   fireEvent.click(screen.getByRole("button", { name: "Confirm disconnect" }));
   expect(await screen.findByLabelText("Factory API key")).toHaveValue("");
-  expect(writes).toEqual([{ path: `${prefix}/connection`, method: "DELETE", body: undefined }]);
+  expect(writes).toEqual([{ path: `${prefix}/connection`, method: "DELETE", body: {} }]);
   expect(screen.queryByText("@factory-owned")).not.toBeInTheDocument();
 });
 
@@ -173,7 +173,7 @@ it("keeps disconnect controls usable when the provider's computer list fails", a
   expect(await screen.findByRole("alert")).toHaveTextContent("Factory computers unavailable");
   fireEvent.click(disconnect);
   await waitFor(() => expect(screen.queryByText("@factory-owned")).not.toBeInTheDocument());
-  expect(writes).toEqual([{ path: `${prefix}/bindings/b1`, method: "DELETE", body: undefined }]);
+  expect(writes).toEqual([{ path: `${prefix}/bindings/b1`, method: "DELETE", body: {} }]);
 });
 
 it("does not display retained retired bindings as connected sessions", async () => {

@@ -6,16 +6,21 @@ import { DesktopSection } from "./desktop";
 import { EnvironmentSection } from "./environment";
 import { MembersSection } from "./members";
 import { OrganizationSection, WorkspaceSection } from "./organization";
+import { PoliciesSection } from "./policies";
 import { TokensSection } from "./tokens";
+import { UsageRefused, UsageSection, type UsageRange } from "./usage";
+import { UsagePersonPage } from "./usage-people";
 import { useLoad } from "./use-load";
 import "./admin.css";
 import { loginHref } from "../app-path";
 import {
+  BarChart3,
   Building2,
   KeyRound,
   LockKeyhole,
   Plug,
   Search,
+  ShieldCheck,
   SunMoon,
   Users2,
 } from "lucide-react";
@@ -75,6 +80,21 @@ export const SETTINGS_SECTIONS = [
     adminOnly: false,
     icon: Users2,
   },
+  {
+    // Owner-only, and only while the install reports the usage capability.
+    id: "usage",
+    label: "Usage",
+    group: "Organization",
+    adminOnly: true,
+    icon: BarChart3,
+  },
+  {
+    id: "policies",
+    label: "Policies",
+    group: "Organization",
+    adminOnly: true,
+    icon: ShieldCheck,
+  },
 ] as const;
 export type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number]["id"];
 
@@ -86,6 +106,8 @@ const DESCRIPTIONS: Record<SettingsSectionId, string> = {
   environment: "Encrypted variables and API keys available to your workspace.",
   organization: "Your organization’s identity and shared settings.",
   members: "The people who share this workspace.",
+  usage: "How your organization uses Relay. Counts only.",
+  policies: "What Agent Relay Desktop uploads for everyone in your organization.",
 };
 
 /** Hosted: a workspace still named "Default" is shown by its organization's name. */
@@ -99,8 +121,17 @@ export function settingsHash(section: SettingsSectionId) {
   return `#/settings/${section}`;
 }
 
-export function Settings(props: { section: string }) {
-  const { capabilities } = useProductCapabilities();
+export function Settings(props: {
+  section: string;
+  /** Usage drill-down: `#/settings/usage/people/<userId>`. */
+  person?: string;
+  days?: UsageRange;
+}) {
+  const {
+    capabilities,
+    status: capabilityStatus,
+    reload: reloadCapabilities,
+  } = useProductCapabilities();
   const {
     data: context,
     error,
@@ -113,9 +144,20 @@ export function Settings(props: { section: string }) {
   }, [error]);
 
   const manage = context ? canManage(context.currentOrganization.role) : false;
-  const visible = SETTINGS_SECTIONS.filter((item) => manage || !item.adminOnly);
-  const active =
-    visible.find((item) => item.id === props.section)?.id ?? "workspace";
+  const owner = context?.currentOrganization.role === "owner";
+  // The counts (`usage`) and the per-person view (`usage_people`) are gated
+  // independently; either one opens the owner-only Usage page.
+  const peopleAllowed = capabilities.usage_people && owner;
+  const usageAllowed = (capabilities.usage || capabilities.usage_people) && owner;
+  const visible = SETTINGS_SECTIONS.filter(
+    (item) =>
+      (manage || !item.adminOnly) && (item.id !== "usage" || usageAllowed),
+  );
+  // A direct #/settings/usage link stays on Usage so a refusal is explicit.
+  const active: SettingsSectionId =
+    props.section === "usage"
+      ? "usage"
+      : (visible.find((item) => item.id === props.section)?.id ?? "workspace");
   const shown = visible.filter((item) =>
     item.label.toLowerCase().includes(filter.trim().toLowerCase()),
   );
@@ -175,7 +217,11 @@ export function Settings(props: { section: string }) {
         <div className={s.detail}>
           <header className={s.heading}>
             <h1>{activeLabel ?? "Settings"}</h1>
-            <p>{DESCRIPTIONS[heading]}</p>
+            <p>
+              {heading === "usage" && peopleAllowed
+                ? "How your organization and its members use Relay."
+                : DESCRIPTIONS[heading]}
+            </p>
           </header>
           {error && !(error instanceof SignedOut) && (
             <p role="alert">
@@ -243,6 +289,45 @@ export function Settings(props: { section: string }) {
                   context={context}
                   canManage={manage}
                   onRenamed={reload}
+                />
+              )}
+              {active === "usage" &&
+                (props.person !== undefined && peopleAllowed ? (
+                  <UsagePersonPage
+                    key={`${context.currentOrganization.id}:${props.person}`}
+                    organizationId={context.currentOrganization.id}
+                    userId={props.person}
+                    workspaceId={context.currentWorkspace.id}
+                    initialDays={props.days}
+                  />
+                ) : props.person === undefined && usageAllowed ? (
+                  <UsageSection
+                    key={context.currentOrganization.id}
+                    organizationId={context.currentOrganization.id}
+                    counts={capabilities.usage}
+                    people={peopleAllowed}
+                    initialDays={props.days}
+                  />
+                ) : context.currentOrganization.role !== "owner" ? (
+                  <UsageRefused reason="owner" />
+                ) : capabilityStatus === "loading" ? (
+                  <div role="status" aria-label="Checking availability…">
+                    <Skeleton className="m-6 h-24" />
+                  </div>
+                ) : capabilityStatus === "unavailable" ? (
+                  <UsageRefused
+                    reason="unchecked"
+                    onRetry={reloadCapabilities}
+                  />
+                ) : (
+                  <UsageRefused
+                    reason={props.person !== undefined ? "people-disabled" : "disabled"}
+                  />
+                ))}
+              {active === "policies" && manage && (
+                <PoliciesSection
+                  key={context.currentOrganization.id}
+                  organizationId={context.currentOrganization.id}
                 />
               )}
               {active === "members" && (

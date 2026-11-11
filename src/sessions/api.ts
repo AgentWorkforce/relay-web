@@ -1,9 +1,9 @@
 // Session reads against the control plane (`/cloud/api/v1/workspaces/:id/sessions…`).
 // The control plane scopes every read to the signed-in workspace.
 import { z } from "zod";
-import { read, ReadError } from "../api/client";
+import { read, ReadError, SignedOut } from "../api/client";
 import { sessionAgentNamesEnabled } from "../app-path";
-import { sessionRow, type Member, type SessionRow } from "./data";
+import { harnessSources, sessionRow, tools, type Member, type SessionRow } from "./data";
 import {
   fromDirectCursor,
   ReadApiUnavailable,
@@ -526,4 +526,118 @@ export async function sessionCatalog(
     commitLinks: body.commitLinks,
     truncated: body.truncated,
   };
+}
+
+export type SessionMatch = { source: string; lastTs: string | null };
+
+/** What a source lookup found. `complete` is false when some source could not be checked. */
+export type SessionSources = { matches: SessionMatch[]; complete: boolean };
+
+/** Every harness this dashboard knows, with its aliases (claude-code, …). */
+const knownSources = () => Object.keys(tools).flatMap(harnessSources);
+
+const newer = (left: string | null, right: string | null) =>
+  (left ? Date.parse(left) : 0) >= (right ? Date.parse(right) : 0) ? left : right;
+
+/** Sources with recorded activity in the last 90 days, so custom ones are checked too. */
+async function activeSources(workspace: string, signal: AbortSignal) {
+  const today = new Date();
+  const first = new Date(today.getTime() - 89 * DAY_MS);
+  const days = await sessionActivity(
+    workspace,
+    { first: first.toISOString().slice(0, 10), last: today.toISOString().slice(0, 10) },
+    signal,
+  );
+  return days.flatMap((day) => Object.keys(day.bySource));
+}
+
+/** The read API's source-less event read: the sources among the newest events. */
+async function directSources(workspace: string, sessionId: string, signal: AbortSignal) {
+  if (!readApiEnabled()) return [];
+  const body = await readApiGet(
+    workspace,
+    `/v1/sessions/${encodeURIComponent(sessionId)}/events`,
+    { order: "desc", limit: "100", maxContent: "1" },
+    signal,
+  );
+  return z.array(eventSchema).parse(body.events).flatMap((event) => {
+    const source = text(event.source);
+    return source && (event.sessionId === undefined || event.sessionId === sessionId)
+      ? [{ source, lastTs: String(event.ts) }]
+      : [];
+  });
+}
+
+/** One event of this session under one source, or null when that source doesn't hold it. */
+async function probeSource(workspace: string, sessionId: string, source: string, signal: AbortSignal) {
+  const body = z
+    .object({ events: z.array(eventSchema), error: z.boolean().optional() })
+    .parse(
+      await read(
+        `${sessionPath(workspace, sessionId, "events")}${query({ source, order: "desc", limit: "1" })}`,
+        signal,
+      ),
+    );
+  if (body.error) throw new HistoryUnavailable();
+  const event = body.events[0];
+  return event ? { source, lastTs: String(event.ts) } : null;
+}
+
+/**
+ * The sources (harnesses) that hold this session id in the workspace, newest
+ * activity first. Every read needs a source, and a Desktop "View on web" link
+ * carries only the id. Candidate sources come from the known harnesses, the
+ * newest list page, recent activity, and (when enabled) the read API's
+ * source-less event read; then one event is read per candidate, so a match on
+ * one source never hides the same id under another. Discovery is best effort;
+ * a lookup that found nothing and could not check everything throws instead
+ * of reporting the session missing.
+ */
+export async function findSessionSources(
+  workspace: string,
+  sessionId: string,
+  signal: AbortSignal,
+): Promise<SessionSources> {
+  const [page, active, direct] = await Promise.allSettled([
+    listSessions(workspace, {}, null, signal),
+    activeSources(workspace, signal),
+    directSources(workspace, sessionId, signal),
+  ]);
+  if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+  const found = new Map<string, string | null>();
+  const add = (match: SessionMatch) =>
+    found.set(match.source, found.has(match.source) ? newer(found.get(match.source)!, match.lastTs) : match.lastTs);
+  const rows = page.status === "fulfilled" ? page.value.items : [];
+  for (const row of rows)
+    if (row.sessionId === sessionId) add({ source: row.source, lastTs: row.lastTs });
+  if (direct.status === "fulfilled") direct.value.forEach(add);
+
+  const candidates = new Set([
+    ...knownSources(),
+    ...rows.map((row) => row.source),
+    ...(active.status === "fulfilled" ? active.value : []),
+    ...found.keys(),
+  ]);
+  const probes = await Promise.allSettled(
+    [...candidates].map((source) => probeSource(workspace, sessionId, source, signal)),
+  );
+  if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+  const failures: unknown[] = [];
+  for (const probe of probes) {
+    if (probe.status === "rejected") failures.push(probe.reason);
+    else if (probe.value) add(probe.value);
+  }
+  // Every candidate was checked. Discovery failures only matter when nothing
+  // matched: they may have hidden the session's (custom) source.
+  const complete = failures.length === 0;
+  const matches = [...found]
+    .map(([source, lastTs]) => ({ source, lastTs }))
+    .sort((left, right) =>
+      (right.lastTs ? Date.parse(right.lastTs) : 0) - (left.lastTs ? Date.parse(left.lastTs) : 0));
+  const reasons = [...failures, ...[page, active].flatMap((result) => result.status === "rejected" ? [result.reason] : [])];
+  // An expired sign-in always wins, even if a held read API token still found matches.
+  const signedOut = reasons.find((reason) => reason instanceof SignedOut);
+  if (signedOut) throw signedOut;
+  if (!matches.length && reasons.length) throw reasons[0];
+  return { matches, complete };
 }

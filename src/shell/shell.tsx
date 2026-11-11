@@ -50,7 +50,9 @@ export function Shell({
   const userId = account?.user.id;
   const workspaceId = account?.currentWorkspace?.id;
   const analyticsPage: AnalyticsPage | null = rail === "Agents" ? "sessions"
-    : rail === "Flows" ? "flows" : rail === "Settings" ? "settings" : null;
+    : rail === "Flows" ? "flows"
+    // Downloads was a Settings page; Control's event schema has no "downloads".
+    : rail === "Settings" || rail === "Downloads" ? "settings" : null;
   useLayoutEffect(() => {
     // Context is in-memory only, never an analytics property or authority.
     // Establish it before a loaded child emits from a passive effect.

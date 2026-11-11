@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import {
   AlertTriangle,
+  ArrowUpRight,
   Boxes,
   GitBranch,
   MessageCircleOff,
@@ -104,7 +105,7 @@ function Lane({
         workspaceId,
       )}
       onClick={onLinkClick}
-      className="min-w-0 rounded-lg border border-border bg-background p-3 transition-colors hover:bg-accent"
+      className="group min-w-0 rounded-lg border border-border bg-background p-3 transition-colors hover:bg-accent"
     >
       <div className="flex items-start gap-2.5">
         <HarnessIcon source={lane.source} className="mt-0.5 size-5 shrink-0" />
@@ -126,6 +127,10 @@ function Lane({
       )}
       <p className="mt-1 text-xs text-muted-foreground">
         {dateTime(lane.startedAt)}–{dateTime(lane.lastActionAt)}
+      </p>
+      <p className="mt-2 flex items-center gap-1 text-xs font-medium text-primary group-hover:underline">
+        Open session
+        <ArrowUpRight className="size-3" aria-hidden="true" />
       </p>
     </a>
   );
@@ -222,7 +227,7 @@ function FindingCard({
       </div>
       {finding.evidence.length > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3 text-xs">
-          <span className="text-muted-foreground">Evidence</span>
+          <span className="text-muted-foreground">Jump to evidence</span>
           {finding.evidence.map((item) => {
             const lane = laneBySession.get(item.sessionId);
             if (!lane) return null;
@@ -237,9 +242,10 @@ function FindingCard({
                   workspaceId,
                 )}
                 onClick={onLinkClick}
-                className="rounded-md bg-muted px-2 py-1 text-foreground hover:underline"
+                className="flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-foreground hover:underline"
               >
-                {item.kind} · {dateTime(item.ts)}
+                {item.kind.replaceAll("_", " ")} · {dateTime(item.ts)}
+                <ArrowUpRight className="size-3" aria-hidden="true" />
               </a>
             );
           })}

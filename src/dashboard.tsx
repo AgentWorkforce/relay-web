@@ -3,6 +3,7 @@ import { getAccount, SignedOut } from "./api/client";
 import type { Account } from "./api/contracts";
 import { parseRoute, type SessionRoute } from "./sessions/route";
 import { SessionsPage, SessionsSkeleton } from "./sessions/SessionsPage";
+import { SessionLink } from "./sessions/SessionLink";
 import { Button } from "./shell/ui";
 import "./sessions/sessions.css";
 import { loginHref, sessionVisualizationsEnabled } from "./app-path";
@@ -100,6 +101,17 @@ export function Dashboard() {
           workspaceId={workspace.id}
           initialQuery={route.q}
           tab={route.tab}
+          onSignedOut={signedOut}
+        />
+      )}
+      {workspace && !workspaceMismatch && route.view === "resolve" && (
+        <SessionLink
+          key={route.sessionId}
+          workspaceId={workspace.id}
+          sessionId={route.sessionId}
+          event={route.event}
+          from={route.from}
+          routeWorkspaceId={route.workspaceId}
           onSignedOut={signedOut}
         />
       )}

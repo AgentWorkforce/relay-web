@@ -91,12 +91,21 @@ export type OverlapsData = {
   members: Member[];
 };
 
+/**
+ * The Overlaps view is opt-in: off unless the dashboard runtime config sets
+ * `coordinationOverlaps: true` (DASHBOARD_COORDINATION_OVERLAPS_ENABLED=true),
+ * even when the read API serves the endpoint. When off, nothing is requested.
+ */
+export const overlapsViewEnabled = () =>
+  typeof window !== "undefined" &&
+  window.__AGENT_RELAY_DASHBOARD_CONFIG__?.coordinationOverlaps === true;
+
 export async function coordinationOverlaps(
   workspace: string,
   range: { since: string; until: string; project?: string },
   signal: AbortSignal,
 ): Promise<OverlapsData | null> {
-  if (!readApiEnabled()) return null;
+  if (!overlapsViewEnabled() || !readApiEnabled()) return null;
   try {
     const [body, members] = await Promise.all([
       readApiGet(

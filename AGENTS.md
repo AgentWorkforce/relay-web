@@ -6,7 +6,7 @@ hosted Cloud dashboard for the features a self-hosted install runs:
 - sessions (list, filters, transcript, search, activity);
 - flows (definitions, runs, steps, logs, workers);
 - admin settings (workspace env vars, provider connections, API tokens,
-  members);
+  members, organization session upload policy);
 - device approval.
 
 Port behaviour and UX from Cloud; don't invent new flows.

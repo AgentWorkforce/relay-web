@@ -149,3 +149,21 @@ it("signals a created flow even when its response fails validation", async () =>
     window.removeEventListener(FLOWS_CHANGED, changed);
   }
 });
+
+it("sends an empty JSON body on bodiless writes so Control's CSRF check passes", async () => {
+  const fetch = vi.fn().mockImplementation(async () =>
+    new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+  vi.stubGlobal("fetch", fetch);
+  await flowsApi.cancelRun("r1").catch(() => undefined);
+  await flowsApi.deleteFlow("f1").catch(() => undefined);
+  const writes = fetch.mock.calls.map(([, init]) => init as RequestInit);
+  expect(writes.map((init) => init.method)).toEqual(["POST", "DELETE"]);
+  for (const init of writes) {
+    expect((init.headers as Record<string, string>)["Content-Type"]).toBe("application/json");
+    expect(init.body).toBe("{}");
+  }
+});

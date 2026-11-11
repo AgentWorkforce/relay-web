@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   act,
   fireEvent,
@@ -935,4 +935,96 @@ it.each([false, true])("opens a trace tool in its original collapsed conversatio
   await waitFor(() => expect(window.location.hash).toContain(identifiedCopy ? "cell-e2-copy:0" : "cell-e2:0"));
   await waitFor(() => expect(scroll).toHaveBeenCalledWith({ block: "start" }));
   await waitFor(() => expect(screen.getByRole("region", { name: "Conversation" }).querySelector(".activity-group .disclosure[open]")).toBeTruthy());
+});
+
+describe("session links without a source", () => {
+  const probes = () =>
+    calls.filter((url) => /\/sessions\/[^/]+\/events$/.test(url.pathname) && url.searchParams.get("limit") === "1");
+  /** Session id -> the sources whose one-event read finds it, with that event's time. */
+  let held: Record<string, Record<string, string>>;
+
+  beforeEach(() => {
+    held = { "s/1": { codex: "2026-11-02T19:58:00.000Z" } };
+    respond(/\/sessions\/activity$/, () => ({
+      days: [{ date: "2026-11-02", conversations: 2, bySource: { codex: 1, "claude+remote": 1 } }],
+    }));
+    respond(/\/sessions\/[^/]+\/events$/, (url) => {
+      const id = decodeURIComponent(url.pathname.split("/").at(-2)!);
+      if (url.searchParams.get("limit") !== "1")
+        return { events: transcript, members, nextCursor: null, error: false };
+      const ts = held[id]?.[url.searchParams.get("source")!];
+      return { events: ts ? [{ ...transcript[0], sessionId: id, ts }] : [], members, nextCursor: null, error: false };
+    });
+  });
+
+  it("opens a listed session and replaces the URL with the full session link", async () => {
+    window.history.replaceState(null, "", "/?session=s%2F1");
+    render(<Dashboard />);
+    expect((await screen.findAllByText("Please fix the loader")).length).toBeGreaterThan(0);
+    expect(window.location.search).toBe("?session=s%2F1&source=codex");
+  });
+
+  it("finds an unlisted session's source with one event read per known or active source", async () => {
+    respond(/\/sessions$/, () => ({ items: [sessions[1]], members, nextCursor: null, error: false, now }));
+    window.history.replaceState(null, "", "/dashboard/sessions/s%2F1#message-e1");
+    render(<Dashboard />);
+    expect((await screen.findAllByText("Please fix the loader")).length).toBeGreaterThan(0);
+    expect(window.location.search).toBe("?session=s%2F1&source=codex&event=e1");
+    expect(probes().map((url) => url.searchParams.get("source"))).toEqual(
+      expect.arrayContaining(["claude", "codex", "claude+remote"]),
+    );
+    for (const url of probes()) expect(url.pathname).toBe(`${base}/s%2F1/events`);
+  });
+
+  it("shows the list with a notice when no source holds the session", async () => {
+    window.history.replaceState(null, "", "/?session=missing");
+    render(<Dashboard />);
+    expect(await screen.findByText(/Session missing wasn’t found in this workspace/)).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: /Fix session loading/ })).toBeInTheDocument();
+  });
+
+  it("offers a choice when the id exists under more than one source, even if only one is listed", async () => {
+    held["s/1"] = { codex: "2026-11-02T19:58:00.000Z", "claude+remote": "2026-10-01T10:00:00.000Z" };
+    window.history.replaceState(null, "", "/?session=s%2F1");
+    render(<Dashboard />);
+    const choices = await screen.findAllByRole("link", { name: /Codex|claude\+remote/ });
+    expect(choices.map((link) => link.getAttribute("href"))).toEqual([
+      "/?session=s%2F1&source=codex",
+      "/?session=s%2F1&source=claude%2Bremote",
+    ]);
+  });
+
+  it("asks before opening when a source couldn't be checked", async () => {
+    respond(/\/sessions\/s%2F1\/events$/, (url) =>
+      url.searchParams.get("source") === "claude"
+        ? new Response("unavailable", { status: 502 })
+        : { events: url.searchParams.get("source") === "codex" ? [transcript[0]] : [], members, nextCursor: null, error: false });
+    window.history.replaceState(null, "", "/?session=s%2F1");
+    render(<Dashboard />);
+    expect(await screen.findByText(/some harnesses couldn’t be checked/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Codex" })).toHaveAttribute("href", "/?session=s%2F1&source=codex");
+    expect(screen.getByRole("button", { name: "Check again" })).toBeInTheDocument();
+  });
+
+  it("shows a failed lookup once, with a retry, without looping", async () => {
+    const down = () => new Response("unavailable", { status: 502 });
+    respond(/\/sessions$/, down);
+    respond(/\/sessions\/activity$/, down);
+    respond(/\/sessions\/[^/]+\/events$/, down);
+    window.history.replaceState(null, "", "/?session=s%2F1");
+    render(<Dashboard />);
+    expect(await screen.findByText(/Couldn’t open this session/)).toBeInTheDocument();
+    await act(async () => {});
+    const lists = () => calls.filter((url) => url.pathname === base).length;
+    expect(lists()).toBe(1);
+    respond(/\/sessions$/, () => ({ items: sessions, members, nextCursor: null, error: false, now }));
+    respond(/\/sessions\/activity$/, () => ({ days: [] }));
+    respond(/\/sessions\/[^/]+\/events$/, (url) => ({
+      events: url.searchParams.get("limit") !== "1" ? transcript : url.searchParams.get("source") === "codex" ? [transcript[0]] : [],
+      members, nextCursor: null, error: false,
+    }));
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect((await screen.findAllByText("Please fix the loader")).length).toBeGreaterThan(0);
+    expect(lists()).toBe(2);
+  });
 });

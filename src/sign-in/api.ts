@@ -13,6 +13,8 @@ const AUTH_BASE = "/cloud/api/v1/auth";
 const loginConfigSchema = z.object({
   methods: z.array(z.string()),
   oidc: z.object({ displayName: z.string() }).nullable(),
+  // Optional: an older relaycontrol does not send it.
+  microsoft: z.object({ displayName: z.string() }).nullish(),
   logo_url: z.string().nullable(),
   // Optional: an older relaycontrol does not send it.
   org_name: z.string().nullish(),

@@ -266,3 +266,124 @@ export const feedEnvelopeSchema = z.object({
 export type FeedManifest = z.infer<typeof feedEnvelopeSchema>["manifest"];
 
 export const feedDownloadUrlSchema = z.object({ url: z.string(), expires_at: z.string() });
+
+/** relay-control GET /organizations/{id}/usage: counts only, never identities. */
+const usageCount = z.number().int().nonnegative();
+export const usageMetricSchema = z.enum([
+  "activeUsers",
+  "sessionsUploaded",
+  "searches",
+  "summaries",
+]);
+export type UsageMetric = z.infer<typeof usageMetricSchema>;
+const usageCounts = z.object({
+  activeUsers: usageCount,
+  sessionsUploaded: usageCount,
+  searches: usageCount,
+  summaries: usageCount.nullable(),
+});
+export const usageSchema = z.object({
+  usage: z.object({
+    range: z.object({ days: z.number().int(), from: z.string(), to: z.string() }),
+    totals: usageCounts,
+    days: z.array(usageCounts.extend({ date: z.string() })),
+    unavailable: z.array(z.string()).default([]),
+  }),
+});
+export type Usage = z.infer<typeof usageSchema>["usage"];
+
+/**
+ * relay-control GET /organizations/{id}/usage/people (owner-only, behind the
+ * `usage_people` capability): per-member counts for the selected range.
+ */
+const usageRange = z.object({
+  days: z.number().int(),
+  from: z.string(),
+  to: z.string(),
+});
+const projectCount = z.object({
+  name: z.string(),
+  sessions: usageCount,
+});
+export const usagePersonSchema = z.object({
+  userId: z.string(),
+  name: z.string().nullable().default(null),
+  email: z.string().nullable().default(null),
+  role: z.string(),
+  sessionsUploaded: usageCount.nullable(),
+  searches: usageCount.nullable().default(null),
+  lastActiveAt: z.string().nullable().default(null),
+  lastSessionAt: z.string().nullable().default(null),
+  topProjects: z.array(projectCount).default([]),
+});
+export type UsagePerson = z.infer<typeof usagePersonSchema>;
+export const usagePeopleSchema = z.object({
+  people: z.object({
+    range: usageRange,
+    members: z.array(usagePersonSchema),
+    truncated: z.boolean().default(false),
+    unavailable: z.array(z.string()).default([]),
+  }),
+});
+export type UsagePeople = z.infer<typeof usagePeopleSchema>["people"];
+
+/** GET /organizations/{id}/usage/people/{userId}/sessions: newest first. */
+export const usagePersonSessionSchema = z.object({
+  sessionId: z.string(),
+  source: z.string(),
+  workspaceId: z.string().nullable().default(null),
+  title: z.string().nullable().default(null),
+  summary: z.string().nullable().default(null),
+  agentName: z.string().nullable().default(null),
+  project: z.string().nullable().default(null),
+  firstTs: z.string().nullable().default(null),
+  lastTs: z.string().nullable().default(null),
+});
+export type UsagePersonSession = z.infer<typeof usagePersonSessionSchema>;
+export const usagePersonSessionsSchema = z.object({
+  person: z.object({
+    userId: z.string(),
+    name: z.string().nullable().default(null),
+    email: z.string().nullable().default(null),
+    role: z.string(),
+  }),
+  range: usageRange,
+  rollup: z
+    .object({
+      titles: z.array(z.string()).default([]),
+      projects: z.array(projectCount).default([]),
+    })
+    .nullable()
+    .default(null),
+  sessions: z.array(usagePersonSessionSchema),
+  nextCursor: z.string().nullable().default(null),
+});
+export type UsagePersonSessions = z.infer<typeof usagePersonSessionsSchema>;
+
+/**
+ * relay-control capture policy (docs/capture-policy.md). A key present in
+ * `settings` is enforced by Agent Relay Desktop; an absent key is each
+ * person's choice. `revision` only goes up and is sent back as If-Match.
+ */
+export const sharingModeSchema = z.enum(["selected", "new", "all"]);
+export const uploadControlSchema = z.enum(["operator", "user"]);
+export const MAX_OOPS_WINDOW_SECONDS = 86_400;
+// Loose: a key this build does not know yet is kept and written back unchanged.
+export const captureSettingsSchema = z.looseObject({
+  sharing_mode: sharingModeSchema.optional(),
+  upload_control: uploadControlSchema.optional(),
+  oops_window_seconds: z
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_OOPS_WINDOW_SECONDS)
+    .optional(),
+  user_retroactive_delete: z.boolean().optional(),
+});
+export type CaptureSettings = z.infer<typeof captureSettingsSchema>;
+export const capturePolicySchema = z.object({
+  version: z.literal(1),
+  revision: z.number().int().positive(),
+  settings: captureSettingsSchema,
+});
+export type CapturePolicy = z.infer<typeof capturePolicySchema>;

@@ -35,6 +35,13 @@ function viewHref(view: SignInView, { next, invite }: Target): string {
   return `#/${view}?${query}`;
 }
 
+/** The browser sign-in routes redeem a pending invite themselves, so carry it. */
+function providerHref(provider: "oidc" | "microsoft", { next, invite }: Target): string {
+  const query = new URLSearchParams({ next });
+  if (invite) query.set("invite", invite);
+  return `/login/${provider}/start?${query}`;
+}
+
 function errorMessage(failure: unknown): string {
   return failure instanceof SignInError
     ? failure.message
@@ -195,13 +202,24 @@ function SignInMethods(props: {
 }) {
   const { config, target } = props;
   const emailLink = config.methods.includes("email_link");
-  const oidcHref = `/login/oidc/start?${new URLSearchParams({ next: target.next })}`;
+  const microsoft = config.microsoft ?? null;
   return (
     <>
       {config.oidc && (
         <>
-          <a href={oidcHref} className={`${primaryAction} w-full`}>
+          <a href={providerHref("oidc", target)} className={`${primaryAction} w-full`}>
             Continue with {config.oidc.displayName}
+          </a>
+          <Divider />
+        </>
+      )}
+      {microsoft && (
+        <>
+          <a
+            href={providerHref("microsoft", target)}
+            className={`${config.oidc ? secondaryAction : primaryAction} w-full`}
+          >
+            Continue with {microsoft.displayName}
           </a>
           <Divider />
         </>
@@ -209,7 +227,7 @@ function SignInMethods(props: {
       <PasswordForm
         target={target}
         navigate={props.navigate}
-        primary={!config.oidc}
+        primary={!config.oidc && !microsoft}
       />
       {emailLink && (
         <>

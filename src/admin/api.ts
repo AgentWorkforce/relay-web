@@ -8,6 +8,8 @@ import {
   factoryBoundSessionSchema,
   sessionErasureSchema,
   apiTokensSchema,
+  capturePolicySchema,
+  type CaptureSettings,
   codingAgentCheckSchema,
   codingAgentsSchema,
   integrationConnectSchema,
@@ -28,6 +30,9 @@ import {
   invitationsSchema,
   signInMethodsSchema,
   workspacesSchema,
+  usageSchema,
+  usagePeopleSchema,
+  usagePersonSessionsSchema,
   type TokenPurpose,
   type Role,
 } from "./contracts";
@@ -56,20 +61,28 @@ async function call<T>(
     headers?: Record<string, string>;
   } = {},
 ): Promise<T> {
+  const method = init.method ?? "GET";
+  // Control's CSRF check refuses a cookie-authenticated write (POST, PUT,
+  // PATCH, and DELETE on several routes) unless it is application/json with an
+  // allowed Origin, so a bodiless write still sends an empty JSON object.
+  const requestBody =
+    init.body === undefined && method !== "GET" && method !== "HEAD"
+      ? {}
+      : init.body;
   const response = await fetch(`${base}${path}`, {
-    method: init.method ?? "GET",
+    method,
     signal: init.signal,
     credentials: "same-origin",
     cache: "no-store",
     redirect: "error",
     headers: {
       Accept: "application/json",
-      ...(init.body !== undefined
+      ...(requestBody !== undefined
         ? { "Content-Type": "application/json" }
         : {}),
       ...init.headers,
     },
-    body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
+    body: requestBody !== undefined ? JSON.stringify(requestBody) : undefined,
   });
   if (response.status === 401) throw new SignedOut();
   const text = response.status === 204 ? "" : await response.text();
@@ -301,6 +314,43 @@ export const adminApi = {
       null,
       { method: "DELETE" },
     ),
+  /** Owner-only; 403 `feature_not_enabled` while the install's usage flag is off. */
+  usage: async (organization: string, days: 7 | 30 | 90, signal?: AbortSignal) =>
+    (
+      await call(
+        `/v1/organizations/${enc(organization)}/usage?days=${days}`,
+        usageSchema,
+        { signal },
+      )
+    ).usage,
+  /** Owner-only; 403 `feature_not_enabled` while `usage_people` is off. */
+  usagePeople: async (
+    organization: string,
+    days: 7 | 30 | 90,
+    signal?: AbortSignal,
+  ) =>
+    (
+      await call(
+        `/v1/organizations/${enc(organization)}/usage/people?days=${days}`,
+        usagePeopleSchema,
+        { signal },
+      )
+    ).people,
+  /** One member's sessions, newest first; 404 `user_not_found` for a non-member. */
+  usagePersonSessions: (
+    organization: string,
+    userId: string,
+    days: 7 | 30 | 90,
+    cursor: string | null,
+    signal?: AbortSignal,
+  ) =>
+    call(
+      `/v1/organizations/${enc(organization)}/usage/people/${enc(userId)}/sessions?${new URLSearchParams(
+        { days: String(days), ...(cursor ? { cursor } : {}) },
+      )}`,
+      usagePersonSessionsSchema,
+      { signal },
+    ),
   signInMethods: (signal?: AbortSignal) =>
     call("/v1/auth/methods", signInMethodsSchema, { signal }),
   workspaces: async (organization: string, signal?: AbortSignal) =>
@@ -317,6 +367,22 @@ export const adminApi = {
     call(`/v1/organizations/${enc(organization)}`, null, {
       method: "PATCH",
       body: { name },
+    }),
+  /** Owner/admin only; members get 403. Reads are never gated by SELFHOST_OPERATOR_CONTROLS. */
+  capturePolicy: (organization: string, signal?: AbortSignal) =>
+    call(`/v1/organizations/${enc(organization)}/capture-policy`, capturePolicySchema, { signal }),
+  /** Replaces `settings` whole; a stale revision answers 409 revision_mismatch. */
+  putCapturePolicy: (organization: string, settings: CaptureSettings, revision: number) =>
+    call(`/v1/organizations/${enc(organization)}/capture-policy`, capturePolicySchema, {
+      method: "PUT",
+      body: { settings },
+      headers: { "If-Match": String(revision) },
+    }),
+  /** Back to every key unset (`settings: {}`); the revision still goes up. */
+  clearCapturePolicy: (organization: string, revision: number) =>
+    call(`/v1/organizations/${enc(organization)}/capture-policy`, capturePolicySchema, {
+      method: "DELETE",
+      headers: { "If-Match": String(revision) },
     }),
   hardDeleteSession: (
     organization: string,

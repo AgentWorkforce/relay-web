@@ -159,3 +159,16 @@ it("sends a project to the server only as an exact project id", () => {
   const filters = serverFilters("x project:acme/relay harness:codex", new Set(["acme/relay"]));
   expect(facetFilters(filters)).toEqual({ ...filters, project: undefined, source: undefined });
 });
+
+it("resolves a session link without a source, and keeps full links as they were", () => {
+  expect(parseRoute({ pathname: "/", search: "?session=s1&workspace=w1" })).toEqual({
+    view: "resolve", sessionId: "s1", workspaceId: "w1", event: null, from: null,
+  });
+  expect(parseRoute({ pathname: "/cloud/dashboard/sessions/s%2F1", search: "" })).toMatchObject({
+    view: "resolve", sessionId: "s/1",
+  });
+  expect(parseRoute({ pathname: "/", search: "?session=s1&source=claude" })).toEqual({
+    view: "session", sessionId: "s1", source: "claude", event: null, from: null,
+  });
+  expect(parseRoute({ pathname: "/", search: "?session=" })).toMatchObject({ view: "list" });
+});

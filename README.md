@@ -94,6 +94,16 @@ Example:
 DASHBOARD_CUSTOMER_PROFILE='{"productName":"Acme Relay","logo":{"light":"https://acme.example/logo-dark-text.svg","dark":"https://acme.example/logo-light-text.svg"},"favicon":"https://acme.example/favicon.svg","accentColor":"#7c3aed","brandColor":"#5b21b6","supportUrl":"mailto:support@acme.example","poweredByAgentRelay":true}'
 ```
 
+#### Hosted logo (`/brand/`)
+
+Files under `/usr/share/nginx/html/brand/` are served at `/brand/<file>` with
+`Content-Security-Policy: default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox`,
+`X-Content-Type-Options: nosniff` and a five-minute cache; a missing file is a
+404, not the app shell. The infra chart mounts its `global.branding.logo`
+ConfigMap there, so an install can host its customer logo next to the
+dashboard (`customerProfile.logo: /brand/logo.svg`, and relay-control's
+`SELFHOST_LOGIN_LOGO_URL` for the sign-in page) without another web server.
+
 #### Agent Relay Desktop links
 
 Settings › Workspace shows **Connect your agents** with an
@@ -135,6 +145,8 @@ acceptance are prerequisites for retiring Cloud; see Control's
 
 Recorded agent names can appear beneath a session title alongside its harness and model. Enable `DASHBOARD_SESSION_AGENT_NAMES_ENABLED=true` only after both Control and the session reader support the `includeAgentName=recorded` list opt-in. It is off by default, keeping legacy list requests unchanged. The container accepts only literal `true` or `false` (unset defaults to false); static hosts can supply the strict boolean `sessionAgentNames` in the existing runtime config. A missing or malformed runtime value stays off. This requests optional top-level recorded metadata on both Control and direct-reader lists; it adds no catalog fetches and does not infer a name from historical actors or session titles. Missing names are omitted. Deploy compatible Control and reader versions before enabling this flag; it does not enable backend support by itself.
 
+The Sessions page's Overlaps view (findings where agent sessions duplicated or collided with each other's work) is off by default. Enable `DASHBOARD_COORDINATION_OVERLAPS_ENABLED=true` to show it; the container accepts only literal `true` or `false` (unset defaults to false), and static hosts can supply the strict boolean `coordinationOverlaps` in the runtime config. It also needs `DASHBOARD_SESSION_READ_API_ENABLED=true` and a read API that serves `GET /v1/coordination/overlaps` (`READ_API_COORDINATION_OVERLAPS_ENABLED=true`). When it is off the page requests nothing from that endpoint, even if the read API serves it.
+
 The Timeline, Decision tree and Work graph views are ported from Cloud. They are off by default. Set `DASHBOARD_SESSION_VISUALIZATIONS_ENABLED=true` in the container to emit the strict boolean `sessionVisualizations` in the existing runtime config. Static-host configurations can supply that boolean directly. Missing, false or malformed values retain Conversation and never mount graph reads.
 
 Work graph requires the relaycontrol catalog identity contract (`sessionId`, `source`, `workspaceId`, `found`). Every request uses the existing `/cloud/api` cookie and workspace routes; the dashboard does not contact History directly. Explicit workspace links must match the signed-in workspace. Links to another workspace show a mismatch message without issuing session reads; relaycontrol has no workspace-switch endpoint.
@@ -165,6 +177,31 @@ chats, does not enable Remote Control, and does not delete chats when a binding
 is disconnected. Factory transcript history remains unavailable through this
 connection. Capy, Replicas and the other remote-provider key cards use the
 separate Control remote-agent-connections API described above.
+
+## Session upload policy (Settings › Policies)
+
+Organization owners and admins get **Settings › Policies**
+(`#/settings/policies`); members don't see it. It reads and writes Control's
+`GET|PUT|DELETE /cloud/api/v1/organizations/{org}/capture-policy` with the
+session cookie, and Agent Relay Desktop applies the result:
+
+| Setting | Key | Values |
+| --- | --- | --- |
+| What gets uploaded | `sharing_mode` | `selected`, `new`, `all` |
+| Who controls uploading | `upload_control` | `operator`, `user` |
+| "Oops" window before upload | `oops_window_seconds` | `0` to `86400` (Control serves `900` while `upload_control` is `operator` and none is stored) |
+| People may delete uploaded sessions | `user_retroactive_delete` | `true`, `false` |
+
+Each setting can also be left as "Let each person choose" (the key is left
+out); a key that is set is locked in Desktop. **Save policy** replaces the
+whole `settings` object with `If-Match: <revision>`. If someone else saved in
+between (`409 revision_mismatch`), nothing is written and the page reloads the
+latest policy. Control's `400 invalid_policy` message is shown as is. **Reset
+all to let people choose** sends `DELETE` (settings `{}`) after a confirmation.
+When Control's `SELFHOST_OPERATOR_CONTROLS` is `off`, writes answer
+`403 operator_controls_not_entitled` and the page turns read only with that
+reason. Control has no read that reports the switch, so the page learns it from
+the first refused write.
 
 ## Password sign-in (self-hosted)
 
