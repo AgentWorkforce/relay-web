@@ -142,12 +142,16 @@ jobs:
       packages: write
       id-token: write
       attestations: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      source_sha: ${{ steps.source.outputs.source_sha }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
       - name: Verify the source commit is reviewed on main
+        id: source
         run: |
           git fetch --no-tags origin main
           source_commit=$(git rev-parse "${GITHUB_SHA}^{commit}")
@@ -155,6 +159,7 @@ jobs:
             echo "Refusing to publish $source_commit because it is not on main" >&2
             exit 1
           fi
+          echo "source_sha=$source_commit" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
@@ -223,3 +228,38 @@ jobs:
             echo
             echo "Also published (legacy name, same digest) \`${LEGACY_IMAGE}@${DIGEST}\`"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  notify-release-candidate:
+    name: Notify Agent Relay release candidate
+    needs: publish
+    if: ${{ needs.publish.result == 'success' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Mint infra dispatch token
+        id: pusher
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        with:
+          app-id: ${{ secrets.GH_APP_PUSHER_ID }}
+          private-key: ${{ secrets.GH_APP_PUSHER_PRIVATE_KEY }}
+          owner: AgentWorkforce
+          repositories: infra
+          permission-contents: write
+
+      - name: Dispatch immutable component publication
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.pusher.outputs.token }}
+          DIGEST: ${{ needs.publish.outputs.digest }}
+          SOURCE_SHA: ${{ needs.publish.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]
+          [[ "$SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]]
+          gh api --method POST repos/AgentWorkforce/infra/dispatches \
+            -f 'event_type=component-published' \
+            -f 'client_payload[component]=relay-webapp' \
+            -f "client_payload[digest]=$DIGEST" \
+            -f "client_payload[source_sha]=$SOURCE_SHA"
