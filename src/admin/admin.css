@@ -251,6 +251,78 @@
   display: grid;
   gap: 6px;
 }
+/* Settings > Policies: one labelled radio group per capture policy key. */
+.settings .policy-group {
+  margin: 20px 0 0;
+  padding: 16px 0 0;
+  border: 0;
+  border-top: 1px solid var(--border-soft);
+  min-width: 0;
+}
+.settings .policy-group legend {
+  padding: 0;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.settings .policy-group:disabled {
+  opacity: 0.7;
+}
+.settings .policy-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.settings .policy-group:disabled .policy-option {
+  cursor: not-allowed;
+}
+.settings .policy-option:hover {
+  background: color-mix(in srgb, var(--dashboard-panel-soft) 65%, transparent);
+}
+.settings .policy-option:has(input:checked) {
+  background: var(--muted);
+}
+.settings .policy-option input {
+  margin-top: 3px;
+  accent-color: var(--brand-button);
+  flex-shrink: 0;
+}
+.settings .policy-option > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.settings .policy-option strong {
+  font-weight: 500;
+  color: var(--fg);
+}
+.settings .policy-option > span > span,
+.settings .policy-help {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.settings .policy-group p.policy-help {
+  margin: 0 0 8px;
+}
+.settings .policy-seconds {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 260px;
+  margin: 8px 0 0 34px;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.settings .policy-actions {
+  margin-top: 24px;
+}
 @media (max-width: 860px) {
   .settings-layout {
     grid-template-columns: 1fr;
