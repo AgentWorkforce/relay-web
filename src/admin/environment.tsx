@@ -17,6 +17,7 @@ export function EnvironmentSection(props: {
   const [status, setStatus] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
+  const nameTooLong = name.trim().length > 128;
   const nameInvalid = name.trim().length > 0 && !NAME.test(name.trim());
   const exists = Boolean(data?.some((row) => row.name === name.trim()));
 
@@ -27,7 +28,9 @@ export function EnvironmentSection(props: {
     setStatus(null);
     if (!NAME.test(key)) {
       setFailure(
-        "Names start with a letter or underscore and use only letters, digits, and underscores.",
+        nameTooLong
+          ? "Names must be 128 characters or fewer."
+          : "Names start with a letter or underscore and use only letters, digits, and underscores.",
       );
       return;
     }
@@ -87,8 +90,13 @@ export function EnvironmentSection(props: {
               aria-describedby="environment-variable-name-help"
             />
             <span id="environment-variable-name-help" className="note">
-              Use letters, digits, and underscores, starting with a letter or underscore.
-              {nameInvalid ? " Spaces and hyphens are not allowed." : ""}
+              Use letters, digits, and underscores, starting with a letter or
+              underscore. Names can be up to 128 characters.
+              {nameInvalid
+                ? nameTooLong
+                  ? " Shorten the name to 128 characters or fewer."
+                  : " Spaces and hyphens are not allowed."
+                : ""}
             </span>
           </label>
           <label>

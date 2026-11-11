@@ -672,3 +672,34 @@ it("explains invalid environment names before a disabled Add can be submitted", 
   expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
   expect(calls.some((call) => call.method === "POST")).toBe(false);
 });
+
+it("explains overlong environment names and accepts the 128-character boundary", async () => {
+  render(<Settings section="environment" />);
+  const name = await screen.findByPlaceholderText("NATIVE_API_KEY");
+  const boundaryName = "A".repeat(128);
+  fireEvent.change(name, { target: { value: `${boundaryName}A` } });
+  fireEvent.change(screen.getByLabelText("Value"), {
+    target: { value: "synthetic" },
+  });
+
+  expect(name).toHaveAttribute("aria-invalid", "true");
+  expect(name).toHaveAccessibleDescription(/128 characters or fewer/);
+  expect(name).not.toHaveAccessibleDescription(/Spaces and hyphens are not allowed/);
+  expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
+  // The form's submission guard must explain the same limit even if an event
+  // reaches it without clicking the disabled button.
+  fireEvent.submit(name.closest("form")!);
+  expect(screen.getByRole("alert")).toHaveTextContent("128 characters or fewer");
+  expect(calls.some((call) => call.method === "POST")).toBe(false);
+
+  fireEvent.change(name, { target: { value: boundaryName } });
+  expect(name).not.toHaveAttribute("aria-invalid");
+  expect(screen.getByRole("button", { name: "Add" })).toBeEnabled();
+  fireEvent.click(screen.getByRole("button", { name: "Add" }));
+  expect(await screen.findByText(`Added ${boundaryName}.`)).toBeInTheDocument();
+  expect(calls.filter((call) => call.method === "POST")).toHaveLength(1);
+  expect(calls.find((call) => call.method === "POST")!.body).toMatchObject({
+    name: boundaryName,
+    value: "synthetic",
+  });
+});
