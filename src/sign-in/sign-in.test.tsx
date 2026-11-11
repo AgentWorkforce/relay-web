@@ -14,6 +14,7 @@ const INVITE = `sh_inv_${"a".repeat(24)}`;
 const fullConfig = {
   methods: ["email_link", "password"],
   oidc: { displayName: "Okta" },
+  microsoft: { displayName: "Microsoft" },
   logo_url: null,
   allowed_domain_hint: true,
   password_policy: { min_length: 12, max_length: 128 },
@@ -82,16 +83,37 @@ it("shows every configured method", async () => {
   show("sign-in");
   const oidc = await screen.findByRole("link", { name: "Continue with Okta" });
   expect(oidc.getAttribute("href")).toBe("/login/oidc/start?next=%2F%23%2Fsettings");
+  const microsoft = screen.getByRole("link", { name: "Continue with Microsoft" });
+  expect(microsoft.getAttribute("href")).toBe("/login/microsoft/start?next=%2F%23%2Fsettings");
   expect(screen.getByRole("button", { name: "Email me a sign-in link" })).toBeTruthy();
   expect(screen.getByRole("link", { name: "Forgot password?" })).toBeTruthy();
 });
 
+it("carries a pending invite into the browser sign-in links", async () => {
+  show("sign-in", INVITE);
+  const oidc = await screen.findByRole("link", { name: "Continue with Okta" });
+  expect(oidc.getAttribute("href")).toBe(`/login/oidc/start?next=%2F%23%2Fsettings&invite=${INVITE}`);
+  const microsoft = screen.getByRole("link", { name: "Continue with Microsoft" });
+  expect(microsoft.getAttribute("href")).toBe(
+    `/login/microsoft/start?next=%2F%23%2Fsettings&invite=${INVITE}`,
+  );
+});
+
 it("hides methods the server does not offer", async () => {
-  config = { status: 200, body: { ...fullConfig, methods: ["password"], oidc: null } };
+  // An older relaycontrol omits the microsoft field entirely.
+  config = { status: 200, body: { ...fullConfig, methods: ["password"], oidc: null, microsoft: undefined } };
   show("sign-in");
   await screen.findByRole("button", { name: "Sign in with password" });
   expect(screen.queryByRole("link", { name: /Continue with/ })).toBeNull();
   expect(screen.queryByRole("button", { name: "Email me a sign-in link" })).toBeNull();
+});
+
+it("offers Microsoft on its own when no generic OIDC provider is configured", async () => {
+  config = { status: 200, body: { ...fullConfig, oidc: null } };
+  show("sign-in");
+  const microsoft = await screen.findByRole("link", { name: "Continue with Microsoft" });
+  expect(microsoft.getAttribute("href")).toBe("/login/microsoft/start?next=%2F%23%2Fsettings");
+  expect(screen.queryByRole("link", { name: "Continue with Okta" })).toBeNull();
 });
 
 it("posts the address and return path with the email-link form", async () => {
