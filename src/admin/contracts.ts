@@ -291,3 +291,31 @@ export const usageSchema = z.object({
   }),
 });
 export type Usage = z.infer<typeof usageSchema>["usage"];
+
+/**
+ * relay-control capture policy (docs/capture-policy.md). A key present in
+ * `settings` is enforced by Agent Relay Desktop; an absent key is each
+ * person's choice. `revision` only goes up and is sent back as If-Match.
+ */
+export const sharingModeSchema = z.enum(["selected", "new", "all"]);
+export const uploadControlSchema = z.enum(["operator", "user"]);
+export const MAX_OOPS_WINDOW_SECONDS = 86_400;
+// Loose: a key this build does not know yet is kept and written back unchanged.
+export const captureSettingsSchema = z.looseObject({
+  sharing_mode: sharingModeSchema.optional(),
+  upload_control: uploadControlSchema.optional(),
+  oops_window_seconds: z
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_OOPS_WINDOW_SECONDS)
+    .optional(),
+  user_retroactive_delete: z.boolean().optional(),
+});
+export type CaptureSettings = z.infer<typeof captureSettingsSchema>;
+export const capturePolicySchema = z.object({
+  version: z.literal(1),
+  revision: z.number().int().positive(),
+  settings: captureSettingsSchema,
+});
+export type CapturePolicy = z.infer<typeof capturePolicySchema>;

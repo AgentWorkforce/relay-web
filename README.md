@@ -168,6 +168,31 @@ is disconnected. Factory transcript history remains unavailable through this
 connection. Capy, Replicas and the other remote-provider key cards use the
 separate Control remote-agent-connections API described above.
 
+## Session upload policy (Settings › Policies)
+
+Organization owners and admins get **Settings › Policies**
+(`#/settings/policies`); members don't see it. It reads and writes Control's
+`GET|PUT|DELETE /cloud/api/v1/organizations/{org}/capture-policy` with the
+session cookie, and Agent Relay Desktop applies the result:
+
+| Setting | Key | Values |
+| --- | --- | --- |
+| What gets uploaded | `sharing_mode` | `selected`, `new`, `all` |
+| Who controls uploading | `upload_control` | `operator`, `user` |
+| "Oops" window before upload | `oops_window_seconds` | `0` to `86400` (Control serves `900` while `upload_control` is `operator` and none is stored) |
+| People may delete uploaded sessions | `user_retroactive_delete` | `true`, `false` |
+
+Each setting can also be left as "Let each person choose" (the key is left
+out); a key that is set is locked in Desktop. **Save policy** replaces the
+whole `settings` object with `If-Match: <revision>`. If someone else saved in
+between (`409 revision_mismatch`), nothing is written and the page reloads the
+latest policy. Control's `400 invalid_policy` message is shown as is. **Reset
+all to let people choose** sends `DELETE` (settings `{}`) after a confirmation.
+When Control's `SELFHOST_OPERATOR_CONTROLS` is `off`, writes answer
+`403 operator_controls_not_entitled` and the page turns read only with that
+reason. Control has no read that reports the switch, so the page learns it from
+the first refused write.
+
 ## Password sign-in (self-hosted)
 
 When relaycontrol lists `password` in `SELFHOST_SIGNIN_METHODS`, signed-out

@@ -6,6 +6,7 @@ import { DesktopSection } from "./desktop";
 import { EnvironmentSection } from "./environment";
 import { MembersSection } from "./members";
 import { OrganizationSection, WorkspaceSection } from "./organization";
+import { PoliciesSection } from "./policies";
 import { TokensSection } from "./tokens";
 import { UsageRefused, UsageSection } from "./usage";
 import { useLoad } from "./use-load";
@@ -18,6 +19,7 @@ import {
   LockKeyhole,
   Plug,
   Search,
+  ShieldCheck,
   SunMoon,
   Users2,
 } from "lucide-react";
@@ -85,6 +87,13 @@ export const SETTINGS_SECTIONS = [
     adminOnly: true,
     icon: BarChart3,
   },
+  {
+    id: "policies",
+    label: "Policies",
+    group: "Organization",
+    adminOnly: true,
+    icon: ShieldCheck,
+  },
 ] as const;
 export type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number]["id"];
 
@@ -97,6 +106,7 @@ const DESCRIPTIONS: Record<SettingsSectionId, string> = {
   organization: "Your organization’s identity and shared settings.",
   members: "The people who share this workspace.",
   usage: "How your organization uses Relay. Counts only.",
+  policies: "What Agent Relay Desktop uploads for everyone in your organization.",
 };
 
 /** Hosted: a workspace still named "Default" is shown by its organization's name. */
@@ -288,6 +298,12 @@ export function Settings(props: { section: string }) {
                 ) : (
                   <UsageRefused reason="disabled" />
                 ))}
+              {active === "policies" && manage && (
+                <PoliciesSection
+                  key={context.currentOrganization.id}
+                  organizationId={context.currentOrganization.id}
+                />
+              )}
               {active === "members" && (
                 <MembersSection
                   organizationId={context.currentOrganization.id}

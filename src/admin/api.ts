@@ -8,6 +8,8 @@ import {
   factoryBoundSessionSchema,
   sessionErasureSchema,
   apiTokensSchema,
+  capturePolicySchema,
+  type CaptureSettings,
   codingAgentCheckSchema,
   codingAgentsSchema,
   integrationConnectSchema,
@@ -335,6 +337,22 @@ export const adminApi = {
     call(`/v1/organizations/${enc(organization)}`, null, {
       method: "PATCH",
       body: { name },
+    }),
+  /** Owner/admin only; members get 403. Reads are never gated by SELFHOST_OPERATOR_CONTROLS. */
+  capturePolicy: (organization: string, signal?: AbortSignal) =>
+    call(`/v1/organizations/${enc(organization)}/capture-policy`, capturePolicySchema, { signal }),
+  /** Replaces `settings` whole; a stale revision answers 409 revision_mismatch. */
+  putCapturePolicy: (organization: string, settings: CaptureSettings, revision: number) =>
+    call(`/v1/organizations/${enc(organization)}/capture-policy`, capturePolicySchema, {
+      method: "PUT",
+      body: { settings },
+      headers: { "If-Match": String(revision) },
+    }),
+  /** Back to every key unset (`settings: {}`); the revision still goes up. */
+  clearCapturePolicy: (organization: string, revision: number) =>
+    call(`/v1/organizations/${enc(organization)}/capture-policy`, capturePolicySchema, {
+      method: "DELETE",
+      headers: { "If-Match": String(revision) },
     }),
   hardDeleteSession: (
     organization: string,
