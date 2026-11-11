@@ -265,6 +265,32 @@ export const feedEnvelopeSchema = z.object({
 });
 export type FeedManifest = z.infer<typeof feedEnvelopeSchema>["manifest"];
 
+/**
+ * relay-control GET /desktop/releases: the newest release of a configured
+ * GitHub releases repo, for installs without the signed feed. The assets carry
+ * the manifest's fields plus a direct download `url`. `release` is null when
+ * the repo has no usable release or GitHub could not be reached.
+ */
+const githubReleaseAssetSchema = feedAssetSchema.extend({ url: z.string() });
+export type GithubReleaseAsset = z.infer<typeof githubReleaseAssetSchema>;
+export const githubReleasesSchema = z.object({
+  source: z.object({
+    kind: z.literal("github"),
+    repo: z.string(),
+    releasesUrl: z.string(),
+  }),
+  release: z
+    .object({
+      version: z.string(),
+      tag: z.string(),
+      prerelease: z.boolean(),
+      published_at: z.string(),
+      assets: z.array(githubReleaseAssetSchema),
+    })
+    .nullable(),
+});
+export type GithubReleases = z.infer<typeof githubReleasesSchema>;
+
 export const feedDownloadUrlSchema = z.object({ url: z.string(), expires_at: z.string() });
 
 /** relay-control GET /organizations/{id}/usage: counts only, never identities. */

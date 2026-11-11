@@ -3,8 +3,14 @@ import { Download, Monitor, Terminal } from "lucide-react";
 import { appPath } from "../app-path";
 import { branding } from "../shell/branding";
 import { Badge, Button, Skeleton } from "../shell/ui";
-import { desktopFeedApi, ApiError } from "./api";
-import type { FeedAsset, FeedChannel, FeedManifest, FeedProfile } from "./contracts";
+import { desktopFeedApi, ApiError, SignedOut } from "./api";
+import type {
+  FeedAsset,
+  FeedChannel,
+  FeedManifest,
+  FeedProfile,
+  GithubReleases,
+} from "./contracts";
 import { formatDate, message, useLoad } from "./use-load";
 import s from "./downloads.module.css";
 
@@ -20,7 +26,42 @@ type ProfileReleases = {
 
 const CHANNELS: FeedChannel[] = ["stable", "beta"];
 
-async function loadReleases(signal: AbortSignal): Promise<ProfileReleases[]> {
+type GithubSource = GithubReleases["source"];
+type GithubRelease = NonNullable<GithubReleases["release"]>;
+
+type Loaded = {
+  feed: ProfileReleases[];
+  /** Set only when the signed feed has no release and a GitHub repo does. */
+  github: { source: GithubSource; release: GithubRelease } | null;
+};
+
+/** The signed feed wins; a configured GitHub releases repo is the fallback. */
+async function loadReleases(signal: AbortSignal): Promise<Loaded> {
+  const feed = await loadFeed(signal);
+  if (feed.some((entry) => entry.releases.length > 0)) return { feed, github: null };
+  return { feed, github: await loadGithubRelease(signal) };
+}
+
+/**
+ * The fallback is best-effort: not configured (404), unreachable, malformed,
+ * without a release, or without an installer on a GitHub download host all
+ * mean the existing empty state. Assets that would send the visitor anywhere
+ * but GitHub are dropped here, so they are never rendered.
+ */
+async function loadGithubRelease(signal: AbortSignal): Promise<Loaded["github"]> {
+  try {
+    const found = await desktopFeedApi.githubReleases(signal);
+    if (!found?.release) return null;
+    const assets = found.release.assets.filter((asset) => isGithubDownloadUrl(asset.url));
+    if (!installers(assets).length) return null;
+    return { source: found.source, release: { ...found.release, assets } };
+  } catch (error) {
+    if (error instanceof SignedOut || signal.aborted) throw error;
+    return null;
+  }
+}
+
+async function loadFeed(signal: AbortSignal): Promise<ProfileReleases[]> {
   const profiles = await desktopFeedApi.profiles(signal);
   return Promise.all(
     profiles.map(async (profile) => {
@@ -35,6 +76,25 @@ async function loadReleases(signal: AbortSignal): Promise<ProfileReleases[]> {
         }),
       };
     }),
+  );
+}
+
+const GITHUB_DOWNLOAD_HOSTS = new Set(["github.com", "objects.githubusercontent.com"]);
+
+/** Only https links to GitHub's own download hosts are offered from a GitHub release. */
+export function isGithubDownloadUrl(value: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  return (
+    url.protocol === "https:" &&
+    GITHUB_DOWNLOAD_HOSTS.has(url.hostname) &&
+    url.port === "" &&
+    !url.username &&
+    !url.password
   );
 }
 
@@ -294,15 +354,18 @@ function productName(): string {
   return /desktop$/i.test(name) ? name : `${name} Desktop`;
 }
 
-/** Asks Control for a short-lived signed link, then goes to it. */
-function useDownload(profile: string, asset: FeedAsset, navigate: (url: string) => void) {
+/** Where an asset downloads from: a signed link from Control, or a GitHub release URL. */
+type Resolve = (asset: FeedAsset) => Promise<string>;
+
+/** Resolves the asset's link, then goes to it. */
+function useDownload(resolve: Resolve, asset: FeedAsset, navigate: (url: string) => void) {
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   async function start() {
     setBusy(true);
     setFailure(null);
     try {
-      const { url } = await desktopFeedApi.downloadUrl(profile, asset.id);
+      const url = await resolve(asset);
       if (new URL(url).protocol !== "https:") throw new Error("The download link was not secure.");
       navigate(url);
     } catch (error) {
@@ -319,7 +382,7 @@ function useDownload(profile: string, asset: FeedAsset, navigate: (url: string) 
 }
 
 function DownloadButton(props: {
-  profile: string;
+  resolve: Resolve;
   asset: FeedAsset;
   navigate: (url: string) => void;
   variant: "default" | "outline";
@@ -328,7 +391,7 @@ function DownloadButton(props: {
   /** Set when the visible text alone does not name the file. */
   ariaLabel?: string;
 }) {
-  const { busy, failure, start } = useDownload(props.profile, props.asset, props.navigate);
+  const { busy, failure, start } = useDownload(props.resolve, props.asset, props.navigate);
   return (
     <span className={s.action}>
       <Button
@@ -351,9 +414,10 @@ function DownloadButton(props: {
 }
 
 function Recommended(props: {
-  profile: string;
+  resolve: Resolve;
   manifest: FeedManifest;
-  channel: FeedChannel;
+  /** "Beta" or "Pre-release", or nothing for a stable release. */
+  badge: string | null;
   detected: DetectedPlatform;
   navigate: (url: string) => void;
 }) {
@@ -369,9 +433,9 @@ function Recommended(props: {
         <div>
           <h2 id={titleId} className={s.heroTitle}>
             {productName()}
-            {props.channel === "beta" && (
+            {props.badge && (
               <Badge variant="warning" className={s.badge}>
-                Beta
+                {props.badge}
               </Badge>
             )}
           </h2>
@@ -386,7 +450,7 @@ function Recommended(props: {
             {picks.map((pick) => (
               <li key={pick.asset.id} className={s.pick}>
                 <DownloadButton
-                  profile={props.profile}
+                  resolve={props.resolve}
                   asset={pick.asset}
                   navigate={props.navigate}
                   variant="default"
@@ -401,7 +465,7 @@ function Recommended(props: {
                 </p>
                 {pick.alternative && (
                   <DownloadButton
-                    profile={props.profile}
+                    resolve={props.resolve}
                     asset={pick.alternative}
                     navigate={props.navigate}
                     variant="outline"
@@ -432,7 +496,7 @@ function Recommended(props: {
 }
 
 function AllDownloads(props: {
-  profile: string;
+  resolve: Resolve;
   manifest: FeedManifest;
   navigate: (url: string) => void;
 }) {
@@ -467,7 +531,7 @@ function AllDownloads(props: {
                   </details>
                 </div>
                 <DownloadButton
-                  profile={props.profile}
+                  resolve={props.resolve}
                   asset={asset}
                   navigate={props.navigate}
                   variant="outline"
@@ -486,7 +550,7 @@ function AllDownloads(props: {
 }
 
 function CommandLine(props: {
-  profile: string;
+  resolve: Resolve;
   manifest: FeedManifest;
   navigate: (url: string) => void;
 }) {
@@ -505,7 +569,7 @@ function CommandLine(props: {
           {scripts.map((script) => (
             <DownloadButton
               key={script.id}
-              profile={props.profile}
+              resolve={props.resolve}
               asset={script}
               navigate={props.navigate}
               variant="outline"
@@ -523,14 +587,71 @@ function CommandLine(props: {
 
 type Release = {
   key: string;
-  profile: FeedProfile;
-  channel: FeedChannel;
+  label: string;
+  badge: string | null;
   manifest: FeedManifest;
+  resolve: Resolve;
+  /** Set for a GitHub release; the signed feed's releases have no source line. */
+  source: GithubSource | null;
 };
 
-function releaseLabel(release: Release, showProfile: boolean): string {
-  const channel = release.channel === "beta" ? "Beta" : "Stable";
-  return `${channel} · ${release.manifest.version}${showProfile ? ` · ${release.profile.asset_prefix}` : ""}`;
+function feedReleases(feed: ProfileReleases[]): Release[] {
+  const showProfile = feed.length > 1;
+  return feed.flatMap(({ profile, releases }) =>
+    releases.map(({ channel, manifest }) => ({
+      key: `${profile.id}:${channel}`,
+      label: `${channel === "beta" ? "Beta" : "Stable"} · ${manifest.version}${showProfile ? ` · ${profile.asset_prefix}` : ""}`,
+      badge: channel === "beta" ? "Beta" : null,
+      manifest,
+      resolve: async (asset: FeedAsset) =>
+        (await desktopFeedApi.downloadUrl(profile.id, asset.id)).url,
+      source: null,
+    })),
+  );
+}
+
+function githubReleaseEntry(github: NonNullable<Loaded["github"]>): Release {
+  const { source, release } = github;
+  const assets = release.assets;
+  const urls = new Map(assets.map((asset) => [asset.id, asset.url]));
+  return {
+    key: `github:${release.tag}`,
+    label: release.version,
+    badge: release.prerelease ? "Pre-release" : null,
+    manifest: { version: release.version, published_at: release.published_at, assets },
+    resolve: async (asset: FeedAsset) => {
+      const url = urls.get(asset.id);
+      if (!url) throw new Error("This download is not available.");
+      return url;
+    },
+    source,
+  };
+}
+
+function SourceNote(props: { source: GithubSource }) {
+  const { repo, releasesUrl } = props.source;
+  return (
+    <p className={s.source}>
+      Source:{" "}
+      {isGithubReleasesPage(releasesUrl) ? (
+        <a href={releasesUrl} target="_blank" rel="noopener noreferrer">
+          GitHub releases ({repo})
+        </a>
+      ) : (
+        `GitHub releases (${repo})`
+      )}
+      , not the signed Desktop feed. Checksums are from the release&rsquo;s .sha256 files.
+    </p>
+  );
+}
+
+function isGithubReleasesPage(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.hostname === "github.com" && url.port === "";
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -545,13 +666,13 @@ export function DesktopDownloads(props: {
   const navigate = props.navigate ?? ((url: string) => window.location.assign(url));
   const detected = useDetectedPlatform(props.platform);
   const { data, error, reload } = useLoad(loadReleases);
-  const releases: Release[] =
-    data?.flatMap(({ profile, releases: items }) =>
-      items.map((item) => ({ key: `${profile.id}:${item.channel}`, profile, ...item })),
-    ) ?? [];
+  const releases: Release[] = data
+    ? data.github
+      ? [githubReleaseEntry(data.github)]
+      : feedReleases(data.feed)
+    : [];
   const [chosen, setChosen] = useState<string | null>(null);
   const current = releases.find((release) => release.key === chosen) ?? releases[0];
-  const showProfile = (data?.length ?? 0) > 1;
   return (
     <section aria-labelledby="desktop-downloads-title" className="card">
       <div className={s.embedded}>
@@ -613,31 +734,35 @@ export function DesktopDownloads(props: {
                     className={s.channel}
                     onClick={() => setChosen(release.key)}
                   >
-                    {releaseLabel(release, showProfile)}
+                    {release.label}
                   </button>
                 ))}
               </div>
             )}
+            {current.source && <SourceNote source={current.source} />}
             <Recommended
               key={current.key}
-              profile={current.profile.id}
-              channel={current.channel}
+              resolve={current.resolve}
+              badge={current.badge}
               manifest={current.manifest}
               detected={detected}
               navigate={navigate}
             />
             <AllDownloads
               key={`all:${current.key}`}
-              profile={current.profile.id}
+              resolve={current.resolve}
               manifest={current.manifest}
               navigate={navigate}
             />
-            <CommandLine
-              key={`cli:${current.key}`}
-              profile={current.profile.id}
-              manifest={current.manifest}
-              navigate={navigate}
-            />
+            {/* The install scripts check downloads against the signed feed. */}
+            {!current.source && (
+              <CommandLine
+                key={`cli:${current.key}`}
+                resolve={current.resolve}
+                manifest={current.manifest}
+                navigate={navigate}
+              />
+            )}
           </div>
         )}
       </div>

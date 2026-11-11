@@ -7,6 +7,7 @@ import {
   installScripts,
   installers,
   isDownloadsPath,
+  isGithubDownloadUrl,
   recommend,
   type DetectedPlatform,
 } from "./downloads";
@@ -269,4 +270,168 @@ it("matches only the downloads path under the app path", () => {
   } finally {
     delete window.__AGENT_RELAY_DASHBOARD_CONFIG__;
   }
+});
+
+// ---------------------------------------------------------------------------
+// GitHub releases fallback (relay-control GET /desktop/releases).
+
+const RELEASES = "/cloud/api/v1/desktop/releases";
+const REPO = "example-org/example-desktop-releases";
+const TAG = "v2026.11.1-beta.6";
+const ghSha = "cd".repeat(32);
+
+function ghAsset(name: string, kind: string, extra: AssetExtra & { url?: string } = {}) {
+  return {
+    id: name,
+    name,
+    platform: "Linux",
+    arch: "x64",
+    kind,
+    size: 32587100,
+    sha256: ghSha,
+    url: `https://github.com/${REPO}/releases/download/${TAG}/${name}`,
+    ...extra,
+  };
+}
+
+function ghRelease(assets: unknown[]) {
+  return {
+    source: { kind: "github", repo: REPO, releasesUrl: `https://github.com/${REPO}/releases` },
+    release: {
+      version: "2026.11.1-beta.6",
+      tag: TAG,
+      prerelease: true,
+      published_at: "2026-11-11T19:21:31Z",
+      assets,
+    },
+  };
+}
+
+const GH_ASSETS = [
+  ghAsset("Desktop-q7m2k9-2026.11.1-beta.6-macOS-arm64.dmg", "image", { platform: "macOS", arch: "arm64", os_floor: 15 }),
+  ghAsset("Desktop-q7m2k9-2026.11.1-beta.6-Linux-x64.deb", "deb"),
+  ghAsset("Desktop-q7m2k9-2026.11.1-beta.6-Linux-x64.tar.gz", "tarball"),
+  ghAsset("Desktop-q7m2k9-2026.11.1-beta.6-Linux-x64-probe.tar.gz", "probe"),
+  ghAsset("Desktop-q7m2k9-2026.11.1-beta.6-Linux-arm64.deb", "deb", {
+    arch: "arm64",
+    url: "https://downloads.example.test/Desktop-q7m2k9-2026.11.1-beta.6-Linux-arm64.deb",
+  }),
+];
+
+function withoutFeed() {
+  replies["/cloud/api/v1/desktop/profiles"] = { status: 404, body: { error: "not_found", message: "Not found" } };
+}
+
+it("never asks for GitHub releases while the signed feed has a release", async () => {
+  replies[RELEASES] = { status: 200, body: ghRelease(GH_ASSETS) };
+  render(<DesktopDownloads navigate={() => undefined} platform={LINUX} />);
+  expect(await screen.findByText(/Version 2026\.11\.9/)).toBeInTheDocument();
+  expect(seen.some((call) => call.path === RELEASES)).toBe(false);
+  expect(screen.queryByText(/Source: /)).toBeNull();
+});
+
+it("keeps the empty state when no feed and no GitHub repo is configured", async () => {
+  withoutFeed();
+  replies[RELEASES] = { status: 404, body: { error: "not_found", message: "Not found" } };
+  render(<DesktopDownloads navigate={() => undefined} platform={LINUX} />);
+  expect(await screen.findByText("There are no Desktop downloads for this workspace.")).toBeInTheDocument();
+  expect(seen.some((call) => call.path === RELEASES)).toBe(true);
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("keeps the empty state when the GitHub repo has no usable release or fails", async () => {
+  withoutFeed();
+  replies[RELEASES] = { status: 200, body: { ...ghRelease([]), release: null } };
+  const first = render(<DesktopDownloads navigate={() => undefined} platform={LINUX} />);
+  expect(await screen.findByText("There are no Desktop downloads for this workspace.")).toBeInTheDocument();
+  first.unmount();
+  replies[RELEASES] = { status: 502, body: { error: "upstream", message: "GitHub unreachable" } };
+  render(<DesktopDownloads navigate={() => undefined} platform={LINUX} />);
+  expect(await screen.findByText("There are no Desktop downloads for this workspace.")).toBeInTheDocument();
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+
+it("falls back to the GitHub release when the feed has profiles but no release", async () => {
+  replies[`${FEED}/manifest?channel=stable`] = { status: 404, body: { error: "no_release", message: "No release" } };
+  replies[RELEASES] = { status: 200, body: ghRelease(GH_ASSETS) };
+  render(<DesktopDownloads navigate={() => undefined} platform={LINUX} />);
+  expect(await screen.findByRole("button", { name: "Download for Linux" })).toBeInTheDocument();
+});
+
+it("offers a GitHub release with the recommended build, checksums and its source", async () => {
+  withoutFeed();
+  replies[RELEASES] = { status: 200, body: ghRelease(GH_ASSETS) };
+  render(<DesktopDownloads navigate={() => undefined} platform={LINUX} />);
+  expect(await screen.findByRole("button", { name: "Download for Linux" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Or .tar.gz" })).toBeInTheDocument();
+  expect(screen.getByText(/Version 2026\.11\.1-beta\.6/)).toBeInTheDocument();
+  expect(screen.getByText("Pre-release")).toBeInTheDocument();
+  const all = screen.getByRole("region", { name: "All downloads" });
+  const osGroups = within(all)
+    .getAllByRole("group")
+    .map((group) => group.getAttribute("aria-label"))
+    .filter(Boolean);
+  expect(osGroups).toEqual(["macOS", "Linux"]);
+  expect(within(all).getByText("Desktop-q7m2k9-2026.11.1-beta.6-Linux-x64.deb")).toBeInTheDocument();
+  expect(within(all).getByText("macOS 15+")).toBeInTheDocument();
+  expect(within(all).getAllByText(ghSha)).toHaveLength(3);
+  expect(within(all).queryByText(/probe/)).toBeNull();
+  expect(screen.getByText(/not the signed Desktop feed/)).toHaveTextContent(
+    `Source: GitHub releases (${REPO}), not the signed Desktop feed. Checksums are from the release’s .sha256 files.`,
+  );
+  expect(screen.getByRole("link", { name: `GitHub releases (${REPO})` })).toHaveAttribute(
+    "href",
+    `https://github.com/${REPO}/releases`,
+  );
+  expect(screen.queryByRole("complementary", { name: "Command-line install" })).toBeNull();
+  expect(screen.queryByRole("radiogroup")).toBeNull();
+});
+
+it("downloads a GitHub asset straight from its release URL", async () => {
+  withoutFeed();
+  replies[RELEASES] = { status: 200, body: ghRelease(GH_ASSETS) };
+  const navigate = vi.fn();
+  render(<DesktopDownloads navigate={navigate} platform={LINUX} />);
+  fireEvent.click(await screen.findByRole("button", { name: "Download for Linux" }));
+  await waitFor(() =>
+    expect(navigate).toHaveBeenCalledWith(
+      `https://github.com/${REPO}/releases/download/${TAG}/Desktop-q7m2k9-2026.11.1-beta.6-Linux-x64.deb`,
+    ),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Download Desktop-q7m2k9-2026.11.1-beta.6-macOS-arm64.dmg" }));
+  await waitFor(() => expect(navigate).toHaveBeenCalledTimes(2));
+  expect(seen.some((call) => call.path.includes("/download-url"))).toBe(false);
+});
+
+it("does not offer a GitHub release asset that links anywhere but GitHub", async () => {
+  withoutFeed();
+  replies[RELEASES] = { status: 200, body: ghRelease(GH_ASSETS) };
+  render(<DesktopDownloads navigate={() => undefined} platform={{ os: "Linux", arch: "arm64" }} />);
+  // The arm64 .deb points off GitHub, so the visitor is offered the x64 build.
+  expect(await screen.findByRole("button", { name: "Download for Linux (x64)" })).toBeInTheDocument();
+  expect(screen.queryByText("Desktop-q7m2k9-2026.11.1-beta.6-Linux-arm64.deb")).toBeNull();
+});
+
+it("keeps the empty state when no GitHub release asset links to GitHub", async () => {
+  withoutFeed();
+  replies[RELEASES] = {
+    status: 200,
+    body: ghRelease(
+      GH_ASSETS.map((entry) => ({ ...entry, url: `https://downloads.example.test/${entry.name}` })),
+    ),
+  };
+  render(<DesktopDownloads navigate={() => undefined} platform={LINUX} />);
+  expect(await screen.findByText("There are no Desktop downloads for this workspace.")).toBeInTheDocument();
+  expect(screen.queryByText(/Version 2026/)).toBeNull();
+});
+
+it("accepts only https GitHub download hosts", () => {
+  expect(isGithubDownloadUrl("https://github.com/o/r/releases/download/v1/a.dmg")).toBe(true);
+  expect(isGithubDownloadUrl("https://objects.githubusercontent.com/github-production-release-asset/1")).toBe(true);
+  expect(isGithubDownloadUrl("http://github.com/o/r/releases/download/v1/a.dmg")).toBe(false);
+  expect(isGithubDownloadUrl("https://github.com.evil.test/a.dmg")).toBe(false);
+  expect(isGithubDownloadUrl("https://user@github.com/a.dmg")).toBe(false);
+  expect(isGithubDownloadUrl("https://github.com:8443/a.dmg")).toBe(false);
+  expect(isGithubDownloadUrl("javascript:alert(1)")).toBe(false);
+  expect(isGithubDownloadUrl("not a url")).toBe(false);
 });

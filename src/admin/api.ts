@@ -22,6 +22,8 @@ import {
   feedDownloadUrlSchema,
   feedEnvelopeSchema,
   feedProfilesSchema,
+  githubReleasesSchema,
+  type GithubReleases,
   type FeedChannel,
   type FeedManifest,
   type FeedProfile,
@@ -136,6 +138,9 @@ export const desktopFeedApi = {
         }),
       )
     )?.manifest ?? null,
+  /** The configured GitHub releases repo's newest release; null when none is configured (404). */
+  githubReleases: (signal?: AbortSignal): Promise<GithubReleases | null> =>
+    orNull(call("/v1/desktop/releases", githubReleasesSchema, { signal })),
   downloadUrl: (profile: string, assetId: string) =>
     call(`/v1/desktop/feed/assets/${enc(assetId)}/download-url`, feedDownloadUrlSchema, {
       method: "POST",
