@@ -175,7 +175,7 @@ export function PoliciesSection(props: { organizationId: string }) {
     if (failure instanceof ApiError && failure.status === 409) {
       setNotice({
         kind: "alert",
-        text: "Someone changed the policy since you opened this page, so nothing was saved. The latest policy is shown below; make your change again.",
+        text: "Someone changed the policy since you opened this page, so nothing was saved. Loading the latest policy; make your change again once it shows a new revision.",
       });
       reload();
       return;
@@ -246,9 +246,12 @@ export function PoliciesSection(props: { organizationId: string }) {
         person’s choice. Desktop applies the policy; uploads are not checked
         against it on the server yet.
       </p>
-      {error && !policy && (
+      {/* Also after a failed reload: the policy shown may then be stale. */}
+      {error && (
         <p role="alert">
-          {message(error)}{" "}
+          {policy
+            ? `Couldn't load the latest policy, so the one shown may be out of date: ${message(error)}`
+            : message(error)}{" "}
           <button type="button" onClick={reload}>
             Try again
           </button>

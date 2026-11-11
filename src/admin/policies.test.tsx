@@ -242,6 +242,34 @@ it("on a revision conflict reloads the latest policy and says nothing was saved"
   expect(header(writes()[0]!, "If-Match")).toBe("4");
 });
 
+it("a failed reload after a conflict is shown with a retry", async () => {
+  render(<Settings section="policies" />);
+  await screen.findByTestId("policy-revision");
+  override = (call) =>
+    call.method === "PUT"
+      ? { status: 409, body: { error: "revision_mismatch", message: "stale" } }
+      : call.path.endsWith("/capture-policy")
+        ? { status: 500, body: { error: "internal", message: "Control is down" } }
+        : undefined;
+  fireEvent.click(
+    within(screen.getByRole("group", { name: "What gets uploaded" })).getByRole(
+      "radio",
+      { name: /Automatically upload all sessions/ },
+    ),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Save policy" }));
+  expect(
+    await screen.findByText(/Couldn't load the latest policy.*Control is down/),
+  ).toBeInTheDocument();
+  policy = { version: 1, revision: 5, settings: { sharing_mode: "all" } };
+  override = null;
+  fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+  await waitFor(() =>
+    expect(screen.getByTestId("policy-revision")).toHaveTextContent("5"),
+  );
+  expect(screen.queryByText(/Couldn't load the latest policy/)).not.toBeInTheDocument();
+});
+
 it("shows Control's invalid_policy message and keeps the policy", async () => {
   override = (call) =>
     call.method === "PUT"
