@@ -11,6 +11,7 @@ import {
 import { createPortal } from "react-dom";
 import { Trash2 } from "lucide-react";
 import { adminApi, canManage, SignedOut } from "../admin/api";
+import { useProductCapabilities } from "../features/product-capabilities";
 import {
   Button,
   Card,
@@ -20,19 +21,30 @@ import {
   CardTitle,
 } from "../shell/ui";
 
-export function DeleteSession({
-  workspaceId,
-  source,
-  sessionId,
-  onDeleted,
-  onSignedOut,
-}: {
+type DeleteSessionProps = {
   workspaceId: string;
   source: string;
   sessionId: string;
   onDeleted: () => void;
   onSignedOut?: () => void;
-}) {
+};
+
+export function DeleteSession(props: DeleteSessionProps) {
+  const { status, capabilities } = useProductCapabilities();
+  // Only a server capability admits this control. Unmount it (and any
+  // confirmation) when Control revokes availability; role checks stay inside.
+  return status === "ready" && capabilities.session_delete ? (
+    <DeleteSessionControl {...props} />
+  ) : null;
+}
+
+function DeleteSessionControl({
+  workspaceId,
+  source,
+  sessionId,
+  onDeleted,
+  onSignedOut,
+}: DeleteSessionProps) {
   const [organization, setOrganization] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);

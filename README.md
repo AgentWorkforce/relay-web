@@ -218,8 +218,8 @@ relaycontrol's own pages, so their tokens never reach this app.
 ### Feature availability
 
 The dashboard reads the installation's capabilities from the signed-in,
-same-origin `GET /cloud/api/v1/capabilities` endpoint, which reports what
-`SELFHOST_FEATURES` selects. Flows and Chief are hidden from navigation and
+same-origin `GET /cloud/api/v1/capabilities` endpoint, which reports selected
+features and deployment capabilities. Flows and Chief are hidden from navigation and
 their route components do not mount until the server returns the corresponding
 boolean as true. Workflow token creation is also hidden when Flows is off;
 existing tokens remain available for inspection and revocation. Environment,
@@ -233,6 +233,16 @@ closes it. There is no runtime-config, URL or local-storage override. Control
 remains responsible for authenticated API enforcement.
 
 A Control version without this endpoint keeps these features unavailable.
+
+The session **Delete session** control requires both an owner/admin role and
+`session_delete: true`. Control derives that capability from its erase URL/secret
+configuration and operator-controls gate; it is not a `SELFHOST_FEATURES` switch.
+Initial discovery must return a valid true value before the control mounts.
+An absent key (including older Control) means false; a later false closes an open
+confirmation. Tab-return refreshes retain the shared capability provider's behavior
+described above: a network failure preserves the previous valid server answer.
+This is availability discovery only: Control still authorizes every DELETE, and
+the pipeline can refuse a particular session or report a runtime outage.
 
 `#/chief` provides project setup (project, operating policy, review) and the chief
 detail view: readiness, assignments, verification, reservations and decisions.

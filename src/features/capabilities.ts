@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { SignedOut } from "../api/client";
 
-// relay-control's GET /api/v1/capabilities: what SELFHOST_FEATURES selects.
+// relay-control's GET /api/v1/capabilities: selected features and deployment wiring.
 // Only this answer enables UI; nothing is decided in the browser.
 const responseSchema = z.object({
   capabilities: z.object({
@@ -12,6 +12,8 @@ const responseSchema = z.object({
     usage: z.boolean().default(false),
     // Owner-only per-person drill-down; independent of `usage`.
     usage_people: z.boolean().default(false),
+    // Derived by Control from erase configuration; older installs omit it.
+    session_delete: z.boolean().default(false),
   }),
 });
 export type ProductCapabilities = z.infer<
@@ -23,6 +25,7 @@ export const NO_CAPABILITIES: ProductCapabilities = Object.freeze({
   relayfile: false,
   usage: false,
   usage_people: false,
+  session_delete: false,
 });
 
 export async function getProductCapabilities(signal: AbortSignal) {
