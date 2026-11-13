@@ -21,7 +21,7 @@ ARG SOURCE_REVISION=unknown
 LABEL org.opencontainers.image.title="Agent Relay dashboard" \
       org.opencontainers.image.description="Self-hosted Agent Relay dashboard (static SPA on unprivileged nginx)" \
       org.opencontainers.image.source="https://github.com/AgentWorkforce/relay-webapp" \
-      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.licenses="FSL-1.1-ALv2" \
       org.opencontainers.image.revision="${SOURCE_REVISION}"
 USER root
 # The entrypoint writes runtime-config.js next to the app (an emptyDir in the
