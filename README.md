@@ -120,7 +120,7 @@ own origin when that origin qualifies; a dashboard served over plain `http`
 `https` origin. Invalid fields fall back on their own. The hosted build shows no
 Desktop links here.
 
-`npm run check` runs lint, tests and the production build. Apache-2.0.
+`npm run check` runs lint, tests and the production build. Licensed under FSL-1.1-ALv2 (see LICENSE and NOTICE).
 
 ### Remote coding agents
 
