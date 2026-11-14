@@ -7,10 +7,12 @@ import { RunDetailPage } from "./pages/run-detail";
 import { AddWorkerPage, WorkerDetailPage, WorkersPage } from "./pages/workers";
 import "./flows.css";
 import { loginHref } from "../app-path";
+import { FlowConnectionsPage } from "./flow-connections";
 
 type Route =
   | { kind: "flows" }
   | { kind: "runs" }
+  | { kind: "connections" }
   | { kind: "new-flow" }
   | { kind: "flow"; id: string }
   | { kind: "run"; id: string }
@@ -36,6 +38,7 @@ export function parseFlowsRoute(path: string): Route {
   if (section === "f" && id) return { kind: "flow", id };
   if (section === "runs" && id) return { kind: "run", id };
   if (section === "runs") return { kind: "runs" };
+  if (section === "connections") return { kind: "connections" };
   if (section === "workers" && id === "new") return { kind: "add-worker" };
   if (section === "workers" && id) return { kind: "worker", id };
   if (section === "workers") return { kind: "workers" };
@@ -91,6 +94,9 @@ export function FlowsApp({ path }: { path: string }) {
     case "new-flow":
       page = <NewFlowPage onError={setError} />;
       break;
+    case "connections":
+      page = <FlowConnectionsPage />;
+      break;
     case "flow":
       page = (
         <FlowDetailPage
@@ -124,7 +130,7 @@ export function FlowsApp({ path }: { path: string }) {
 
   const overview = current.kind === "flows" || current.kind === "runs";
   const section =
-    current.kind === "run" || current.kind === "runs"
+    current.kind === "connections" ? "connections" : current.kind === "run" || current.kind === "runs"
       ? "runs"
       : current.kind.includes("worker")
         ? "workers"
