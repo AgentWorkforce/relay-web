@@ -337,8 +337,9 @@ export function SignInPage(props: {
     ? config.logo_url
     : null;
   const orgName = config?.org_name?.trim() || null;
-  // Co-brand option A, stacked: the rule and the customer lockup start flush
-  // with the Agent Relay mark (or a profile logo), one column below it.
+  // Co-brand option B, the "for" line: one quiet line, "for <logo> <name>",
+  // flush with the Agent Relay mark (or a profile logo), one column below it.
+  // Agent Relay stays the product.
   const coBrandPlacement = "col-span-2";
 
   return (
@@ -358,26 +359,24 @@ export function SignInPage(props: {
             />
           </a>
           {logoUrl && (
-            <>
-              <hr className={`${coBrandPlacement} my-3.5 w-[150px] max-w-full border-0 border-t border-[#d7e0e8] dark:border-[#30485e]`} />
-              <div
-                data-slot="co-brand"
-                className={`${coBrandPlacement} flex min-w-0 items-center gap-2.5`}
-              >
-                {/* An <img> never runs script inside an SVG. */}
-                <img
-                  src={logoUrl}
-                  alt={orgName ? "" : "Organization logo"}
-                  referrerPolicy="no-referrer"
-                  className="h-[22px] w-auto max-w-[160px] flex-none object-contain object-left"
-                />
-                {orgName && (
-                  <strong className="min-w-0 text-base font-bold break-words">
-                    {orgName}
-                  </strong>
-                )}
-              </div>
-            </>
+            <div
+              data-slot="co-brand"
+              className={`${coBrandPlacement} mt-2.5 flex min-w-0 items-center gap-2 text-[13px] text-[#5b6672] dark:text-[#9fb3c6]`}
+            >
+              <span>for</span>
+              {/* An <img> never runs script inside an SVG. */}
+              <img
+                src={logoUrl}
+                alt={orgName ? "" : "Organization logo"}
+                referrerPolicy="no-referrer"
+                className="h-4 w-auto max-w-[120px] flex-none object-contain object-left"
+              />
+              {orgName && (
+                <strong className="min-w-0 font-semibold break-words text-[#111827] dark:text-[#e8f0f7]">
+                  {orgName}
+                </strong>
+              )}
+            </div>
           )}
         </header>
         <h1 className="mb-6 text-3xl font-semibold tracking-tight">

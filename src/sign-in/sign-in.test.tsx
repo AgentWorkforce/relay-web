@@ -155,13 +155,14 @@ it("co-brands under the Agent Relay lockup", async () => {
   const logo = container.querySelector('[data-slot="co-brand"] img')!;
   expect(logo.getAttribute("src")).toBe("https://cdn.example.test/logo.svg");
   expect(logo.getAttribute("referrerpolicy")).toBe("no-referrer");
-  expect(container.querySelector("header hr")).toBeTruthy();
   expect(container.querySelector("header a svg")).toBeTruthy();
-  // Stacked flush left with the mark, not indented under the wordmark.
-  for (const el of [container.querySelector("header hr")!, container.querySelector('[data-slot="co-brand"]')!]) {
-    expect(el.className).toContain("col-span-2");
-    expect(el.className).not.toContain("col-start-2");
-  }
+  // Option B, the "for" line: no rule; one line flush left with the mark,
+  // not indented under the wordmark.
+  expect(container.querySelector("header hr")).toBeNull();
+  const line = container.querySelector('[data-slot="co-brand"]')!;
+  expect(line.firstElementChild!.textContent).toBe("for");
+  expect(line.className).toContain("col-span-2");
+  expect(line.className).not.toContain("col-start-2");
 });
 
 it("starts the customer row under a profile logo instead of beside it", async () => {
