@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Plug, RefreshCw, Unplug } from "lucide-react";
 import { Button, Badge, Skeleton } from "../shell/ui";
+import { ProviderLogo } from "../shell/provider-logo";
 import { adminApi } from "../admin/api";
 import { message, useLoad } from "../admin/use-load";
 import { WorkspaceViewSlot } from "../shell/view-slots";
@@ -265,7 +266,7 @@ function ConnectionsView({
                 <details>
                   <summary className={s.summary}>
                     <span className={s.provider}>
-                      <Plug aria-hidden="true" />
+                      <ProviderLogo provider={entry.provider} label={label(entry)} size={24} />
                       <span>
                         <strong>{label(entry)}</strong>
                         <small>
