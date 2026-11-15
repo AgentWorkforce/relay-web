@@ -196,8 +196,12 @@ export const adminApi = {
   /** Integration status for just-in-time connects (flows, CLI). */
   integrationProviders: (workspace: string, signal?: AbortSignal) =>
     call(`${ws(workspace)}/integrations/providers`, integrationProvidersSchema, { signal }),
-  disconnectIntegration: (workspace: string, provider: string) =>
-    call(`${ws(workspace)}/integrations/${enc(provider)}`, null, { method: "DELETE" }),
+  disconnectIntegration: (workspace: string, provider: string, connectionId?: string) =>
+    call(`${ws(workspace)}/integrations/${enc(provider)}${connectionId ? `?connectionId=${enc(connectionId)}` : ""}`, null, { method: "DELETE" }),
+  renameIntegration: (workspace: string, provider: string, connectionId: string, displayName: string) =>
+    call(`${ws(workspace)}/integrations/${enc(provider)}/settings`, null, { method: "PATCH", body: { connectionId, displayName } }),
+  createIntegrationWithCredentials: (workspace: string, provider: string, credentials: Record<string, string>) =>
+    call(`${ws(workspace)}/integrations/${enc(provider)}`, null, { method: "POST", body: { credentials } }),
   /** Starts a provider OAuth connect; the callback page links back to returnTo. */
   connectIntegration: (workspace: string, provider: string, returnTo: string) =>
     call(`${ws(workspace)}/integrations/connect-session`, integrationConnectSchema, {

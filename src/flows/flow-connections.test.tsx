@@ -78,6 +78,7 @@ it("requires confirmation and preserves the other provider after disconnect", as
     expect(api.disconnectIntegration).toHaveBeenCalledWith(
       "workspace",
       "gitlab",
+      "gitlab-key",
     ),
   );
   await waitFor(() =>

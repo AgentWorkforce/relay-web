@@ -1,14 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Plug, RefreshCw, Unplug } from "lucide-react";
 import { Button, Badge, Skeleton } from "../shell/ui";
 import { ProviderLogo } from "../shell/provider-logo";
+import { FlowConnectionManager } from "./flow-connection-manager";
 import { adminApi } from "../admin/api";
 import { message, useLoad } from "../admin/use-load";
 import { WorkspaceViewSlot } from "../shell/view-slots";
 
-type IntegrationListEntry = {
+export type IntegrationListEntry = {
   provider: string;
   displayName: string;
+  connectionLabel?: string;
   status: string;
   connectionId?: string;
   providerConfigKey: string | null;
@@ -63,7 +65,7 @@ export function FlowConnectionsPage() {
           </Button>
         </div>
       ) : data ? (
-        <FlowConnections key={data.workspaceId} {...data} />
+        <FlowConnectionManager key={data.workspaceId} {...data} />
       ) : (
         <p className="p-6" role="status">
           Loading connections…
@@ -92,6 +94,9 @@ function state(entry: IntegrationListEntry): {
 export function FlowConnections(props: {
   workspaceId: string;
   canManage: boolean;
+  disabled?: boolean;
+  actions?: ReactNode;
+  renderConnectionActions?: (entry: IntegrationListEntry) => ReactNode;
 }) {
   return <ConnectionsView key={props.workspaceId} {...props} />;
 }
@@ -99,9 +104,15 @@ export function FlowConnections(props: {
 function ConnectionsView({
   workspaceId,
   canManage,
+  disabled = false,
+  actions,
+  renderConnectionActions,
 }: {
   workspaceId: string;
   canManage: boolean;
+  disabled?: boolean;
+  actions?: ReactNode;
+  renderConnectionActions?: (entry: IntegrationListEntry) => ReactNode;
 }) {
   const [entries, setEntries] = useState<IntegrationListEntry[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -121,6 +132,7 @@ function ConnectionsView({
             {
               provider: provider.id,
               displayName: provider.displayName,
+              connectionLabel: c.metadata?.displayName,
               status: c.status,
               connectionId: c.connectionId,
               providerConfigKey: c.providerConfigKey ?? null,
@@ -160,7 +172,7 @@ function ConnectionsView({
   }, [workspaceId]);
 
   async function refresh() {
-    if (busy.current) return;
+    if (busy.current || disabled) return;
     busy.current = true;
     const mine = generation.current;
     setRefreshing(true);
@@ -185,14 +197,14 @@ function ConnectionsView({
   }
 
   async function disconnect(entry: IntegrationListEntry) {
-    if (!canManage || busy.current) return;
+    if (!canManage || busy.current || disabled) return;
     busy.current = true;
     const mine = generation.current;
     setDisconnecting(true);
     setError(null);
     setNotice(null);
     try {
-      await adminApi.disconnectIntegration(workspaceId, entry.provider);
+      await adminApi.disconnectIntegration(workspaceId, entry.provider, entry.connectionId);
       if (mine !== generation.current) return;
       setEntries(
         (current) => current?.filter((item) => item !== entry) ?? null,
@@ -218,15 +230,18 @@ function ConnectionsView({
           <h2>Connections {entries && <span>{entries.length}</span>}</h2>
           <p>The tools your flows can use, wherever you connected them.</p>
         </div>
+        <div className={s.actions}>
+        {actions}
         <Button
           variant="outline"
           size="sm"
-          disabled={refreshing || disconnecting || (entries === null && !error)}
+          disabled={disabled || refreshing || disconnecting || (entries === null && !error)}
           onClick={() => void refresh()}
         >
           <RefreshCw data-icon="inline-start" aria-hidden="true" />
           {refreshing ? "Refreshing…" : "Refresh"}
         </Button>
+        </div>
       </div>
       {error && (
         <div role="alert">
@@ -250,8 +265,8 @@ function ConnectionsView({
           <Plug aria-hidden="true" />
           <h3>No connections yet</h3>
           <p>
-            Connect a tool when you create a flow, or use the CLI. It will
-            appear here for you to inspect and manage.
+            Add a connection, connect a tool during flow setup, or use the CLI.
+            Saved connections appear here for you to inspect and manage.
           </p>
         </div>
       )}
@@ -270,7 +285,7 @@ function ConnectionsView({
                       <span>
                         <strong>{label(entry)}</strong>
                         <small>
-                          {entry.name ||
+                          {entry.connectionLabel || entry.name ||
                             (entry.inherited
                               ? "Organization connection"
                               : "Workspace connection")}
@@ -326,10 +341,12 @@ function ConnectionsView({
                     ) : (
                       !selected &&
                       entry.connectionId && (
+                        <div className={s.actions}>
+                        {renderConnectionActions?.(entry)}
                         <Button
                           variant="outline"
                           size="sm"
-                          disabled={disconnecting || refreshing}
+                          disabled={disabled || disconnecting || refreshing}
                           onClick={() => {
                             setConfirm(entry);
                             setError(null);
@@ -338,6 +355,7 @@ function ConnectionsView({
                           <Unplug data-icon="inline-start" aria-hidden="true" />
                           Disconnect
                         </Button>
+                        </div>
                       )
                     )}
                   </div>
@@ -387,8 +405,7 @@ function ConnectionsView({
         </ul>
       )}
       <p className={s.hint}>
-        Credentials stay private. New connections are added when a flow needs
-        them.
+        Credentials stay private. Provider permissions are managed during authorization.
       </p>
     </section>
   );
