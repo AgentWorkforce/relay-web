@@ -2,6 +2,7 @@ import { expect, it } from "vitest";
 import {
   projectLabel,
   promptLabel,
+  recordedHandle,
   sessionRow,
   sessionTitle,
   sessionSubtitle,
@@ -157,6 +158,13 @@ it("treats a value the scrubber replaced whole as not recorded", () => {
   expect(row.projectKey).toBeNull();
   expect(row.gitBranch).toBeNull();
   expect(projectLabel(row)).toBeNull();
+  // Many markers before real text: kept, and decided in linear time.
+  const many = `${"[REDACTED] ".repeat(2000)}remaining text`;
+  const started = performance.now();
+  expect(sessionRow({ sessionId: "s", source: "codex", shortSummary: many }).shortSummary).toBe(many.trim());
+  expect(performance.now() - started).toBeLessThan(500);
+  expect(recordedHandle(" [REDACTED] ")).toBeNull();
+  expect(recordedHandle("worker")).toBe("@worker");
   // A value that only contains a redaction keeps the rest of what was recorded.
   expect(sessionRow({ sessionId: "s", source: "codex", catalog: { repoUrl: "https://[REDACTED]@github.com/acme/app" } }).repoUrl)
     .toBe("https://[REDACTED]@github.com/acme/app");

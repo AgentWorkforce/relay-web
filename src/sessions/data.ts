@@ -76,7 +76,9 @@ export const toolColor = (source: string) =>
  * that a value existed, not what it was, so it is shown as absent.
  */
 export const isRedactionOnly = (value: string) =>
-  /^(?:\s*\[REDACTED(?::[^\]]*)?\]\s*)+$/.test(value);
+  // Strip the markers once (linear) rather than match a repeated group.
+  value.includes("[REDACTED") &&
+  !value.replace(/\[REDACTED(?::[^\]]*)?\]/g, "").trim();
 const text = (value: unknown) =>
   typeof value === "string" && value.trim() && !isRedactionOnly(value)
     ? value.trim()
@@ -88,6 +90,11 @@ const captionText = (value: unknown) => {
 };
 /** An agent's handle as the dashboard shows it everywhere: `@name`. */
 export const agentHandle = (name: string) => `@${name.replace(/^@+/, "")}`;
+/** A recorded agent name as its `@handle`; null when absent or redacted whole. */
+export const recordedHandle = (name: unknown) => {
+  const caption = captionText(name);
+  return caption ? agentHandle(caption) : null;
+};
 const strings = (value: unknown) =>
   Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string" && !!item)
