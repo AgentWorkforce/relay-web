@@ -341,6 +341,11 @@ export function SignInPage(props: {
   // flush with the Agent Relay mark (or a profile logo), one column below it.
   // Agent Relay stays the product.
   const coBrandPlacement = "col-span-2";
+  // The "for" line already names the customer, so the lockup above it is
+  // always Agent Relay's. A profile logo (often a combined "Agent Relay for
+  // <customer>" image made for the dashboard header) would show the co-brand
+  // twice.
+  const lockupBrand = logoUrl ? { ...brand, logo: null, custom: false } : brand;
 
   return (
     <div className="min-h-dvh bg-[#f9fafb] text-[#111827] dark:bg-[#101c29] dark:text-[#e8f0f7]">
@@ -352,7 +357,7 @@ export function SignInPage(props: {
             className="col-span-2 grid grid-cols-subgrid items-center rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#2f6f9f] dark:focus-visible:outline-[#79b8de]"
           >
             <BrandLockup
-              brand={brand}
+              brand={lockupBrand}
               markClassName="h-6"
               wordmarkClassName="h-5 [--fg:#111827] dark:[--fg:#e8f0f7]"
               logoClassName="h-6 w-auto max-w-[200px] object-contain object-left"

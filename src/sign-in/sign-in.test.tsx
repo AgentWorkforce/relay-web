@@ -165,20 +165,27 @@ it("co-brands under the Agent Relay lockup", async () => {
   expect(line.className).not.toContain("col-start-2");
 });
 
-it("starts the customer row under a profile logo instead of beside it", async () => {
+it("shows the co-brand once when a profile logo is also set", async () => {
   window.__AGENT_RELAY_DASHBOARD_CONFIG__ = {
-    customerProfile: { productName: "Example Corp", logo: "/logo.svg" },
+    customerProfile: { productName: "Example Corp", logo: "/combined-logo.svg" },
   } as never;
   resetBrandingForTests();
   config = {
     status: 200,
     body: { ...fullConfig, logo_url: "https://cdn.example.test/logo.svg", org_name: "Example Corp" },
   };
-  const { container } = show("sign-in");
-  await screen.findByText("Example Corp");
-  expect(container.querySelector('[data-slot="co-brand"]')!.className).toContain("col-span-2");
-  delete window.__AGENT_RELAY_DASHBOARD_CONFIG__;
-  resetBrandingForTests();
+  try {
+    const { container } = show("sign-in");
+    await screen.findByText("Example Corp");
+    expect(container.querySelector('[data-slot="co-brand"]')!.className).toContain("col-span-2");
+    // The lockup is Agent Relay's own mark, not the profile's combined logo.
+    expect(container.querySelector("header a svg")).toBeTruthy();
+    expect(container.querySelector('header a img[src="/combined-logo.svg"]')).toBeNull();
+    expect(screen.getAllByText("Example Corp")).toHaveLength(1);
+  } finally {
+    delete window.__AGENT_RELAY_DASHBOARD_CONFIG__;
+    resetBrandingForTests();
+  }
 });
 
 it.each([
