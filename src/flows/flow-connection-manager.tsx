@@ -123,6 +123,7 @@ export function FlowConnectionManager({
                 entry.provider,
                 entry.connectionId!,
                 name,
+                entry.version,
               );
               saved();
             })

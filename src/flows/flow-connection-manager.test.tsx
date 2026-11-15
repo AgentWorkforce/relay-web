@@ -37,6 +37,7 @@ beforeEach(() => {
       configured: true,
       connection: {
         connectionId: "conn",
+        version: "a".repeat(64),
         providerConfigKey: "gitlab-relay",
         authMode: "oauth2",
         status: "ready",
@@ -100,6 +101,7 @@ it("renames through the canonical settings route, retains stale edits on failure
     "gitlab",
     "conn",
     "Platform",
+    "a".repeat(64),
   );
   fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
   expect(

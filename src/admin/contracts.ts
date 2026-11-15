@@ -234,6 +234,7 @@ export const integrationProviderSchema = z.object({
   connection: z.object({
     status: z.enum(["ready", "error"]),
     connectionId: z.string().optional(),
+    version: z.string().optional(),
     providerConfigKey: nullableText,
     authMode: z.enum(["oauth2", "api_key"]).optional(),
     accountLabel: nullableText,

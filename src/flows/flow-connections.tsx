@@ -13,6 +13,7 @@ export type IntegrationListEntry = {
   connectionLabel?: string;
   status: string;
   connectionId?: string;
+  version?: string;
   providerConfigKey: string | null;
   authMode?: "oauth2" | "api_key";
   accountLabel?: string | null;
@@ -135,6 +136,7 @@ function ConnectionsView({
               connectionLabel: c.metadata?.displayName,
               status: c.status,
               connectionId: c.connectionId,
+              version: c.version,
               providerConfigKey: c.providerConfigKey ?? null,
               authMode: c.authMode,
               accountLabel: c.accountLabel,
@@ -204,7 +206,7 @@ function ConnectionsView({
     setError(null);
     setNotice(null);
     try {
-      await adminApi.disconnectIntegration(workspaceId, entry.provider, entry.connectionId);
+      await adminApi.disconnectIntegration(workspaceId, entry.provider, entry.connectionId, entry.version);
       if (mine !== generation.current) return;
       setEntries(
         (current) => current?.filter((item) => item !== entry) ?? null,

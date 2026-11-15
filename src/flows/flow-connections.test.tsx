@@ -79,6 +79,7 @@ it("requires confirmation and preserves the other provider after disconnect", as
       "workspace",
       "gitlab",
       "gitlab-key",
+      undefined,
     ),
   );
   await waitFor(() =>
