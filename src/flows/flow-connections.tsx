@@ -96,6 +96,7 @@ export function FlowConnections(props: {
   workspaceId: string;
   canManage: boolean;
   disabled?: boolean;
+  onBusyChange?: (busy: boolean) => void;
   actions?: ReactNode;
   renderConnectionActions?: (entry: IntegrationListEntry) => ReactNode;
 }) {
@@ -106,12 +107,14 @@ function ConnectionsView({
   workspaceId,
   canManage,
   disabled = false,
+  onBusyChange,
   actions,
   renderConnectionActions,
 }: {
   workspaceId: string;
   canManage: boolean;
   disabled?: boolean;
+  onBusyChange?: (busy: boolean) => void;
   actions?: ReactNode;
   renderConnectionActions?: (entry: IntegrationListEntry) => ReactNode;
 }) {
@@ -176,6 +179,7 @@ function ConnectionsView({
   async function refresh() {
     if (busy.current || disabled) return;
     busy.current = true;
+    onBusyChange?.(true);
     const mine = generation.current;
     setRefreshing(true);
     setError(null);
@@ -193,6 +197,7 @@ function ConnectionsView({
     } finally {
       if (mine === generation.current) {
         busy.current = false;
+        onBusyChange?.(false);
         setRefreshing(false);
       }
     }
@@ -201,12 +206,18 @@ function ConnectionsView({
   async function disconnect(entry: IntegrationListEntry) {
     if (!canManage || busy.current || disabled) return;
     busy.current = true;
+    onBusyChange?.(true);
     const mine = generation.current;
     setDisconnecting(true);
     setError(null);
     setNotice(null);
     try {
-      await adminApi.disconnectIntegration(workspaceId, entry.provider, entry.connectionId, entry.version);
+      await adminApi.disconnectIntegration(
+        workspaceId,
+        entry.provider,
+        entry.connectionId,
+        entry.version,
+      );
       if (mine !== generation.current) return;
       setEntries(
         (current) => current?.filter((item) => item !== entry) ?? null,
@@ -220,6 +231,7 @@ function ConnectionsView({
     } finally {
       if (mine === generation.current) {
         busy.current = false;
+        onBusyChange?.(false);
         setDisconnecting(false);
       }
     }
@@ -233,16 +245,21 @@ function ConnectionsView({
           <p>The tools your flows can use, wherever you connected them.</p>
         </div>
         <div className={s.actions}>
-        {actions}
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={disabled || refreshing || disconnecting || (entries === null && !error)}
-          onClick={() => void refresh()}
-        >
-          <RefreshCw data-icon="inline-start" aria-hidden="true" />
-          {refreshing ? "Refreshing…" : "Refresh"}
-        </Button>
+          {actions}
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={
+              disabled ||
+              refreshing ||
+              disconnecting ||
+              (entries === null && !error)
+            }
+            onClick={() => void refresh()}
+          >
+            <RefreshCw data-icon="inline-start" aria-hidden="true" />
+            {refreshing ? "Refreshing…" : "Refresh"}
+          </Button>
         </div>
       </div>
       {error && (
@@ -283,11 +300,16 @@ function ConnectionsView({
                 <details>
                   <summary className={s.summary}>
                     <span className={s.provider}>
-                      <ProviderLogo provider={entry.provider} label={label(entry)} size={24} />
+                      <ProviderLogo
+                        provider={entry.provider}
+                        label={label(entry)}
+                        size={24}
+                      />
                       <span>
                         <strong>{label(entry)}</strong>
                         <small>
-                          {entry.connectionLabel || entry.name ||
+                          {entry.connectionLabel ||
+                            entry.name ||
                             (entry.inherited
                               ? "Organization connection"
                               : "Workspace connection")}
@@ -344,19 +366,22 @@ function ConnectionsView({
                       !selected &&
                       entry.connectionId && (
                         <div className={s.actions}>
-                        {renderConnectionActions?.(entry)}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={disabled || disconnecting || refreshing}
-                          onClick={() => {
-                            setConfirm(entry);
-                            setError(null);
-                          }}
-                        >
-                          <Unplug data-icon="inline-start" aria-hidden="true" />
-                          Disconnect
-                        </Button>
+                          {renderConnectionActions?.(entry)}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={disabled || disconnecting || refreshing}
+                            onClick={() => {
+                              setConfirm(entry);
+                              setError(null);
+                            }}
+                          >
+                            <Unplug
+                              data-icon="inline-start"
+                              aria-hidden="true"
+                            />
+                            Disconnect
+                          </Button>
                         </div>
                       )
                     )}
@@ -407,7 +432,8 @@ function ConnectionsView({
         </ul>
       )}
       <p className={s.hint}>
-        Credentials stay private. Provider permissions are managed during authorization.
+        Credentials stay private. Provider permissions are managed during
+        authorization.
       </p>
     </section>
   );

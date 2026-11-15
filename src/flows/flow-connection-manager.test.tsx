@@ -179,3 +179,31 @@ it("blocks unconfigured providers and gives members read-only controls", async (
     screen.queryByRole("button", { name: "Edit connection" }),
   ).not.toBeInTheDocument();
 });
+
+it("blocks create and edit during disconnect and retains its failure message", async () => {
+  let reject!: (reason: Error) => void;
+  api.disconnectIntegration.mockImplementation(
+    () =>
+      new Promise((_resolve, fail) => {
+        reject = fail;
+      }),
+  );
+  render(<FlowConnectionManager workspaceId="workspace" canManage />);
+  fireEvent.click(await screen.findByText("Engineering"));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Disconnect" }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Confirm disconnect" }));
+  expect(screen.getByRole("button", { name: "Add connection" })).toBeDisabled();
+  expect(screen.queryByRole("button", { name: "Edit connection" })).not.toBeInTheDocument();
+  reject(new Error("Provider cleanup unavailable"));
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Provider cleanup unavailable",
+  );
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: "Add connection" }),
+    ).not.toBeDisabled(),
+  );
+  expect(screen.getByText("Engineering")).toBeInTheDocument();
+});

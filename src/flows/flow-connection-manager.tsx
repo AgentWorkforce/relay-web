@@ -75,12 +75,17 @@ export function FlowConnectionManager({
         workspaceId={workspaceId}
         canManage={canManage}
         disabled={pending}
+        onBusyChange={(value) => {
+          busy.current = value;
+          setPending(value);
+        }}
         actions={
           canManage && (
             <Button
               size="sm"
               disabled={pending}
               onClick={() => {
+                if (busy.current) return;
                 setEditing("new");
                 setError("");
               }}
@@ -96,6 +101,7 @@ export function FlowConnectionManager({
             variant="outline"
             disabled={pending}
             onClick={() => {
+              if (busy.current) return;
               setEditing(entry);
               setError("");
             }}
@@ -280,8 +286,9 @@ function ConnectionEditor({
               <p>{entry.accountLabel ?? "Not recorded"}</p>
             </div>
             <p className={s.hint}>
-              Renaming does not change provider permissions or credentials.
-              To change the account or authentication method, disconnect and connect again.
+              Renaming does not change provider permissions or credentials. To
+              change the account or authentication method, disconnect and
+              connect again.
             </p>
           </>
         ) : (
