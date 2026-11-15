@@ -69,6 +69,26 @@ it("requests recorded-agent metadata on the attested direct-reader list without 
   expect(fetch.mock.calls.some(([url]) => String(url).includes("/catalog"))).toBe(false);
 });
 
+it("requests recorded short summaries on the direct-reader list and shows them on the row", async () => {
+  window.__AGENT_RELAY_DASHBOARD_CONFIG__ = { sessionReadApi: true, sessionShortSummaries: true };
+  const fetch = route((url) => {
+    if (url === MEMBERS_URL) return json({ members: [] });
+    if (url.includes("/session-read/session")) return json(handoff());
+    return attested({ sessions: [{ ...session, shortSummary: "Said hi to Codex." }], nextCursor: null });
+  });
+  const page = await listSessions(WORKSPACE, {}, null, signal());
+  const reads = fetch.mock.calls.filter(([url]) => String(url).startsWith("https://read.example.com"));
+  expect(String(reads[0]![0])).toBe(`https://read.example.com/v1/sessions?limit=50&includeShortSummary=recorded&workspace=${WORKSPACE}`);
+  expect(page.items[0]!.shortSummary).toBe("Said hi to Codex.");
+});
+
+it("never sends the short-summary opt-in to Control", async () => {
+  window.__AGENT_RELAY_DASHBOARD_CONFIG__ = { sessionShortSummaries: true };
+  const fetch = route(() => json(controlPage));
+  await listSessions(WORKSPACE, {}, null, signal());
+  expect(String(fetch.mock.calls[0][0])).toBe(`/cloud/api/v1/workspaces/${WORKSPACE}/sessions?metadata=deferred`);
+});
+
 it.each([false, "true", 1, null])("keeps legacy Control query bytes for a non-true recorded-agent flag (%j)", async (sessionAgentNames) => {
   window.__AGENT_RELAY_DASHBOARD_CONFIG__ = { sessionAgentNames };
   const fetch = route(() => json(controlPage));
