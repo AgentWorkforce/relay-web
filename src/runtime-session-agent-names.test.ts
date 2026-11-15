@@ -29,3 +29,28 @@ it.each(["", "yes", "TRUE", "1", " true ", "true\nfalse"])("refuses malformed re
     expect(readFileSync(target, "utf8")).toBe("existing config");
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
+
+it.each([undefined, "false", "true"])("writes the short-summary gate as a strict boolean, off by default (%s)", (value) => {
+  const directory = mkdtempSync(join(tmpdir(), "dashboard-short-summaries-"));
+  try {
+    const env: NodeJS.ProcessEnv = { ...process.env, DASHBOARD_HTML_ROOT: directory };
+    if (value === undefined) delete env.DASHBOARD_SESSION_SHORT_SUMMARIES_ENABLED;
+    else env.DASHBOARD_SESSION_SHORT_SUMMARIES_ENABLED = value;
+    execFileSync("sh", [resolve("docker/40-runtime-config.sh")], { env, stdio: "pipe" });
+    const context = { window: {} as { __AGENT_RELAY_DASHBOARD_CONFIG__?: { sessionShortSummaries: unknown } } };
+    runInNewContext(readFileSync(join(directory, "runtime-config.js"), "utf8"), context);
+    expect(context.window.__AGENT_RELAY_DASHBOARD_CONFIG__?.sessionShortSummaries).toBe(value === "true");
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+it.each(["", "yes", "TRUE", "1"])("refuses malformed short-summary config without replacing existing config (%j)", (value) => {
+  const directory = mkdtempSync(join(tmpdir(), "dashboard-short-summaries-"));
+  const target = join(directory, "runtime-config.js");
+  try {
+    writeFileSync(target, "existing config");
+    expect(() => execFileSync("sh", [resolve("docker/40-runtime-config.sh")], {
+      env: { ...process.env, DASHBOARD_HTML_ROOT: directory, DASHBOARD_SESSION_SHORT_SUMMARIES_ENABLED: value }, stdio: "pipe",
+    })).toThrow();
+    expect(readFileSync(target, "utf8")).toBe("existing config");
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});

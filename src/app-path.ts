@@ -9,6 +9,7 @@ type RuntimeConfig = {
   sessionVisualizations?: unknown;
   sessionReadApi?: unknown;
   sessionAgentNames?: unknown;
+  sessionShortSummaries?: unknown;
   coordinationOverlaps?: unknown;
   analyticsEnabled?: unknown;
 };
@@ -83,6 +84,11 @@ export function sessionVisualizationsEnabled(): boolean {
 /** Opt in only after Control and the reader support recorded agent metadata. */
 export function sessionAgentNamesEnabled(): boolean {
   return runtimeConfig().sessionAgentNames === true;
+}
+
+/** Recorded short summaries in the session list: the reader's includeShortSummary=recorded opt-in. */
+export function sessionShortSummariesEnabled(): boolean {
+  return runtimeConfig().sessionShortSummaries === true;
 }
 
 /** Explicit operator opt-in; no URL, storage or hosted-key override. */

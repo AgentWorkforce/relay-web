@@ -2,7 +2,7 @@
 // The control plane scopes every read to the signed-in workspace.
 import { z } from "zod";
 import { read, ReadError, SignedOut } from "../api/client";
-import { sessionAgentNamesEnabled } from "../app-path";
+import { sessionAgentNamesEnabled, sessionShortSummariesEnabled } from "../app-path";
 import { harnessSources, sessionRow, tools, type Member, type SessionRow } from "./data";
 import {
   fromDirectCursor,
@@ -145,6 +145,8 @@ async function listDirect(
       {
         limit: "50", source, cursor: fromDirectCursor(next),
         ...(sessionAgentNamesEnabled() ? { includeAgentName: "recorded" } : {}),
+        // Direct reader only: Control's list does not take this opt-in.
+        ...(sessionShortSummariesEnabled() ? { includeShortSummary: "recorded" } : {}),
       },
       signal,
     ),
