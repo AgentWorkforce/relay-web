@@ -284,6 +284,12 @@ it("shows the sign-in co-brand under the Agent Relay lockup", async () => {
     const home = screen.getByRole("link", { name: "Agent Relay" });
     expect(home.querySelector("img")).toBeNull();
     expect(screen.queryByText("Powered by Agent Relay")).toBeNull();
+    // Agent Relay's mark keeps its two official colors, whatever the co-brand.
+    const mark = home.querySelector("svg[data-logo-mark]");
+    expect(
+      [...(mark?.querySelectorAll("path") ?? [])].map((path) => path.getAttribute("fill")),
+    ).toEqual(["#75B8E2", "#3F6A86"]);
+    expect(mark?.querySelector("[opacity]")).toBeNull();
   } finally {
     delete window.__AGENT_RELAY_DASHBOARD_CONFIG__;
     resetBrandingForTests();

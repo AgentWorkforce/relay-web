@@ -70,12 +70,31 @@ export const harnessName = (source: string) =>
 export const toolColor = (source: string) =>
   tools[toolKey(source)]?.color ?? "var(--harness-other)";
 
+/**
+ * A value the sessions pipeline's scrubber replaced whole: nothing but
+ * `[REDACTED]` markers (or the oversize `[REDACTED: …]` notice). It records
+ * that a value existed, not what it was, so it is shown as absent.
+ */
+export const isRedactionOnly = (value: string) =>
+  // Strip the markers once (linear) rather than match a repeated group.
+  value.includes("[REDACTED") &&
+  !value.replace(/\[REDACTED(?::[^\]]*)?\]/g, "").trim();
 const text = (value: unknown) =>
-  typeof value === "string" && value.trim() ? value.trim() : null;
-const captionText = (value: unknown) =>
-  typeof value === "string"
-    ? value.replace(/\p{Cc}/gu, " ").replace(/\s+/g, " ").trim() || null
+  typeof value === "string" && value.trim() && !isRedactionOnly(value)
+    ? value.trim()
     : null;
+const captionText = (value: unknown) => {
+  if (typeof value !== "string") return null;
+  const caption = value.replace(/\p{Cc}/gu, " ").replace(/\s+/g, " ").trim();
+  return caption && !isRedactionOnly(caption) ? caption : null;
+};
+/** An agent's handle as the dashboard shows it everywhere: `@name`. */
+export const agentHandle = (name: string) => `@${name.replace(/^@+/, "")}`;
+/** A recorded agent name as its `@handle`; null when absent or redacted whole. */
+export const recordedHandle = (name: unknown) => {
+  const caption = captionText(name);
+  return caption ? agentHandle(caption) : null;
+};
 const strings = (value: unknown) =>
   Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string" && !!item)
@@ -196,18 +215,25 @@ export function sessionTitle(row: SessionRow): string {
   );
 }
 
-/** The recorded execution caption; absent metadata leaves no empty separators. */
+/**
+ * The recorded execution caption: harness, `@agent` handle, model. Absent
+ * metadata leaves no empty separators; an agent name that only repeats the
+ * harness or the model is not a handle and is left out.
+ */
 export function sessionSubtitle(row: SessionRow): string {
-  const model = row.models.map(captionText).find(Boolean);
-  const seen = new Set<string>();
-  return [harnessName(row.source), row.agentName, model]
-    .map(captionText)
-    .filter((part) => {
-      const key = part?.toLowerCase();
-      if (!key || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
+  const harness = captionText(harnessName(row.source));
+  const model = row.models.map(captionText).find(Boolean) ?? null;
+  const agent = captionText(row.agentName);
+  const same = (a: string | null, b: string | null) =>
+    !!a && !!b && a.toLowerCase() === b.toLowerCase();
+  return [
+    harness,
+    agent && !same(agent, harness) && !same(agent, model)
+      ? agentHandle(agent)
+      : null,
+    same(model, harness) ? null : model,
+  ]
+    .filter(Boolean)
     .join(" · ");
 }
 

@@ -38,6 +38,7 @@ import {
   GRAPH_CARD_WIDTH,
 } from "./graph-layout";
 import { listHref, sessionHref } from "../route";
+import { recordedHandle } from "../data";
 import type { SessionGraphDetail } from "./graph-client";
 import styles from "./sessions-graph.module.css";
 
@@ -1787,9 +1788,10 @@ export function SessionsGraph({
   );
 }
 
+/** The node's recorded agent as its `@handle`, or null. */
 function recordedAgent(node: SessionGraphNode): string | null {
-  return (
-    (node as SessionGraphNode & { agentName?: string | null }).agentName || null
+  return recordedHandle(
+    (node as SessionGraphNode & { agentName?: string | null }).agentName,
   );
 }
 function recordedAssignment(node: SessionGraphNode): string | null {
