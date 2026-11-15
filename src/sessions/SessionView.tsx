@@ -26,6 +26,7 @@ import {
 import {
   dateTime,
   harnessName,
+  isRedactionOnly,
   memberNames,
   promptLabel,
   shortProject,
@@ -72,8 +73,11 @@ type Loaded = {
 const MAX_TURN_PAGES = 50;
 const MAX_CITATION_PAGES = 20;
 
+// A value the scrubber replaced whole (`[REDACTED]`) says nothing to show.
 const text = (value: unknown) =>
-  typeof value === "string" && value.trim() ? value.trim() : null;
+  typeof value === "string" && value.trim() && !isRedactionOnly(value)
+    ? value.trim()
+    : null;
 
 export function SessionView({
   workspaceId,
@@ -382,7 +386,7 @@ export function SessionView({
   const project =
     text(catalog?.repoUrl) ??
     text(catalog?.projectKey) ??
-    replay.find((row) => row.projectPath)?.projectPath ??
+    text(replay.find((row) => text(row.projectPath))?.projectPath) ??
     null;
   const started = data?.timing?.startedAt ?? replay[0]?.ts ?? null;
   const last = data?.timing?.lastActionAt ?? replay.at(-1)?.ts ?? null;

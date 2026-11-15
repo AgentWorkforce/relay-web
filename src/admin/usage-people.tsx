@@ -33,6 +33,7 @@ import {
 } from "../shell/ui";
 import { HarnessIcon } from "../sessions/harness-icon";
 import { onLinkClick, sessionHref } from "../sessions/route";
+import { agentHandle } from "../sessions/data";
 
 /** The drill-down for one member, keeping the selected period. */
 const personBase = (userId: string) =>
@@ -573,7 +574,7 @@ function SessionRow({
         <p className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
           <span>
             {session.source}
-            {session.agentName ? ` · ${session.agentName}` : ""}
+            {session.agentName ? ` · ${agentHandle(session.agentName)}` : ""}
           </span>
           {session.project && <span>{session.project}</span>}
           {time && <time dateTime={session.lastTs ?? session.firstTs ?? undefined}>{time}</time>}

@@ -355,7 +355,7 @@ it("the drill-down renders sessions with summaries, detail links and Load more",
   expect(within(screen.getByRole("list", { name: "Recent titles" })).getByText("Fix login flow")).toBeInTheDocument();
   expect(within(screen.getByRole("list", { name: "Projects" })).getByText(/relay · 8/)).toBeInTheDocument();
   expect(within(list).getByText("Summary of s1")).toBeInTheDocument();
-  expect(within(list).getAllByText(/claude · reviewer/)).toHaveLength(2);
+  expect(within(list).getAllByText(/claude · @reviewer/)).toHaveLength(2);
   expect(within(list).getByRole("link", { name: "Session s1" })).toHaveAttribute(
     "href",
     sessionHref("s1", "claude", null, null, "w1"),

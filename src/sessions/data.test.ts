@@ -19,13 +19,16 @@ it("preserves only the explicit recorded top-level list agent metadata", () => {
 });
 
 it.each([
-  [{ agentName: "yo-1", models: ["gpt-6.1-sol"] }, "Codex · yo-1 · gpt-6.1-sol"],
+  [{ agentName: "yo-1", models: ["gpt-6.1-sol"] }, "Codex · @yo-1 · gpt-6.1-sol"],
+  [{ agentName: "codex-relay-desktop-hi", models: ["gpt-6.1-sol"] }, "Codex · @codex-relay-desktop-hi · gpt-6.1-sol"],
+  [{ agentName: "@yo-1" }, "Codex · @yo-1"],
   [{ models: ["gpt-6.1-sol"] }, "Codex · gpt-6.1-sol"],
-  [{ agentName: "yo-1" }, "Codex · yo-1"],
+  [{ agentName: "yo-1" }, "Codex · @yo-1"],
   [{}, "Codex"],
   [{ agentName: " CODEX ", models: ["codex"] }, "Codex"],
-  [{ agentName: " gpt-6.1-sol ", models: [" GPT-6.1-SOL "] }, "Codex · gpt-6.1-sol"],
-  [{ agentName: " \t yo-1\n ", models: [" ", "\t gpt-6.1-sol  ", "second-model"] }, "Codex · yo-1 · gpt-6.1-sol"],
+  [{ agentName: " gpt-6.1-sol ", models: [" GPT-6.1-SOL "] }, "Codex · GPT-6.1-SOL"],
+  [{ agentName: "[REDACTED]", models: ["gpt-6.1-sol"] }, "Codex · gpt-6.1-sol"],
+  [{ agentName: " \t yo-1\n ", models: [" ", "\t gpt-6.1-sol  ", "second-model"] }, "Codex · @yo-1 · gpt-6.1-sol"],
 ])("renders recorded execution metadata %# without blank or duplicate parts", (metadata, expected) => {
   expect(sessionSubtitle(sessionRow({ sessionId: "s", source: "codex", ...metadata }))).toBe(expected);
 });
@@ -138,4 +141,23 @@ it("colors harnesses with brand.css tokens", async () => {
   const { toolColor } = await import("./data");
   expect(toolColor("claude-terminal")).toBe("var(--harness-claude)");
   expect(toolColor("unknown-tool")).toBe("var(--harness-other)");
+});
+
+it("treats a value the scrubber replaced whole as not recorded", () => {
+  const row = sessionRow({
+    sessionId: "s",
+    source: "codex",
+    title: "[REDACTED]",
+    shortSummary: " [REDACTED] [REDACTED] ",
+    catalog: { repoUrl: "[REDACTED]", projectKey: "[REDACTED: 9 characters exceed the limit]", gitBranch: "[REDACTED]" },
+  });
+  expect(row.title).toBeNull();
+  expect(row.shortSummary).toBeNull();
+  expect(row.repoUrl).toBeNull();
+  expect(row.projectKey).toBeNull();
+  expect(row.gitBranch).toBeNull();
+  expect(projectLabel(row)).toBeNull();
+  // A value that only contains a redaction keeps the rest of what was recorded.
+  expect(sessionRow({ sessionId: "s", source: "codex", catalog: { repoUrl: "https://[REDACTED]@github.com/acme/app" } }).repoUrl)
+    .toBe("https://[REDACTED]@github.com/acme/app");
 });

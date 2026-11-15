@@ -50,7 +50,7 @@ it("requests recorded-agent metadata through Control only with the operator flag
   const page = await listSessions(WORKSPACE, { agent: "yo-1" }, null, signal());
   expect(fetch).toHaveBeenCalledTimes(1);
   expect(String(fetch.mock.calls[0][0])).toBe(`/cloud/api/v1/workspaces/${WORKSPACE}/sessions?metadata=deferred&agent=yo-1&includeAgentName=recorded`);
-  expect(sessionSubtitle(page.items[0]!)).toBe("Claude Code · yo-1 · gpt-6.1-sol");
+  expect(sessionSubtitle(page.items[0]!)).toBe("Claude Code · @yo-1 · gpt-6.1-sol");
 });
 
 it("requests recorded-agent metadata on the attested direct-reader list without catalog fetches", async () => {
@@ -65,7 +65,7 @@ it("requests recorded-agent metadata on the attested direct-reader list without 
   expect(reads).toHaveLength(1);
   expect(String(reads[0]![0])).toBe(`https://read.example.com/v1/sessions?limit=50&includeAgentName=recorded&workspace=${WORKSPACE}`);
   expect(reads[0]![1]?.credentials).toBe("omit");
-  expect(sessionSubtitle(page.items[0]!)).toBe("Claude Code · yo-1 · gpt-6.1-sol");
+  expect(sessionSubtitle(page.items[0]!)).toBe("Claude Code · @yo-1 · gpt-6.1-sol");
   expect(fetch.mock.calls.some(([url]) => String(url).includes("/catalog"))).toBe(false);
 });
 
