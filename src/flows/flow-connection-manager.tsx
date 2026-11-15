@@ -261,7 +261,8 @@ function ConnectionEditor({
         onSubmit={(event) => {
           event.preventDefault();
           if (entry) void onRename(entry, name.trim());
-          else if (provider) void onCreate(provider, credentials);
+          else if (provider && !provider.connection)
+            void onCreate(provider, credentials);
         }}
       >
         {(error || catalogError) && <p role="alert">{error || catalogError}</p>}
@@ -309,8 +310,13 @@ function ConnectionEditor({
                   {providers ? "Choose a tool" : "Loading tools…"}
                 </option>
                 {providers?.map((item) => (
-                  <option key={item.id} value={item.id}>
+                  <option
+                    key={item.id}
+                    value={item.id}
+                    disabled={Boolean(item.connection)}
+                  >
                     {item.displayName}
+                    {item.connection ? " — Already connected" : ""}
                   </option>
                 ))}
               </select>

@@ -6,6 +6,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import { SignedOut } from "../admin/api";
 import { FlowConnections } from "./flow-connections";
 
 const api = vi.hoisted(() => ({
@@ -106,4 +107,23 @@ it("offers members an inspector without disconnect controls", async () => {
   expect(
     screen.queryByRole("button", { name: "Disconnect", hidden: true }),
   ).not.toBeInTheDocument();
+});
+
+it("sends expired sessions through sign-in recovery on initial load", async () => {
+  api.integrationProviders.mockRejectedValue(new SignedOut());
+  render(<FlowConnections workspaceId="workspace" canManage />);
+  expect(
+    await screen.findByText(/Your session has expired/),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Refresh" })).not.toBeDisabled();
+});
+
+it("sends expired refreshes through sign-in recovery with a visible error", async () => {
+  render(<FlowConnections workspaceId="workspace" canManage />);
+  await screen.findByText("GitLab");
+  api.integrationProviders.mockRejectedValue(new SignedOut());
+  fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+  expect(
+    await screen.findByText(/Your session has expired/),
+  ).toBeInTheDocument();
 });

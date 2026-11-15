@@ -190,12 +190,12 @@ it("blocks create and edit during disconnect and retains its failure message", a
   );
   render(<FlowConnectionManager workspaceId="workspace" canManage />);
   fireEvent.click(await screen.findByText("Engineering"));
-  fireEvent.click(
-    screen.getByRole("button", { name: "Disconnect" }),
-  );
+  fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
   fireEvent.click(screen.getByRole("button", { name: "Confirm disconnect" }));
   expect(screen.getByRole("button", { name: "Add connection" })).toBeDisabled();
-  expect(screen.queryByRole("button", { name: "Edit connection" })).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Edit connection" }),
+  ).not.toBeInTheDocument();
   reject(new Error("Provider cleanup unavailable"));
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "Provider cleanup unavailable",
@@ -206,4 +206,14 @@ it("blocks create and edit during disconnect and retains its failure message", a
     ).not.toBeDisabled(),
   );
   expect(screen.getByText("Engineering")).toBeInTheDocument();
+});
+
+it("marks connected tools unavailable in Add and keeps disconnected tools selectable", async () => {
+  render(<FlowConnectionManager workspaceId="workspace" canManage />);
+  await screen.findByText("Engineering");
+  fireEvent.click(screen.getByRole("button", { name: "Add connection" }));
+  expect(
+    await screen.findByRole("option", { name: "GitLab — Already connected" }),
+  ).toBeDisabled();
+  expect(screen.getByRole("option", { name: "PostHog" })).not.toBeDisabled();
 });

@@ -160,12 +160,7 @@ function ConnectionsView({
         if (generation.current === mine) setEntries(result);
       },
       (failure: unknown) => {
-        if (!controller.signal.aborted)
-          setError(
-            failure instanceof Error
-              ? failure.message
-              : "Couldn’t load connections.",
-          );
+        if (!controller.signal.aborted) setError(message(failure));
       },
     );
     return () => {
@@ -188,12 +183,7 @@ function ConnectionsView({
       const result = await load();
       if (mine === generation.current) setEntries(result);
     } catch (failure) {
-      if (mine === generation.current)
-        setError(
-          failure instanceof Error
-            ? failure.message
-            : "Couldn’t refresh connections.",
-        );
+      if (mine === generation.current) setError(message(failure));
     } finally {
       if (mine === generation.current) {
         busy.current = false;
