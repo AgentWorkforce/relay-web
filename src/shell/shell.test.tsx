@@ -244,6 +244,65 @@ it("renders a customer profile's brand in the chrome and account menu", () => {
   }
 });
 
+it("shows the sign-in co-brand under the Agent Relay lockup", async () => {
+  window.__AGENT_RELAY_DASHBOARD_CONFIG__ = {
+    customerProfile: {
+      title: "Agent Relay",
+      logo: { light: "/brand/combined.svg", dark: "/brand/combined.svg" },
+      poweredByAgentRelay: true,
+    },
+  } as never;
+  resetBrandingForTests();
+  const fetchMock = vi.fn(async () =>
+    Response.json({
+      methods: ["password"],
+      oidc: null,
+      logo_url: "https://api.acme.example/brand/mark.png",
+      org_name: "Acme Health",
+      password_policy: null,
+    }),
+  );
+  vi.stubGlobal("fetch", fetchMock);
+  try {
+    render(
+      <WorkspaceChrome rail="Agents" label="Sessions">
+        <p>content</p>
+      </WorkspaceChrome>,
+    );
+    const line = await screen.findByText("Acme Health");
+    const coBrand = line.closest("[data-slot='co-brand']");
+    expect(coBrand).toHaveTextContent("for");
+    expect(coBrand?.querySelector("img")).toHaveAttribute(
+      "src",
+      "https://api.acme.example/brand/mark.png",
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/cloud/api/v1/auth/login-config",
+      expect.anything(),
+    );
+    // The lockup is Agent Relay's own, so the co-brand shows once.
+    const home = screen.getByRole("link", { name: "Agent Relay" });
+    expect(home.querySelector("img")).toBeNull();
+    expect(screen.queryByText("Powered by Agent Relay")).toBeNull();
+  } finally {
+    delete window.__AGENT_RELAY_DASHBOARD_CONFIG__;
+    resetBrandingForTests();
+  }
+});
+
+it("does not ask for the login config without a profile", () => {
+  resetBrandingForTests();
+  const fetchMock = vi.fn();
+  vi.stubGlobal("fetch", fetchMock);
+  render(
+    <WorkspaceChrome rail="Agents" label="Sessions">
+      <p>content</p>
+    </WorkspaceChrome>,
+  );
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(document.querySelector("[data-slot='co-brand']")).toBeNull();
+});
+
 it("keeps the Agent Relay lockup without a profile", () => {
   resetBrandingForTests();
   render(

@@ -365,6 +365,15 @@
   height: auto;
   color: var(--foreground);
 }
+/* "for <logo> <name>" under the lockup, flush with the mark (as on sign-in). */
+.workspaceCoBrand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-top: -10px;
+  padding: 0 10px 8px;
+}
 .sidebarRow {
   min-height: 36px;
 }
@@ -416,6 +425,7 @@
   justify-content: center;
   padding-inline: 0;
 }
+.collapsedSidebar .workspaceCoBrand,
 .collapsedSidebar .workspaceBrand > span,
 .collapsedSidebar .sidebarRow > span,
 .collapsedSidebar .sidebarSlot {

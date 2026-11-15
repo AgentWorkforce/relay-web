@@ -23,6 +23,7 @@ import {
   Compass,
 } from "lucide-react";
 import { appPath } from "../app-path";
+import { fetchLoginConfig } from "../sign-in/api";
 import { BrandLockup } from "./brand";
 import { branding } from "./branding";
 import { cn } from "./cn";
@@ -90,6 +91,34 @@ function viewIsCurrent(
   if (rail !== target) return false;
   if (views.filter((view) => view.rail === target).length < 2) return true;
   return name === (label === "Session" ? "Sessions" : label);
+}
+
+/**
+ * The sign-in page's co-brand ("for <logo> <name>"), from relaycontrol's
+ * public login config: the same logo and organization name, so one setting
+ * brands both. Only fetched under a customer profile; the hosted build has
+ * none and never shows it.
+ */
+function useCoBrand(enabled: boolean) {
+  const [coBrand, setCoBrand] = useState<{
+    logoUrl: string;
+    orgName: string | null;
+  } | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    const attempt = new AbortController();
+    void fetchLoginConfig(attempt.signal).then((config) => {
+      if (attempt.signal.aborted) return;
+      const logoUrl = config?.logo_url?.startsWith("https://")
+        ? config.logo_url
+        : null;
+      setCoBrand(
+        logoUrl ? { logoUrl, orgName: config?.org_name?.trim() || null } : null,
+      );
+    });
+    return () => attempt.abort();
+  }, [enabled]);
+  return coBrand;
 }
 
 export function WorkspaceChrome({
@@ -237,6 +266,11 @@ export function WorkspaceChrome({
   }, [navigationOpen, closeDrawer]);
 
   const brand = branding();
+  const coBrand = useCoBrand(brand.custom);
+  // The "for" line names the customer, so the lockup above it is Agent
+  // Relay's own, as on the sign-in page. A profile logo (often a combined
+  // "Agent Relay for <customer>" image) would show the co-brand twice.
+  const lockupBrand = coBrand ? { ...brand, logo: null, custom: false } : brand;
   const views: ViewLink[] = [
     { href: appPath(), label: "Sessions", icon: SessionsIcon, rail: "Agents" },
     ...(capabilities.flows
@@ -272,11 +306,31 @@ export function WorkspaceChrome({
           onClick={closeSidebar}
         >
           <BrandLockup
-            brand={brand}
+            brand={lockupBrand}
             markClassName="h-5"
             wordmarkClassName={s.brandWordmark}
           />
         </a>
+        {coBrand && (
+          <div
+            data-slot="co-brand"
+            className={`${s.workspaceCoBrand} text-[12px] text-muted-foreground`}
+          >
+            <span>for</span>
+            {/* An <img> never runs script inside an SVG. */}
+            <img
+              src={coBrand.logoUrl}
+              alt={coBrand.orgName ? "" : "Organization logo"}
+              referrerPolicy="no-referrer"
+              className="h-4 w-auto max-w-[96px] flex-none object-contain object-left"
+            />
+            {coBrand.orgName && (
+              <strong className="min-w-0 truncate font-semibold text-foreground">
+                {coBrand.orgName}
+              </strong>
+            )}
+          </div>
+        )}
         <nav aria-label="Workspace views" className={s.navGroup}>
           {views.map(({ href, label: name, icon: Icon, rail: target }) => (
             <a
@@ -338,7 +392,7 @@ export function WorkspaceChrome({
         </a>
       </div>
       <div className={s.sidebarAccount}>{accountControl}</div>
-      {brand.poweredBy && (
+      {brand.poweredBy && !coBrand && (
         <p
           className={`${s.poweredBy} px-5 pb-3 text-[11px] text-muted-foreground`}
           data-powered-by
