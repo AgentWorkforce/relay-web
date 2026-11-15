@@ -261,7 +261,7 @@ export function FlowsSidebar({
   flows: given,
   runCount = null,
 }: {
-  current: "flows" | "runs" | "workers" | null;
+  current: "flows" | "runs" | "workers" | "connections" | null;
   /** The overview passes its list; other pages load it here. */
   flows?: Flow[] | null;
   runCount?: number | null;
@@ -302,6 +302,7 @@ export function FlowsSidebar({
     { id: "flows", href: "#/flows", label: "Flows", count: flows ? flows.length : null },
     { id: "runs", href: "#/flows/runs", label: "Run history", count: runCount },
     { id: "workers", href: "#/flows/workers", label: "Workers", count: null },
+    { id: "connections", href: "#/flows/connections", label: "Connections", count: null },
   ] as const;
   return (
     <WorkspaceViewSlot name="sidebar">

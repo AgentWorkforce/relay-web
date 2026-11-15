@@ -32,6 +32,9 @@ vi.mock("./api", async (importOriginal) => {
 });
 
 const api = vi.mocked(flowsApi);
+it("routes connection management inside Flows", () => {
+  expect(parseFlowsRoute("/flows/connections")).toEqual({ kind: "connections" });
+});
 const run = (overrides: Record<string, unknown> = {}) => ({
   runId: "11111111-2222-3333-4444-555555555555",
   flowId: "f1",

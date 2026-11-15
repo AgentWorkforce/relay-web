@@ -230,11 +230,24 @@ export const integrationProviderSchema = z.object({
   authMode: z.enum(["OAUTH2", "API_KEY"]),
   configured: z.boolean(),
   adminMessage: z.string().optional(),
-  connection: z.object({ status: z.enum(["ready", "error"]) }).passthrough().nullable(),
+  credentialFields: z.array(z.object({ key: z.string(), label: z.string(), secret: z.boolean(), required: z.boolean(), placeholder: z.string().optional() })).optional(),
+  connection: z.object({
+    status: z.enum(["ready", "error"]),
+    connectionId: z.string().optional(),
+    version: z.string().optional(),
+    providerConfigKey: nullableText,
+    authMode: z.enum(["oauth2", "api_key"]).optional(),
+    accountLabel: nullableText,
+    scopes: z.array(z.string()).optional(),
+    connectedAt: nullableText,
+    lastRefreshedAt: nullableText,
+    metadata: z.object({ displayName: z.string().optional() }).passthrough().optional(),
+  }).passthrough().nullable(),
 }).passthrough();
 export type IntegrationProvider = z.infer<typeof integrationProviderSchema>;
 export const integrationProvidersSchema = z.object({
   providers: z.array(integrationProviderSchema),
+  canManage: z.boolean().optional(),
 }).passthrough();
 export const integrationConnectSchema = z.object({ connectLink: z.string().url() }).passthrough();
 
