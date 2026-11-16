@@ -19,6 +19,7 @@ import {
   Copy,
   CirclePause,
   FolderGit2,
+  Tag,
   Inbox,
   Network,
   RefreshCw,
@@ -81,6 +82,7 @@ import { Button, buttonClass, Skeleton } from "../shell/ui";
 import { WorkspaceViewSlot } from "../shell/view-slots";
 import styles from "./sessions.module.css";
 import { HarnessIcon } from "./harness-icon";
+import { GroupBadge } from "./group-badge";
 import { SessionSearch } from "./SessionSearch";
 
 // Hosted session-table-data.ts: status dot colors and harness icons.
@@ -366,7 +368,7 @@ function SidebarFilters({
   // Each option's count once per change of rows, query, or clock.
   const counts = useMemo(() => {
     const totals = new Map<string, number>();
-    const fields = ["person", "is", "harness", "project"];
+    const fields = ["person", "is", "harness", "project", "group"];
     for (const field of fields) {
       const values = [
         null,
@@ -479,6 +481,19 @@ function SidebarFilters({
               value: item.value,
               title: item.title,
               icon: <FolderGit2 aria-hidden="true" />,
+            })),
+          )}
+        {/* Only when relaygate labels some loaded session's group. */}
+        {of("group").length > 0 &&
+          section(
+            "group",
+            "Group",
+            "All groups",
+            Tag,
+            of("group").map((item) => ({
+              value: item.value,
+              title: item.title,
+              icon: <Tag aria-hidden="true" />,
             })),
           )}
       </div>
@@ -1045,9 +1060,11 @@ function SessionList({
                           </span>
                         </span>
                       </a>
-                      {(row.parentSessionIds.length > 0 ||
+                      {(row.group ||
+                        row.parentSessionIds.length > 0 ||
                         row.childSessionCount > 0) && (
-                        <span className="relative z-10 mt-1 flex gap-2 text-xs text-muted-foreground">
+                        <span className="relative z-10 mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                          <GroupBadge group={row.group} className="px-2 py-0 text-[10px]" />
                           {row.parentSessionIds.length > 0 && <span>Subagent</span>}
                           {row.childSessionCount > 0 && (
                             <span>

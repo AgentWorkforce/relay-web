@@ -4,7 +4,7 @@ import { z } from "zod";
 import { read, ReadError, SignedOut } from "../api/client";
 import { sessionAgentNamesEnabled, sessionShortSummariesEnabled } from "../app-path";
 import { markAgentFilterNotReady } from "./agent-readiness";
-import { harnessSources, sessionRow, tools, type Member, type SessionRow } from "./data";
+import { harnessSources, sessionGroup, sessionRow, tools, type Member, type SessionGroup, type SessionRow } from "./data";
 import {
   fromDirectCursor,
   ReadApiUnavailable,
@@ -513,6 +513,8 @@ export type SessionCatalog = {
   children: SessionEdge[];
   commitLinks: Record<string, unknown>[];
   truncated: boolean;
+  /** The owning relaygate group's label, when there is one. */
+  group: SessionGroup | null;
 };
 
 function edge(value: Record<string, unknown>): SessionEdge | null {
@@ -543,6 +545,7 @@ export async function sessionCatalog(
       children: z.array(record),
       commitLinks: z.array(record).default([]),
       truncated: z.boolean().default(false),
+      relaygate: z.unknown().optional(),
     })
     .parse(
       await read(
@@ -558,6 +561,7 @@ export async function sessionCatalog(
       .filter((row): row is SessionEdge => !!row),
     commitLinks: body.commitLinks,
     truncated: body.truncated,
+    group: sessionGroup(body.relaygate),
   };
 }
 

@@ -1,5 +1,6 @@
 // Search tokens, ported from the hosted dashboard's session-query.ts:
-// `harness:`, `project:`, `is:`, `person:`, `updated:`, `created:`, with a
+// `harness:`, `project:`, `is:`, `person:`, `updated:`, `created:` (and
+// `group:`, a relaygate group label), with a
 // leading `-` to negate. Free text goes to RelayHistory; tokens filter rows.
 import type { ListFilters } from "./api";
 import {
@@ -60,7 +61,7 @@ export function parseSessionQuery(query: string, { agents = true }: QueryOptions
       continue;
     }
     const match = raw.match(
-      /^(-?)(harness|project|is|person|updated|created):(.*)$/i,
+      /^(-?)(harness|project|is|person|updated|created|group):(.*)$/i,
     );
     if (!match) {
       words.push(raw);
@@ -158,6 +159,9 @@ export function matchesSessionFilters(
       case "created":
         matches = compareDate(row.firstTs, value);
         break;
+      case "group":
+        matches = row.group?.label.toLowerCase() === v;
+        break;
     }
     // An incomplete date is still being typed; don't hide rows for it.
     if (matches === null) return true;
@@ -175,13 +179,16 @@ export type SearchSuggestion = {
 export const suggestionToken = (s: SearchSuggestion) =>
   `${s.field}:${/\s/.test(s.value) ? JSON.stringify(s.value) : s.value}`;
 
-/** Selfhost stores IDs while showing project/person labels in the picker. */
+/**
+ * Selfhost stores IDs while showing project/person labels in the picker; a
+ * group label with a space is quoted in its token, so match its parsed value.
+ */
 export function matchesSuggestionFragment(
   suggestion: SearchSuggestion,
   fragment: string,
 ) {
   const partial = parseSessionQuery(fragment).filters[0];
-  if (partial && (suggestion.field === "project" || suggestion.field === "person")) {
+  if (partial && (suggestion.field === "project" || suggestion.field === "person" || suggestion.field === "group")) {
     return (
       partial.field === suggestion.field && !partial.exclude &&
       [suggestion.value, suggestion.title].some((value) =>
@@ -268,6 +275,15 @@ export function sessionSuggestions(
         value,
         title,
         section: "Projects",
+      })),
+    // Only labels relaygate put on loaded rows; no group is offered otherwise.
+    ...[...new Set(rows.flatMap((row) => (row.group ? [row.group.label] : [])))]
+      .sort((a, b) => a.localeCompare(b))
+      .map((label) => ({
+        field: "group",
+        value: label,
+        title: label,
+        section: "Groups",
       })),
     ...members.map((member) => ({
       field: "person",
