@@ -11,12 +11,15 @@ const recovered = {
   userIds: [], machineIds: [], eventCount: 1,
 };
 
+const activity: URL[] = [];
+
 function route(list: (url: URL) => Response) {
+  activity.length = 0;
   const calls: URL[] = [];
   const fetch = vi.fn(async (input: string | URL) => {
     const url = new URL(String(input), "https://example.test");
     if (url.pathname.endsWith("/session-agent-names")) return Response.json({ names: ["builder", "other"] });
-    if (url.pathname.endsWith("/sessions/activity")) return Response.json({ days: [] });
+    if (url.pathname.endsWith("/sessions/activity")) { activity.push(url); return Response.json({ days: [] }); }
     if (url.pathname.endsWith("/sessions/output")) return Response.json({ output: null, unsupported: true });
     if (url.pathname.endsWith("/sessions")) { calls.push(url); return list(url); }
     return Response.json({ error: "not_found" }, { status: 404 });
@@ -126,4 +129,13 @@ it("still shows an honest successful empty agent result", async () => {
   expect(await screen.findByText("No sessions found for @builder.")).toBeVisible();
   expect(screen.getByText(/^0 sessions$/)).toBeVisible();
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+it("keeps @name as plain text in the collapsed search field and the activity search", async () => {
+  window.__AGENT_RELAY_DASHBOARD_CONFIG__ = { sessionReadApi: false, sessionAgentFilter: false };
+  route(() => Response.json({ ...empty, items: [recovered] }));
+  show("needle @builder");
+  await screen.findByRole("link", { name: /needle recovered session/ });
+  expect(screen.getByRole("button", { name: "Search and filter sessions" })).toHaveTextContent("needle @builder");
+  await waitFor(() => expect(activity.some((url) => url.searchParams.get("q") === "needle @builder")).toBe(true));
 });

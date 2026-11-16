@@ -187,6 +187,10 @@ export function SessionsPage({
   const [overlapRange, setOverlapRange] = useState<OverlapRange>(7);
   const [overlapNow] = useState(() => new Date());
   const debounced = useDebounced(query);
+  // Activity searches the same words as the list: `@name` is text while the
+  // agent filter is off.
+  const agentFilter = useAgentFilterAvailable(workspaceId);
+  const activityText = parseSessionQuery(debounced, { agents: agentFilter }).text;
   const overlapProject = filterValue(debounced, "project") || undefined;
   const overlapDates = useMemo(
     () => overlapsWindow(overlapRange, overlapNow),
@@ -269,7 +273,7 @@ export function SessionsPage({
       {tab === "sessions" && (
         <ActivityPanel
           workspaceId={workspaceId}
-          query={parseSessionQuery(debounced).text}
+          query={activityText}
           onSignedOut={onSignedOut}
         />
       )}
@@ -285,7 +289,7 @@ export function SessionsPage({
       {tab === "activity" && (
         <ActivityPanel
           workspaceId={workspaceId}
-          query={parseSessionQuery(debounced).text}
+          query={activityText}
           onSignedOut={onSignedOut}
         />
       )}

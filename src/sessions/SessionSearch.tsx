@@ -65,7 +65,8 @@ export function SessionSearch({
   // No agent suggestions while the session agent index isn't ready: `@name`
   // is then plain search text (SessionsPage says so).
   const agentFilter = useAgentFilterAvailable(workspaceId);
-  const filters = parseSessionQuery(query, { agents: agentFilter }).filters;
+  const parsed = parseSessionQuery(query, { agents: agentFilter });
+  const filters = parsed.filters;
   const agents = queryAgents(query, { agents: agentFilter });
   const draft = agentFilter ? agentDraft(query) : null;
   // The existing workspace-scoped roster is only fetched while typing @name.
@@ -238,7 +239,7 @@ export function SessionSearch({
           aria-expanded={open}
         >
           <span className="truncate">
-            {parseSessionQuery(query).text ||
+            {parsed.text ||
               (filters.length ? "Add filters…" : "Search or filter sessions…")}
           </span>
           <kbd>/</kbd>
