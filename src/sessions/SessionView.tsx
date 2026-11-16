@@ -12,6 +12,7 @@ import {
 import { Button, ButtonLink, buttonClass, Skeleton } from "../shell/ui";
 import styles from "./sessions.module.css";
 import { HarnessIcon } from "./harness-icon";
+import { GroupBadge } from "./group-badge";
 import { WorkspaceViewSlot } from "../shell/view-slots";
 import { SignedOut } from "../api/client";
 import { useLoad } from "./use-load";
@@ -553,6 +554,7 @@ export function SessionView({
                     <HarnessIcon source={source} className="size-4" fallback={false} />
                     {harnessName(source)}
                   </span>
+                  <GroupBadge group={data.catalog?.group ?? null} />
                 </div>
               </div>
               <div className="flex items-start gap-2">

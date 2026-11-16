@@ -40,7 +40,26 @@ export type SessionRow = {
   totalInputTokens: number | null;
   totalOutputTokens: number | null;
   search: { snippet: string | null; matchedBy: string[] } | null;
+  /** The owning relaygate group's label, when the deployment's policy gives it one. */
+  group: SessionGroup | null;
 };
+
+/**
+ * relaygate's label for a session's owning group (`relaygate: {gid, label}`,
+ * set only by relaygate from its `groupLabels` policy). Display only.
+ */
+export type SessionGroup = { gid: number; label: string };
+
+const GROUP_LABEL = /^[A-Za-z0-9](?:[A-Za-z0-9 ._-]{0,22}[A-Za-z0-9._-])?$/;
+
+export function sessionGroup(value: unknown): SessionGroup | null {
+  if (!isRecord(value)) return null;
+  const { gid, label } = value;
+  return typeof gid === "number" && Number.isSafeInteger(gid) && gid >= 0 &&
+    typeof label === "string" && GROUP_LABEL.test(label)
+    ? { gid, label }
+    : null;
+}
 
 // Colors are brand.css tokens, so they follow the light and dark themes.
 export const tools: Record<string, { label: string; color: string }> = {
@@ -154,6 +173,7 @@ export function sessionRow(value: Record<string, unknown>): SessionRow {
     search: search
       ? { snippet: text(search.snippet), matchedBy: strings(search.matchedBy) }
       : null,
+    group: sessionGroup(value.relaygate),
   };
 }
 
