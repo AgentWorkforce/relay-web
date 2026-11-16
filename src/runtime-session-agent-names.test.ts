@@ -54,3 +54,28 @@ it.each(["", "yes", "TRUE", "1"])("refuses malformed short-summary config withou
     expect(readFileSync(target, "utf8")).toBe("existing config");
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
+
+it.each([undefined, "false", "true"])("writes the agent-filter gate as a strict boolean, on by default (%s)", (value) => {
+  const directory = mkdtempSync(join(tmpdir(), "dashboard-agent-filter-"));
+  try {
+    const env: NodeJS.ProcessEnv = { ...process.env, DASHBOARD_HTML_ROOT: directory };
+    if (value === undefined) delete env.DASHBOARD_SESSION_AGENT_FILTER_ENABLED;
+    else env.DASHBOARD_SESSION_AGENT_FILTER_ENABLED = value;
+    execFileSync("sh", [resolve("docker/40-runtime-config.sh")], { env, stdio: "pipe" });
+    const context = { window: {} as { __AGENT_RELAY_DASHBOARD_CONFIG__?: { sessionAgentFilter: unknown } } };
+    runInNewContext(readFileSync(join(directory, "runtime-config.js"), "utf8"), context);
+    expect(context.window.__AGENT_RELAY_DASHBOARD_CONFIG__?.sessionAgentFilter).toBe(value !== "false");
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+it.each(["", "yes", "FALSE", "0"])("refuses malformed agent-filter config without replacing existing config (%j)", (value) => {
+  const directory = mkdtempSync(join(tmpdir(), "dashboard-agent-filter-"));
+  const target = join(directory, "runtime-config.js");
+  try {
+    writeFileSync(target, "existing config");
+    expect(() => execFileSync("sh", [resolve("docker/40-runtime-config.sh")], {
+      env: { ...process.env, DASHBOARD_HTML_ROOT: directory, DASHBOARD_SESSION_AGENT_FILTER_ENABLED: value }, stdio: "pipe",
+    })).toThrow();
+    expect(readFileSync(target, "utf8")).toBe("existing config");
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});

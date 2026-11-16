@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { Button, Input } from "../shell/ui";
+import { useAgentFilterAvailable } from "./agent-readiness";
 import { agentNames } from "./api";
 import type { Member, SessionRow } from "./data";
 import { HarnessIcon } from "./harness-icon";
@@ -61,9 +62,12 @@ export function SessionSearch({
   const list = useRef<HTMLDivElement>(null);
   const listId = useId();
   const titleId = useId();
-  const filters = parseSessionQuery(query).filters;
-  const agents = queryAgents(query);
-  const draft = agentDraft(query);
+  // No agent suggestions while the session agent index isn't ready: `@name`
+  // is then plain search text (SessionsPage says so).
+  const agentFilter = useAgentFilterAvailable(workspaceId);
+  const filters = parseSessionQuery(query, { agents: agentFilter }).filters;
+  const agents = queryAgents(query, { agents: agentFilter });
+  const draft = agentFilter ? agentDraft(query) : null;
   // The existing workspace-scoped roster is only fetched while typing @name.
   const roster = useLoad(draft === null ? null : workspaceId, (signal) =>
     agentNames(workspaceId, signal),
@@ -298,7 +302,11 @@ export function SessionSearch({
                     autoComplete="off"
                     maxLength={500}
                     value={query}
-                    placeholder="Search sessions, @agent, or add filters…"
+                    placeholder={
+                      agentFilter
+                        ? "Search sessions, @agent, or add filters…"
+                        : "Search sessions or add filters…"
+                    }
                     role="combobox"
                     aria-label="Search sessions"
                     aria-expanded="true"
@@ -452,9 +460,11 @@ export function SessionSearch({
                 {help && (
                   <p id={`${listId}-help`}>
                     Combine words with harness:codex, project:relay, is:active,
-                    is:idle, is:finished or person:&lt;id&gt;. Use @name or
-                    @name* for one agent; agent and text combinations depend on
-                    the backend. Quote project names with spaces. Prefix a
+                    is:idle, is:finished or person:&lt;id&gt;.{" "}
+                    {agentFilter
+                      ? "Use @name or @name* for one agent; agent and text combinations depend on the backend. "
+                      : ""}
+                    Quote project names with spaces. Prefix a
                     filter with - to exclude it. Dates use UTC:
                     updated:&gt;=2026-10-01. Text search scope and availability
                     depend on the workspace backend; filters may apply only to

@@ -32,6 +32,11 @@ import {
 } from "./api";
 import { ActivityPanel } from "./ActivityPanel";
 import {
+  agentFilterRefused,
+  retryAgentFilter,
+  useAgentFilterAvailable,
+} from "./agent-readiness";
+import {
   OverlapsPanel,
   overlapsWindow,
   type OverlapRange,
@@ -57,6 +62,7 @@ import {
   filterValue,
   matchesSessionFilters,
   parseSessionQuery,
+  queryAgents,
   sessionSuggestions,
   setSessionFilter,
 } from "./query";
@@ -510,10 +516,13 @@ function SessionList({
   const [knownProjects, setKnownProjects] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
+  // `@name` is plain search text while the session agent index isn't ready.
+  const agentFilter = useAgentFilterAvailable(workspaceId);
   const filters = useMemo(
-    () => listServerFilters(query, knownProjects),
-    [query, knownProjects],
+    () => listServerFilters(query, knownProjects, { agents: agentFilter }),
+    [query, knownProjects, agentFilter],
   );
+  const textAgents = agentFilter ? [] : queryAgents(liveQuery);
   const key = JSON.stringify([workspaceId, filters, reload]);
   // Filter changes keep the current rows (and members) on screen, marked
   // pending, instead of flashing an empty or skeleton state.
@@ -826,6 +835,20 @@ function SessionList({
           <span role="status">{copyStatus}</span>
         </div>
       )}
+      {textAgents.length > 0 && (
+        <p role="status" className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span>
+            The session agent index isn’t ready yet, so{" "}
+            {textAgents.map((agent) => `@${agent}`).join(" ")}{" "}
+            {textAgents.length === 1 ? "is" : "are"} searched as plain text.
+          </span>
+          {agentFilterRefused(workspaceId) && (
+            <Button variant="ghost" size="sm" onClick={() => retryAgentFilter(workspaceId)}>
+              Try agent filter again
+            </Button>
+          )}
+        </p>
+      )}
       {error && (
         <div role="alert" className="flex flex-wrap items-center gap-3">
           <p>{error instanceof SignedOut ? "Taking you to sign in…" : error.message}</p>
@@ -1087,10 +1110,20 @@ function SessionList({
                     colSpan={8}
                     className="px-5 py-12 text-center text-muted-foreground"
                   >
-                    {!rows.length && filters.agent && parseSessionQuery(liveQuery).filters.every((filter) => filter.field === "agent") ? (
-                      `No sessions found for @${filters.agent}.`
-                    ) : rows.length || filters.agent ? (
-                      "No sessions match these filters."
+                    {liveQuery.trim() || rows.length ? (
+                      // A search or filter found nothing; it is not a first run.
+                      <div className="flex flex-col items-center gap-3">
+                        <p>
+                          {!rows.length && filters.agent && parseSessionQuery(liveQuery).filters.every((filter) => filter.field === "agent")
+                            ? `No sessions found for @${filters.agent}.`
+                            : "No sessions match this search."}
+                        </p>
+                        {liveQuery.trim() && (
+                          <Button variant="outline" size="sm" onClick={() => onQuery("")}>
+                            Clear search
+                          </Button>
+                        )}
+                      </div>
                     ) : (
                       <div className="flex flex-col items-center gap-4">
                         <p>

@@ -9,6 +9,7 @@ type RuntimeConfig = {
   sessionVisualizations?: unknown;
   sessionReadApi?: unknown;
   sessionAgentNames?: unknown;
+  sessionAgentFilter?: unknown;
   sessionShortSummaries?: unknown;
   coordinationOverlaps?: unknown;
   analyticsEnabled?: unknown;
@@ -84,6 +85,15 @@ export function sessionVisualizationsEnabled(): boolean {
 /** Opt in only after Control and the reader support recorded agent metadata. */
 export function sessionAgentNamesEnabled(): boolean {
   return runtimeConfig().sessionAgentNames === true;
+}
+
+/**
+ * The `@name` agent filter. On unless the operator sets it to false (a
+ * backend whose session agent index isn't ready); a refusal at runtime also
+ * turns it off (see sessions/agent-readiness.ts).
+ */
+export function sessionAgentFilterEnabled(): boolean {
+  return runtimeConfig().sessionAgentFilter !== false;
 }
 
 /** Recorded short summaries in the session list: the reader's includeShortSummary=recorded opt-in. */

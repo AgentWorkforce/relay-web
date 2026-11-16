@@ -25,10 +25,16 @@ const PARTS = /(?:[^\s"]|"[^"]*")+/g;
 /** `@name`, `@name@node`, a trailing `*` for a prefix; the same grammar as relaycontrol. */
 const AGENT_TOKEN = /^@([a-z0-9._-]+(?:@[a-z0-9._-]+)?\*?)$/i;
 
+/**
+ * How a query is read. With `agents: false` (the session agent index isn't
+ * ready), `@name` is a plain search word rather than an agent filter.
+ */
+export type QueryOptions = { agents?: boolean };
+
 /** Agents named in a query, in order. The backend serves the first one only. */
-export function queryAgents(query: string) {
+export function queryAgents(query: string, options: QueryOptions = {}) {
   const seen = new Set<string>();
-  for (const filter of parseSessionQuery(query).filters) {
+  for (const filter of parseSessionQuery(query, options).filters) {
     if (filter.field === "agent") seen.add(filter.value);
   }
   return [...seen];
@@ -44,11 +50,11 @@ export function completeAgent(query: string, name: string) {
   return `${query.replace(/@[a-z0-9._-]*(?:@[a-z0-9._-]*)?$/i, `@${name}`)} `;
 }
 
-export function parseSessionQuery(query: string) {
+export function parseSessionQuery(query: string, { agents = true }: QueryOptions = {}) {
   const filters: SessionFilter[] = [];
   const words: string[] = [];
   for (const raw of query.match(PARTS) ?? []) {
-    const agent = raw.match(AGENT_TOKEN);
+    const agent = agents ? raw.match(AGENT_TOKEN) : null;
     if (agent) {
       filters.push({ raw, field: "agent", value: agent[1]!.toLowerCase(), exclude: false });
       continue;
@@ -332,8 +338,9 @@ export function filterValue(query: string, field: string): string {
 export function serverFilters(
   q: string,
   knownProjects: ReadonlySet<string> = new Set(),
+  options: QueryOptions = {},
 ) {
-  const parsed = parseSessionQuery(q);
+  const parsed = parseSessionQuery(q, options);
   const single = (field: string) => {
     const matches = parsed.filters.filter(
       (filter) => filter.field === field && !filter.exclude && filter.value,
@@ -374,9 +381,10 @@ export function serverFilters(
 export function listServerFilters(
   q: string,
   knownProjects: ReadonlySet<string> = new Set(),
+  options: QueryOptions = {},
 ): ListFilters {
-  const filters = serverFilters(q, knownProjects);
-  const agent = queryAgents(q)[0];
+  const filters = serverFilters(q, knownProjects, options);
+  const agent = queryAgents(q, options)[0];
   return agent
     ? { ...filters, agent, project: undefined, since: undefined, until: undefined }
     : filters;

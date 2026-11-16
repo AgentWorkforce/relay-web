@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { agentFilterAvailable, resetAgentFilterReadiness } from "./agent-readiness";
 import { listSessions } from "./api";
 import { ReadError } from "../api/client";
 import {
@@ -13,7 +14,10 @@ import {
 } from "./query";
 import type { SessionRow } from "./data";
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  resetAgentFilterReadiness();
+});
 
 const signal = () => new AbortController().signal;
 const page = { items: [], members: [], nextCursor: null, error: false };
@@ -145,4 +149,40 @@ it("does not apply agent readiness messaging to a non-agent request", async () =
 it("clears all parsed agent restrictions and preserves other terms and quoted literals", () => {
   expect(clearAgentFilters('needle @Builder project:"Team repo" @other updated:>=2026-01-01 harness:codex "@literal"'))
     .toBe('needle project:"Team repo" updated:>=2026-01-01 harness:codex "@literal"');
+});
+
+it("turns the agent filter off for the workspace on a 501 agent_filter_not_ready", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+    Response.json({ error: "unsupported_by_backend", reason: "agent_filter_not_ready" }, { status: 501 }),
+  ));
+  expect(agentFilterAvailable("w1")).toBe(true);
+  await listSessions("w1", { agent: "builder" }, null, signal()).catch(() => undefined);
+  expect(agentFilterAvailable("w1")).toBe(false);
+  expect(agentFilterAvailable("w2")).toBe(true);
+});
+
+it.each([400, 503])("keeps the agent filter on for HTTP %i", async (status) => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+    Response.json({ error: "unsupported_by_backend", reason: "agent_filter_not_ready" }, { status }),
+  ));
+  await listSessions("w1", { agent: "builder" }, null, signal()).catch(() => undefined);
+  expect(agentFilterAvailable("w1")).toBe(true);
+});
+
+it("searches @words without the @ when Control reads them as agents and refuses", async () => {
+  const fetch = vi.fn(async (input: string) => new URL(input, "https://x").searchParams.get("q")?.includes("@")
+    ? Response.json({ error: "unsupported_by_backend", reason: "agent_filter_not_ready" }, { status: 501 })
+    : Response.json(page));
+  vi.stubGlobal("fetch", fetch);
+  await listSessions("w1", { q: "needle @builder" }, null, signal());
+  const queries = fetch.mock.calls.map((call) => new URL(call[0], "https://x").searchParams.get("q"));
+  expect(queries).toEqual(["needle @builder", "needle builder"]);
+});
+
+it("reads @name as plain search text when agents are off", () => {
+  expect(parseSessionQuery("needle @builder", { agents: false })).toEqual({ filters: [], text: "needle @builder" });
+  expect(queryAgents("@builder", { agents: false })).toEqual([]);
+  const filters = listServerFilters('@builder project:"Team repo"', new Set(["Team repo"]), { agents: false });
+  expect(filters).toMatchObject({ q: "@builder", project: "Team repo" });
+  expect(filters.agent).toBeUndefined();
 });

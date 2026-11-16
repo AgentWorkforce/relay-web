@@ -363,7 +363,7 @@ it("keeps older loaded pages and shows no skeleton while a pick loads", async ()
   // The older page's row stays (filtered in place); no skeleton, no empty state.
   expect(screen.getByRole("link", { name: "Write docs" })).toBeInTheDocument();
   expect(screen.queryByRole("status", { name: "Loading sessions…" })).toBeNull();
-  expect(screen.queryByText("No sessions match these filters.")).toBeNull();
+  expect(screen.queryByText("No sessions match this search.")).toBeNull();
   await act(async () => {
     release();
     await held;
@@ -379,7 +379,7 @@ it("keeps older loaded pages and shows no skeleton while a pick loads", async ()
 it("counts each facet against the others, not itself", async () => {
   window.history.replaceState(null, "", "/?q=project%3Arelay%20is%3Afinished");
   render(<Dashboard />);
-  expect(await screen.findByText("No sessions match these filters.")).toBeInTheDocument();
+  expect(await screen.findByText("No sessions match this search.")).toBeInTheDocument();
   expect(facetRow("project", "All projects").count).toBe("1");
   expect(facetRow("project", "relay").count).toBe("0");
   expect(facetRow("project", "docs").count).toBe("1");
@@ -403,7 +403,7 @@ it("applies person and status filters in the browser and free text on the server
   expect(screen.getByRole("combobox", { name: "Search sessions" })).toHaveValue("loader is:finished person:u1");
   fireEvent.keyDown(screen.getByRole("combobox"), { key: "Escape" });
   expect(
-    await screen.findByText("No sessions match these filters."),
+    await screen.findByText("No sessions match this search."),
   ).toBeInTheDocument();
 });
 

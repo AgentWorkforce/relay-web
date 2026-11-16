@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { read, ReadError, SignedOut } from "../api/client";
 import { sessionAgentNamesEnabled, sessionShortSummariesEnabled } from "../app-path";
+import { markAgentFilterNotReady } from "./agent-readiness";
 import { harnessSources, sessionRow, tools, type Member, type SessionRow } from "./data";
 import {
   fromDirectCursor,
@@ -170,7 +171,35 @@ async function listDirect(
   };
 }
 
+/** A search word that starts with `@`. */
+const AT_WORD = /(?:^|\s)@\S/;
+const AT_WORDS = /(^|\s)@+(?=\S)/g;
+
 async function listViaControl(
+  workspace: string,
+  filters: ListFilters,
+  next: string | null,
+  signal: AbortSignal,
+): Promise<SessionPage> {
+  try {
+    return await listViaControlOnce(workspace, filters, next, signal);
+  } catch (failure) {
+    // A Control that reads `@name` in `q` as an agent (SESSION_SEARCH_AGENT_TOKENS)
+    // refuses the plain-text fallback too; search those words without the `@`.
+    if (
+      failure instanceof ReadError &&
+      failure.status === 501 &&
+      failure.code === "agent_filter_not_ready" &&
+      !filters.agent &&
+      filters.q &&
+      AT_WORD.test(filters.q)
+    )
+      return listViaControlOnce(workspace, { ...filters, q: filters.q.replace(AT_WORDS, "$1") }, next, signal);
+    throw failure;
+  }
+}
+
+async function listViaControlOnce(
   workspace: string,
   filters: ListFilters,
   next: string | null,
@@ -196,6 +225,8 @@ async function listViaControl(
     ).catch((failure: unknown) => {
       if (!(filters.agent && failure instanceof ReadError)) throw failure;
       let message: string | undefined;
+      // The page searches `@name` as plain text from now on (agent-readiness.ts).
+      if (failure.status === 501 && failure.code === "agent_filter_not_ready") markAgentFilterNotReady(workspace);
       if (failure.status === 501 && failure.code === "agent_filter_not_ready")
         message = "The session agent index isn’t ready yet. Retry or clear the agent filter.";
       else if (failure.status === 501 && failure.code === "unsupported_by_backend")

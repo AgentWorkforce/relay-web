@@ -1,4 +1,5 @@
 // Ported from Cloud session visualizations, head55bfc58fb.
+import { shortSessionId } from "../data";
 import type {
   SessionGraphEdge,
   SessionGraphHandoff,
@@ -186,7 +187,7 @@ function connectedNeighborhood(
 
 function groupTitle(node: SessionGraphNode): string {
   const title = node.title?.trim();
-  const generatedSuffix = " · " + node.sessionId.slice(0, 8);
+  const generatedSuffix = " · " + shortSessionId(node.sessionId);
   const recordedTitle = title && !title.endsWith(generatedSuffix) ? title : null;
   const request = node.initialRequest?.trim().replace(/\s+/gu, " ");
   return node.assignment?.trim()
