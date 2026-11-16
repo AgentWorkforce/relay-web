@@ -165,6 +165,7 @@ it("requires actual authorization proof and explains a retryable unknown", async
   });
   fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
   await screen.findByText("Ready");
+  expect(api.integrationProviders).toHaveBeenLastCalledWith("workspace", undefined, true);
   expect(screen.getByText("Verified with the provider.")).toBeInTheDocument();
 });
 it("keeps a sync failure visible even when authorization has been verified", async () => {

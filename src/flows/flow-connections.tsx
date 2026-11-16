@@ -53,6 +53,11 @@ export function authorizationExplanation(reason?: string): string {
     rate_limited:
       "The provider limited this check. Wait a moment, then Refresh.",
     check_timed_out: "The provider check timed out. Use Refresh to retry.",
+    authorization_inactive: "The backend reports authorization is inactive. Reconnect to restore access.",
+    provider_unavailable: "The provider is unavailable. Use Refresh to retry.",
+    backend_unavailable: "The connection backend is unavailable. Use Refresh to retry.",
+    backend_status_unknown: "The backend could not confirm authorization. Use Refresh to retry.",
+    not_checked: "This saved connection is missing information required for a check.",
     checks_busy: "Connection checks are busy. Use Refresh to retry.",
     unsupported_provider:
       "Automatic verification is not available for this provider yet.",
@@ -162,8 +167,8 @@ function ConnectionsView({
   const busy = useRef(false);
   const generation = useRef(0);
 
-  async function load(signal?: AbortSignal) {
-    const result = await adminApi.integrationProviders(workspaceId, signal);
+  async function load(signal?: AbortSignal, refreshAuthorization = false) {
+    const result = await adminApi.integrationProviders(workspaceId, signal, refreshAuthorization);
     return result.providers.flatMap((provider) => {
       const c = provider.connection;
       return c
@@ -219,7 +224,7 @@ function ConnectionsView({
     setError(null);
     setConfirm(null);
     try {
-      const result = await load();
+      const result = await load(undefined, true);
       if (mine === generation.current) setEntries(result);
     } catch (failure) {
       if (mine === generation.current) setError(message(failure));
