@@ -187,3 +187,28 @@ it("keeps a sync failure visible even when authorization has been verified", asy
   expect(screen.getByText("Active")).toBeInTheDocument();
   expect(screen.getByText("Verified with the provider.")).toBeInTheDocument();
 });
+
+it("shows inactive authorization for a present saved credential rejected by the provider", async () => {
+  api.integrationProviders.mockResolvedValueOnce({
+    providers: [
+      {
+        ...providers[0],
+        connection: {
+          ...providers[0].connection,
+          upstreamConnected: true,
+          authorizationStatus: "inactive",
+          authorizationReason: "credentials_rejected",
+        },
+      },
+    ],
+    canManage: true,
+  });
+  render(<FlowConnections workspaceId="workspace" canManage />);
+  await screen.findByText("Authorization inactive");
+  expect(screen.queryByText("Ready")).not.toBeInTheDocument();
+  expect(
+    screen.getByText(
+      "The provider rejected these credentials. Reconnect to restore access.",
+    ),
+  ).toBeInTheDocument();
+});
