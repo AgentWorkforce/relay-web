@@ -127,3 +127,63 @@ it("sends expired refreshes through sign-in recovery with a visible error", asyn
     await screen.findByText(/Your session has expired/),
   ).toBeInTheDocument();
 });
+
+it("requires actual authorization proof and explains a retryable unknown", async () => {
+  api.integrationProviders.mockResolvedValueOnce({
+    providers: [
+      {
+        ...providers[0],
+        connection: {
+          ...providers[0].connection,
+          authorizationStatus: "unknown",
+          authorizationReason: "check_timed_out",
+          authorizationCheckedAt: "2026-11-16T07:00:00Z",
+        },
+      },
+    ],
+    canManage: true,
+  });
+  render(<FlowConnections workspaceId="workspace" canManage />);
+  await screen.findByText("Authorization unverified");
+  expect(screen.queryByText("Ready")).not.toBeInTheDocument();
+  expect(
+    screen.getByText("The provider check timed out. Use Refresh to retry."),
+  ).toBeInTheDocument();
+  api.integrationProviders.mockResolvedValueOnce({
+    providers: [
+      {
+        ...providers[0],
+        connection: {
+          ...providers[0].connection,
+          authorizationStatus: "active",
+          authorizationReason: "provider_verified",
+          authorizationCheckedAt: "2026-11-16T07:01:00Z",
+        },
+      },
+    ],
+    canManage: true,
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+  await screen.findByText("Ready");
+  expect(screen.getByText("Verified with the provider.")).toBeInTheDocument();
+});
+it("keeps a sync failure visible even when authorization has been verified", async () => {
+  api.integrationProviders.mockResolvedValueOnce({
+    providers: [
+      {
+        ...providers[0],
+        connection: {
+          ...providers[0].connection,
+          status: "error",
+          authorizationStatus: "active",
+          authorizationReason: "provider_verified",
+        },
+      },
+    ],
+    canManage: true,
+  });
+  render(<FlowConnections workspaceId="workspace" canManage />);
+  await screen.findByText("Needs attention");
+  expect(screen.getByText("Active")).toBeInTheDocument();
+  expect(screen.getByText("Verified with the provider.")).toBeInTheDocument();
+});

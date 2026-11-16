@@ -15,7 +15,7 @@ export type IntegrationListEntry = {
   connectionId?: string;
   version?: string;
   providerConfigKey: string | null;
-  authMode?: "oauth2" | "api_key";
+  authMode?: "oauth2" | "api_key" | "github_app";
   accountLabel?: string | null;
   scopes?: string[];
   lastEventAt?: string | null;
@@ -23,6 +23,9 @@ export type IntegrationListEntry = {
   name?: string;
   inherited?: boolean;
   upstreamConnected?: boolean | null;
+  authorizationStatus?: "active" | "inactive" | "unknown";
+  authorizationReason?: string;
+  authorizationCheckedAt?: string;
 };
 import s from "./flow-connections.module.css";
 
@@ -33,8 +36,37 @@ export function connectionAuthLabel(
     ? "OAuth"
     : entry.authMode === "api_key"
       ? "Access token"
-      : "Not recorded";
+      : entry.authMode === "github_app"
+        ? "App credentials"
+        : "Not recorded";
 }
+
+export function authorizationExplanation(reason?: string): string {
+  const explanations: Record<string, string> = {
+    provider_verified: "Verified with the provider.",
+    backend_verified: "Verified by the connection service.",
+    credentials_rejected:
+      "The provider rejected these credentials. Reconnect to restore access.",
+    connection_missing: "This connection is missing at the connection service.",
+    insufficient_permissions:
+      "The provider refused the verification check. Check permissions, then Refresh.",
+    rate_limited:
+      "The provider limited this check. Wait a moment, then Refresh.",
+    check_timed_out: "The provider check timed out. Use Refresh to retry.",
+    checks_busy: "Connection checks are busy. Use Refresh to retry.",
+    unsupported_provider:
+      "Automatic verification is not available for this provider yet.",
+    unexpected_response:
+      "The provider response could not confirm authorization. Use Refresh to retry.",
+    credentials_unavailable:
+      "Credentials could not be checked. Use Refresh to retry.",
+  };
+  return (
+    explanations[reason ?? ""] ??
+    "Authorization could not be checked. Use Refresh to retry."
+  );
+}
+
 function label(entry: IntegrationListEntry) {
   return entry.displayName;
 }
@@ -82,10 +114,13 @@ function state(entry: IntegrationListEntry): {
 } {
   if (entry.upstreamConnected === false)
     return { label: "Disconnected upstream", variant: "warning" };
-  if (entry.status === "ready")
-    return { label: "Connected", variant: "success" };
+  if (entry.authorizationStatus === "inactive")
+    return { label: "Authorization expired", variant: "warning" };
   if (["error", "degraded"].includes(entry.status))
     return { label: "Needs attention", variant: "warning" };
+  if (entry.authorizationStatus !== "active")
+    return { label: "Authorization unverified", variant: "default" };
+  if (entry.status === "ready") return { label: "Ready", variant: "success" };
   if (entry.status === "syncing")
     return { label: "Syncing", variant: "default" };
   return { label: "Status unverified", variant: "default" };
@@ -138,6 +173,10 @@ function ConnectionsView({
               displayName: provider.displayName,
               connectionLabel: c.metadata?.displayName,
               status: c.status,
+              upstreamConnected: c.upstreamConnected,
+              authorizationStatus: c.authorizationStatus,
+              authorizationReason: c.authorizationReason,
+              authorizationCheckedAt: c.authorizationCheckedAt,
               connectionId: c.connectionId,
               version: c.version,
               providerConfigKey: c.providerConfigKey ?? null,
@@ -341,6 +380,32 @@ function ConnectionsView({
                       <div>
                         <dt>Permissions</dt>
                         <dd>{entry.scopes?.join(", ") || "Not recorded"}</dd>
+                      </div>
+                      <div>
+                        <dt>Authorization</dt>
+                        <dd>
+                          {entry.authorizationStatus === "active"
+                            ? "Active"
+                            : entry.authorizationStatus === "inactive"
+                              ? "Inactive"
+                              : "Unverified"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Authorization check</dt>
+                        <dd>
+                          {authorizationExplanation(entry.authorizationReason)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Checked</dt>
+                        <dd>
+                          {entry.authorizationCheckedAt
+                            ? new Date(
+                                entry.authorizationCheckedAt,
+                              ).toLocaleString()
+                            : "Not checked"}
+                        </dd>
                       </div>
                     </dl>
                     {entry.inherited ? (
