@@ -179,13 +179,16 @@ export type SearchSuggestion = {
 export const suggestionToken = (s: SearchSuggestion) =>
   `${s.field}:${/\s/.test(s.value) ? JSON.stringify(s.value) : s.value}`;
 
-/** Selfhost stores IDs while showing project/person labels in the picker. */
+/**
+ * Selfhost stores IDs while showing project/person labels in the picker; a
+ * group label with a space is quoted in its token, so match its parsed value.
+ */
 export function matchesSuggestionFragment(
   suggestion: SearchSuggestion,
   fragment: string,
 ) {
   const partial = parseSessionQuery(fragment).filters[0];
-  if (partial && (suggestion.field === "project" || suggestion.field === "person")) {
+  if (partial && (suggestion.field === "project" || suggestion.field === "person" || suggestion.field === "group")) {
     return (
       partial.field === suggestion.field && !partial.exclude &&
       [suggestion.value, suggestion.title].some((value) =>

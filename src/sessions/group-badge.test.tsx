@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { sessionGroup, sessionRow } from "./data";
-import { matchesSessionFilters, sessionSuggestions } from "./query";
+import { matchesSessionFilters, matchesSuggestionFragment, sessionSuggestions } from "./query";
 import { SessionView } from "./SessionView";
 import { SessionsPage } from "./SessionsPage";
 
@@ -47,6 +47,13 @@ it("filters rows by group: and offers only labels present on loaded rows", () =>
   expect(rows.filter((row) => matchesSessionFilters(row, "-group:pit", now)).map((row) => row.sessionId)).toEqual(["plain-session-1"]);
   expect(sessionSuggestions(rows, [], now).filter((s) => s.field === "group")).toEqual([{ field: "group", value: "pit", title: "pit", section: "Groups" }]);
   expect(sessionSuggestions([sessionRow(plain)], [], now).some((s) => s.field === "group")).toBe(false);
+});
+
+it("completes a multiword group label from an unquoted prefix", () => {
+  const team = { field: "group", value: "Team Alpha", title: "Team Alpha", section: "Groups" };
+  expect(matchesSuggestionFragment(team, "group:Tea")).toBe(true);
+  expect(matchesSuggestionFragment(team, "group:pit")).toBe(false);
+  expect(matchesSuggestionFragment(team, "harness:Tea")).toBe(false);
 });
 
 it("badges labeled rows in the session list and filters by group from the sidebar", async () => {
