@@ -115,7 +115,7 @@ function state(entry: IntegrationListEntry): {
   if (entry.upstreamConnected === false)
     return { label: "Disconnected upstream", variant: "warning" };
   if (entry.authorizationStatus === "inactive")
-    return { label: "Authorization expired", variant: "warning" };
+    return { label: "Authorization inactive", variant: "warning" };
   if (["error", "degraded"].includes(entry.status))
     return { label: "Needs attention", variant: "warning" };
   if (entry.authorizationStatus !== "active")
