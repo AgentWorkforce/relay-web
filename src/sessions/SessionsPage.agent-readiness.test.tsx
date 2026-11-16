@@ -28,8 +28,8 @@ function route(list: (url: URL) => Response) {
   return { calls, fetch };
 }
 
-function show(query = "@builder") {
-  return render(<SessionsPage workspaceId="fake-workspace" initialQuery={query} tab="sessions" onSignedOut={() => undefined} />);
+function show(query = "@builder", tab: "sessions" | "activity" = "sessions") {
+  return render(<SessionsPage workspaceId="fake-workspace" initialQuery={query} tab={tab} onSignedOut={() => undefined} />);
 }
 
 beforeEach(() => {
@@ -138,4 +138,11 @@ it("keeps @name as plain text in the collapsed search field and the activity sea
   await screen.findByRole("link", { name: /needle recovered session/ });
   expect(screen.getByRole("button", { name: "Search and filter sessions" })).toHaveTextContent("needle @builder");
   await waitFor(() => expect(activity.some((url) => url.searchParams.get("q") === "needle @builder")).toBe(true));
+});
+
+it("does not call a plain-text @name unapplied in the activity view", async () => {
+  window.__AGENT_RELAY_DASHBOARD_CONFIG__ = { sessionReadApi: false, sessionAgentFilter: false };
+  route(() => Response.json(empty));
+  show("@builder is:active", "activity");
+  expect(await screen.findByText(/Not applied in activity:/)).toHaveTextContent(/^Not applied in activity: is:active$/);
 });

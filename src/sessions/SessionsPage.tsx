@@ -269,7 +269,7 @@ export function SessionsPage({
           <SessionSearch workspaceId={workspaceId} query={query} onChange={setQuery} tab={tab} />
         </div>
       )}
-      {tab === "activity" && <UnusedFilters query={query} />}
+      {tab === "activity" && <UnusedFilters query={query} agents={agentFilter} />}
       {tab === "sessions" && (
         <ActivityPanel
           workspaceId={workspaceId}
@@ -326,8 +326,9 @@ export function SessionsSkeleton({ label = "Loading sessions…" }: { label?: st
 }
 
 /** Tokens a view can't apply are named, rather than shown as if active. */
-function UnusedFilters({ query }: { query: string }) {
-  const unused = parseSessionQuery(query).filters.filter((filter) => filter.value);
+function UnusedFilters({ query, agents }: { query: string; agents: boolean }) {
+  // `@name` is searched as text (so applied) while the agent filter is off.
+  const unused = parseSessionQuery(query, { agents }).filters.filter((filter) => filter.value);
   if (!unused.length) return null;
   return (
     <p className="text-xs text-muted-foreground">
