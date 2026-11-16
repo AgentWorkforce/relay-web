@@ -205,13 +205,37 @@ export function promptLabel(value: unknown, max = 90): string | null {
     : `${compact.slice(0, max - 3).trimEnd()}…`;
 }
 
+const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Longest id shown whole in a generated title. */
+const SHORT_ID_MAX = 32;
+
+/**
+ * A session id short enough for a title. A UUID keeps its first group (the
+ * hosted short form); any other id is shown whole, and a very long one is cut
+ * at a separator with an ellipsis, never mid-word.
+ */
+export function shortSessionId(id: string): string {
+  if (UUID_LIKE.test(id)) return id.slice(0, 8);
+  if (id.length <= SHORT_ID_MAX) return id;
+  const head = id.slice(0, SHORT_ID_MAX - 1);
+  const cut = Math.max(...[..."-_.:/"].map((separator) => head.lastIndexOf(separator)));
+  // No separator early enough: a plain prefix still reads as a prefix with the ellipsis.
+  const kept = cut >= 8 ? head.slice(0, cut) : head;
+  return `${kept}…`;
+}
+
+/** The title for a session with no recorded one: `Project · id`. */
+export function generatedSessionTitle(sessionId: string, project = "Session"): string {
+  return `${project} · ${shortSessionId(sessionId)}`;
+}
+
 /** Hosted order: generated title, task title, then the recorded summary. */
 export function sessionTitle(row: SessionRow): string {
   return (
     promptLabel(row.title, 160) ??
     promptLabel(row.taskTitle, 160) ??
     promptLabel(row.summary, 160) ??
-    `${projectLabel(row)?.name ?? "Session"} · ${row.sessionId.slice(0, 8)}`
+    generatedSessionTitle(row.sessionId, projectLabel(row)?.name ?? "Session")
   );
 }
 

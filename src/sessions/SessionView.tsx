@@ -25,6 +25,7 @@ import {
 } from "./api";
 import {
   dateTime,
+  generatedSessionTitle,
   harnessName,
   isRedactionOnly,
   memberNames,
@@ -367,7 +368,7 @@ export function SessionView({
       .filter((cell) => cell.kind === "user")
       .map((cell) => promptLabel(cell.kind === "user" ? cell.text : null, 160))
       .find(Boolean) ??
-    `Session · ${sessionId.slice(0, 8)}`;
+    generatedSessionTitle(sessionId);
   const owners = [
     ...new Set(
       replay

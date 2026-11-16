@@ -32,6 +32,11 @@ import {
 } from "./api";
 import { ActivityPanel } from "./ActivityPanel";
 import {
+  agentFilterRefused,
+  retryAgentFilter,
+  useAgentFilterAvailable,
+} from "./agent-readiness";
+import {
   OverlapsPanel,
   overlapsWindow,
   type OverlapRange,
@@ -57,6 +62,7 @@ import {
   filterValue,
   matchesSessionFilters,
   parseSessionQuery,
+  queryAgents,
   sessionSuggestions,
   setSessionFilter,
 } from "./query";
@@ -181,6 +187,10 @@ export function SessionsPage({
   const [overlapRange, setOverlapRange] = useState<OverlapRange>(7);
   const [overlapNow] = useState(() => new Date());
   const debounced = useDebounced(query);
+  // Activity searches the same words as the list: `@name` is text while the
+  // agent filter is off.
+  const agentFilter = useAgentFilterAvailable(workspaceId);
+  const activityText = parseSessionQuery(debounced, { agents: agentFilter }).text;
   const overlapProject = filterValue(debounced, "project") || undefined;
   const overlapDates = useMemo(
     () => overlapsWindow(overlapRange, overlapNow),
@@ -259,11 +269,11 @@ export function SessionsPage({
           <SessionSearch workspaceId={workspaceId} query={query} onChange={setQuery} tab={tab} />
         </div>
       )}
-      {tab === "activity" && <UnusedFilters query={query} />}
+      {tab === "activity" && <UnusedFilters query={query} agents={agentFilter} />}
       {tab === "sessions" && (
         <ActivityPanel
           workspaceId={workspaceId}
-          query={parseSessionQuery(debounced).text}
+          query={activityText}
           onSignedOut={onSignedOut}
         />
       )}
@@ -279,7 +289,7 @@ export function SessionsPage({
       {tab === "activity" && (
         <ActivityPanel
           workspaceId={workspaceId}
-          query={parseSessionQuery(debounced).text}
+          query={activityText}
           onSignedOut={onSignedOut}
         />
       )}
@@ -316,8 +326,9 @@ export function SessionsSkeleton({ label = "Loading sessions…" }: { label?: st
 }
 
 /** Tokens a view can't apply are named, rather than shown as if active. */
-function UnusedFilters({ query }: { query: string }) {
-  const unused = parseSessionQuery(query).filters.filter((filter) => filter.value);
+function UnusedFilters({ query, agents }: { query: string; agents: boolean }) {
+  // `@name` is searched as text (so applied) while the agent filter is off.
+  const unused = parseSessionQuery(query, { agents }).filters.filter((filter) => filter.value);
   if (!unused.length) return null;
   return (
     <p className="text-xs text-muted-foreground">
@@ -510,10 +521,13 @@ function SessionList({
   const [knownProjects, setKnownProjects] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
+  // `@name` is plain search text while the session agent index isn't ready.
+  const agentFilter = useAgentFilterAvailable(workspaceId);
   const filters = useMemo(
-    () => listServerFilters(query, knownProjects),
-    [query, knownProjects],
+    () => listServerFilters(query, knownProjects, { agents: agentFilter }),
+    [query, knownProjects, agentFilter],
   );
+  const textAgents = agentFilter ? [] : queryAgents(liveQuery);
   const key = JSON.stringify([workspaceId, filters, reload]);
   // Filter changes keep the current rows (and members) on screen, marked
   // pending, instead of flashing an empty or skeleton state.
@@ -826,6 +840,20 @@ function SessionList({
           <span role="status">{copyStatus}</span>
         </div>
       )}
+      {textAgents.length > 0 && (
+        <p role="status" className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span>
+            The session agent index isn’t ready yet, so{" "}
+            {textAgents.map((agent) => `@${agent}`).join(" ")}{" "}
+            {textAgents.length === 1 ? "is" : "are"} searched as plain text.
+          </span>
+          {agentFilterRefused(workspaceId) && (
+            <Button variant="ghost" size="sm" onClick={() => retryAgentFilter(workspaceId)}>
+              Try agent filter again
+            </Button>
+          )}
+        </p>
+      )}
       {error && (
         <div role="alert" className="flex flex-wrap items-center gap-3">
           <p>{error instanceof SignedOut ? "Taking you to sign in…" : error.message}</p>
@@ -1087,10 +1115,20 @@ function SessionList({
                     colSpan={8}
                     className="px-5 py-12 text-center text-muted-foreground"
                   >
-                    {!rows.length && filters.agent && parseSessionQuery(liveQuery).filters.every((filter) => filter.field === "agent") ? (
-                      `No sessions found for @${filters.agent}.`
-                    ) : rows.length || filters.agent ? (
-                      "No sessions match these filters."
+                    {liveQuery.trim() || rows.length ? (
+                      // A search or filter found nothing; it is not a first run.
+                      <div className="flex flex-col items-center gap-3">
+                        <p>
+                          {!rows.length && filters.agent && parseSessionQuery(liveQuery).filters.every((filter) => filter.field === "agent")
+                            ? `No sessions found for @${filters.agent}.`
+                            : "No sessions match this search."}
+                        </p>
+                        {liveQuery.trim() && (
+                          <Button variant="outline" size="sm" onClick={() => onQuery("")}>
+                            Clear search
+                          </Button>
+                        )}
+                      </div>
                     ) : (
                       <div className="flex flex-col items-center gap-4">
                         <p>

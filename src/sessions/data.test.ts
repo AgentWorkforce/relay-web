@@ -7,6 +7,7 @@ import {
   sessionTitle,
   sessionSubtitle,
   shortProject,
+  shortSessionId,
 } from "./data";
 
 it("preserves only the explicit recorded top-level list agent metadata", () => {
@@ -95,7 +96,7 @@ it("falls back from title to task title to summary to the project and id", () =>
     projectId:
       "/Users/k/Projects/AgentWorkforce/relay-desktop/.relayflow/context-review/user-facing",
   });
-  expect(sessionTitle(row)).toBe("AgentWorkforce/relay-desktop · 01a14c35");
+  expect(sessionTitle(row)).toBe("AgentWorkforce/relay-desktop · 01a14c35-6e57");
   expect(sessionTitle({ ...row, taskTitle: "Review the change" })).toBe(
     "Review the change",
   );
@@ -168,4 +169,29 @@ it("treats a value the scrubber replaced whole as not recorded", () => {
   // A value that only contains a redaction keeps the rest of what was recorded.
   expect(sessionRow({ sessionId: "s", source: "codex", catalog: { repoUrl: "https://[REDACTED]@github.com/acme/app" } }).repoUrl)
     .toBe("https://[REDACTED]@github.com/acme/app");
+});
+
+it("shows a non-UUID session id whole in a generated title", () => {
+  // A fixed eight-character slice turned this into "acc-doc-".
+  expect(shortSessionId("acc-doc-poc-1320")).toBe("acc-doc-poc-1320");
+  expect(sessionTitle(sessionRow({ sessionId: "acc-doc-poc-1320", source: "codex" }))).toBe(
+    "Session · acc-doc-poc-1320",
+  );
+});
+
+it("keeps a UUID's first group, the hosted short form", () => {
+  expect(shortSessionId("3f2a9c1e-7b4d-4e8a-9c2f-1a2b3c4d5e6f")).toBe("3f2a9c1e");
+});
+
+it("cuts a very long id at a separator with an ellipsis, never mid-word", () => {
+  const id = "import-batch-2026-11-14-workspace-migration-run-0042";
+  const short = shortSessionId(id);
+  expect(short.endsWith("…")).toBe(true);
+  expect(short.length).toBeLessThanOrEqual(32);
+  const kept = short.slice(0, -1);
+  expect(id.startsWith(kept)).toBe(true);
+  // The cut lands on a separator, so the last kept word is whole.
+  expect(id[kept.length]).toMatch(/[-_.:/]/);
+  // No separator to cut at: a plain prefix, still marked as cut.
+  expect(shortSessionId("x".repeat(40))).toBe(`${"x".repeat(31)}…`);
 });
