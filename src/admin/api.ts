@@ -194,8 +194,8 @@ export const adminApi = {
     }),
 
   /** Integration status for just-in-time connects (flows, CLI). */
-  integrationProviders: (workspace: string, signal?: AbortSignal) =>
-    call(`${ws(workspace)}/integrations/providers`, integrationProvidersSchema, { signal }),
+  integrationProviders: (workspace: string, signal?: AbortSignal, refreshAuthorization = false) =>
+    call(`${ws(workspace)}/integrations/providers${refreshAuthorization ? "?refreshAuthorization=true" : ""}`, integrationProvidersSchema, { signal }),
   disconnectIntegration: (workspace: string, provider: string, connectionId?: string, version?: string) => {
     const query = new URLSearchParams({ ...(connectionId ? { connectionId } : {}), ...(version ? { version } : {}) });
     return call(`${ws(workspace)}/integrations/${enc(provider)}${query.size ? `?${query}` : ""}`, null, { method: "DELETE" });
