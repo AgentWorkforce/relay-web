@@ -35,6 +35,7 @@ import {
   usageSchema,
   usagePeopleSchema,
   usagePersonSessionsSchema,
+  workspaceLeadersSchema,
   type TokenPurpose,
   type Role,
 } from "./contracts";
@@ -396,6 +397,19 @@ export const adminApi = {
     call(`/v1/organizations/${enc(organization)}/capture-policy`, capturePolicySchema, {
       method: "DELETE",
       headers: { "If-Match": String(revision) },
+    }),
+  /** Any member reads; also the agents the patterns match right now. */
+  getWorkspaceLeaders: (workspace: string, signal?: AbortSignal) =>
+    call(`${ws(workspace)}/leaders`, workspaceLeadersSchema, { signal }),
+  /**
+   * Owner/admin only; replaces the whole pattern list. 400 `invalid_request`
+   * for a bad list, 502 `workspace_leaders_unavailable` when the Relaycast
+   * engine cannot be reached.
+   */
+  setWorkspaceLeaders: (workspace: string, patterns: string[]) =>
+    call(`${ws(workspace)}/leaders`, workspaceLeadersSchema, {
+      method: "PUT",
+      body: { patterns },
     }),
   hardDeleteSession: (
     organization: string,

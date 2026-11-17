@@ -430,3 +430,16 @@ export const capturePolicySchema = z.object({
   settings: captureSettingsSchema,
 });
 export type CapturePolicy = z.infer<typeof capturePolicySchema>;
+
+/**
+ * relay-control GET|PUT /workspaces/{id}/leaders: the agent-name patterns
+ * whose DMs hosts treat as instructions from a lead, and the agents they
+ * match right now. Any member reads; owners and admins write.
+ */
+export const MAX_LEADER_PATTERNS = 64;
+export const MAX_LEADER_PATTERN_LENGTH = 128;
+export const workspaceLeadersSchema = z.object({
+  leaders: z.array(z.object({ name: z.string(), agent_id: z.string() })),
+  patterns: z.array(z.string()),
+});
+export type WorkspaceLeaders = z.infer<typeof workspaceLeadersSchema>;

@@ -7,7 +7,7 @@ import { DesktopSection } from "./desktop";
 import { EnvironmentSection } from "./environment";
 import { MembersSection } from "./members";
 import { OrganizationSection, WorkspaceSection } from "./organization";
-import { PoliciesSection } from "./policies";
+import { PoliciesSection, WorkspaceLeadersSection } from "./policies";
 import { TokensSection } from "./tokens";
 import { UsageRefused, UsageSection, type UsageRange } from "./usage";
 import { UsagePersonPage } from "./usage-people";
@@ -108,7 +108,8 @@ const DESCRIPTIONS: Record<SettingsSectionId, string> = {
   organization: "Your organization’s identity and shared settings.",
   members: "The people who share this workspace.",
   usage: "How your organization uses Relay. Counts only.",
-  policies: "What Agent Relay Desktop uploads for everyone in your organization.",
+  policies:
+    "What Agent Relay Desktop uploads for everyone in your organization, and which agents lead your workspace.",
 };
 
 /** Hosted: a workspace still named "Default" is shown by its organization's name. */
@@ -328,10 +329,16 @@ export function Settings(props: {
                   />
                 ))}
               {active === "policies" && manage && (
-                <PoliciesSection
-                  key={context.currentOrganization.id}
-                  organizationId={context.currentOrganization.id}
-                />
+                <>
+                  <PoliciesSection
+                    key={context.currentOrganization.id}
+                    organizationId={context.currentOrganization.id}
+                  />
+                  <WorkspaceLeadersSection
+                    key={`leaders-${context.currentWorkspace.id}`}
+                    workspaceId={context.currentWorkspace.id}
+                  />
+                </>
               )}
               {active === "members" && (
                 <MembersSection

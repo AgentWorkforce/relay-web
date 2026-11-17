@@ -341,3 +341,9 @@
   }
 }
 }
+.settings .policy-patterns {
+  width: 100%;
+  min-height: 7em;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+}
