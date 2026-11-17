@@ -126,10 +126,16 @@ function ReplicasSetup({
   workspaceId,
   organizationId,
   canManage,
+  disabled = false,
+  onBusyChange,
 }: {
   workspaceId: string;
   organizationId?: string;
   canManage: boolean;
+  /** True while the connection itself is being replaced or disconnected. */
+  disabled?: boolean;
+  /** Reports whether a setup write is in flight. */
+  onBusyChange?(busy: boolean): void;
 }) {
   const setup = useLoad(async (signal) => {
     const [policy, workspace] = await Promise.all([
@@ -155,6 +161,7 @@ function ReplicasSetup({
   const [error, setError] = useState<string | null>(null);
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const active = useRef(true);
+  const inFlight = useRef(false);
   useEffect(() => {
     active.current = true;
     return () => {
@@ -167,7 +174,10 @@ function ReplicasSetup({
     work: () => Promise<unknown>,
     environmentId?: string,
   ) {
-    if (pending || !canManage) return;
+    // The ref closes the window before the pending state re-renders.
+    if (inFlight.current || pending || disabled || !canManage) return;
+    inFlight.current = true;
+    onBusyChange?.(true);
     setPending(action);
     setError(null);
     if (environmentId)
@@ -186,6 +196,8 @@ function ReplicasSetup({
         else setError(text);
       }
     } finally {
+      inFlight.current = false;
+      onBusyChange?.(false);
       // Every write re-reads: a 409 (or a partial apply) leaves newer server
       // state, and useLoad keeps only the newest response.
       if (active.current) {
@@ -238,7 +250,7 @@ function ReplicasSetup({
                 id={selectId}
                 className={selectClass}
                 value={choice}
-                disabled={pending !== null}
+                disabled={disabled || pending !== null}
                 onChange={(event) => setChoice(event.target.value)}
               >
                 <option value="">No default principal</option>
@@ -254,7 +266,7 @@ function ReplicasSetup({
                 )}
               </select>
             </label>
-            <Button type="submit" disabled={pending !== null}>
+            <Button type="submit" disabled={disabled || pending !== null}>
               {pending === "apply" ? "Working…" : "Apply Relay setup"}
             </Button>
           </div>
@@ -306,7 +318,7 @@ function ReplicasSetup({
                         <Button
                           variant="outline"
                           size="sm"
-                          disabled={pending !== null}
+                          disabled={disabled || pending !== null}
                           onClick={() =>
                             void write(
                               `toggle:${id}`,
@@ -328,7 +340,7 @@ function ReplicasSetup({
                           <Button
                             variant="outline"
                             size="sm"
-                            disabled={pending !== null}
+                            disabled={disabled || pending !== null}
                             onClick={() =>
                               void write(
                                 `retry:${id}`,
@@ -400,6 +412,7 @@ export function ReplicasConnectionCard({
   }
   const [key, setKey] = useState("");
   const [pending, setPending] = useState(false);
+  const [setupBusy, setSetupBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const active = useRef(true);
   useEffect(() => {
@@ -410,7 +423,7 @@ export function ReplicasConnectionCard({
   }, []);
   const manageable = canManage && provider.capabilities.connectionManagement;
   async function change(disconnect = false) {
-    if (pending || !manageable) return;
+    if (pending || setupBusy || !manageable) return;
     const submitted = key;
     setPending(true);
     setError(null);
@@ -457,7 +470,7 @@ export function ReplicasConnectionCard({
               {manageable && (
                 <Button
                   variant="outline"
-                  disabled={pending}
+                  disabled={pending || setupBusy}
                   onClick={() => void change(true)}
                 >
                   Disconnect
@@ -468,12 +481,16 @@ export function ReplicasConnectionCard({
               Disconnect revokes every replica's Relay access. Reconnecting
               requires explicitly restoring each previous VM.
             </p>
-            <ReplicasSetup
-              key={`${connection.keyHint}:${connection.validatedAt}`}
-              workspaceId={workspaceId}
-              organizationId={organizationId}
-              canManage={canManage}
-            />
+            {canManage && (
+              <ReplicasSetup
+                key={`${connection.keyHint}:${connection.validatedAt}`}
+                workspaceId={workspaceId}
+                organizationId={organizationId}
+                canManage={canManage}
+                disabled={pending}
+                onBusyChange={setSetupBusy}
+              />
+            )}
           </>
         )}
         {manageable ? (
@@ -493,15 +510,16 @@ export function ReplicasConnectionCard({
                 data-1p-ignore="true"
                 data-lpignore="true"
                 value={key}
+                disabled={pending || setupBusy}
                 onChange={(event) => setKey(event.target.value)}
               />
             </label>
-            <Button type="submit" disabled={pending || !key.trim()}>
+            <Button type="submit" disabled={pending || setupBusy || !key.trim()}>
               {pending ? "Working…" : connection ? "Replace" : "Connect"}
             </Button>
           </form>
         ) : (
-          !connection && (
+          (!canManage || !connection) && (
             <p>Ask an organization owner or admin to connect Replicas.</p>
           )
         )}

@@ -245,3 +245,36 @@ it("shows members a safe prompt without management controls", async () => {
   expect(within(card).queryByLabelText("Replicas API key")).not.toBeInTheDocument();
   expect(calls.some((call) => call.url.includes("/replicas") || call.url.includes("/memberships"))).toBe(false);
 });
+
+it("shows a connected non-manager the prompt and never calls the setup routes", async () => {
+  render(<RemoteAgentsSection workspaceId="w1" organizationId="o1" canManage={false} />);
+  expect(await screen.findByText("Ask an organization owner or admin to connect Replicas.")).toBeInTheDocument();
+  const card = await replicasCard();
+  expect(within(card).getByText(/Connected with/)).toBeInTheDocument();
+  expect(within(card).queryByRole("button")).not.toBeInTheDocument();
+  expect(calls.some((call) => call.url.endsWith("/replicas/environment-policies"))).toBe(false);
+  expect(calls.some((call) => call.url.endsWith("/workspaces/w1/replicas"))).toBe(false);
+});
+
+it("disables Disconnect while a setup write is in flight", async () => {
+  render(<RemoteAgentsSection workspaceId="w1" organizationId="o1" canManage />);
+  const select = await screen.findByLabelText("Member responsible for Replicas agents");
+  await waitFor(() => expect(optionTexts(select)).toHaveLength(3));
+  const impl = vi.mocked(fetch).getMockImplementation()!;
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  vi.mocked(fetch).mockImplementation(async (input, init) => {
+    if (String(input).endsWith("/replicas/environments/sync")) await gate;
+    return impl(input, init);
+  });
+  const disconnect = screen.getByRole("button", { name: "Disconnect" });
+  expect(disconnect).toBeEnabled();
+  fireEvent.click(screen.getByRole("button", { name: "Apply Relay setup" }));
+  await waitFor(() => expect(disconnect).toBeDisabled());
+  expect(screen.getByRole("button", { name: "Replace" })).toBeDisabled();
+  expect(screen.getByLabelText("Replace Replicas API key")).toBeDisabled();
+  release();
+  await waitFor(() => expect(disconnect).toBeEnabled());
+});
