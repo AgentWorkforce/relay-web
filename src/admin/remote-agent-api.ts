@@ -152,3 +152,137 @@ export const remoteAgentApi = {
     }
   },
 };
+
+// Replicas setup. Status strings stay open (z.string()) so a newer Control can
+// add states without breaking this dashboard; unknown fields are stripped.
+const replicasEnvironmentSchema = z.object({
+  environmentId: z.string(),
+  name: z.string().nullable().optional(),
+  enabled: z.boolean(),
+  status: z.string(),
+  discoveryMissingSince: z.string().nullable().optional(),
+  optedOut: z.boolean().optional(),
+  stale: z.boolean().optional(),
+  registeredMcpId: z.string().nullable().optional(),
+  bindings: z.number().optional(),
+  creators: z
+    .array(
+      z.object({
+        creatorId: z.string(),
+        userId: z.string().nullable().optional(),
+        emailHint: z.string().nullable().optional(),
+      }),
+    )
+    .optional(),
+  pendingCreators: z
+    .array(
+      z.object({
+        creatorId: z.string(),
+        emailHint: z.string().nullable().optional(),
+        lastSeenAt: z.string().nullable().optional(),
+        count: z.number().optional(),
+      }),
+    )
+    .optional(),
+});
+export type ReplicasEnvironment = z.infer<typeof replicasEnvironmentSchema>;
+export const replicasPolicySchema = z.object({
+  mcpUrl: z.string().optional(),
+  organizationId: z.string().nullable().optional(),
+  accessRevoked: z
+    .object({ since: z.string(), error: z.string().nullable().optional() })
+    .nullable()
+    .optional(),
+  allEnvironments: z.boolean().optional(),
+  principal: z
+    .object({ userId: z.string(), member: z.boolean() })
+    .nullable()
+    .optional(),
+  organizationShared: z.boolean().optional(),
+  environments: z.array(replicasEnvironmentSchema),
+});
+export type ReplicasPolicy = z.infer<typeof replicasPolicySchema>;
+export const replicasWorkspaceSchema = z.object({
+  connection: z
+    .object({
+      keyHint: z.string(),
+      organizationId: z.string().nullable().optional(),
+      validatedAt: z.string().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
+  spawns: z.array(
+    z.object({
+      id: z.string(),
+      agent: z.string().nullable().optional(),
+      replicaId: z.string().nullable().optional(),
+      status: z.string(),
+      error: z.string().nullable().optional(),
+      provisioning_error: z
+        .object({
+          code: z.string().optional(),
+          stage: z.string().optional(),
+          retryable: z.boolean().optional(),
+        })
+        .nullable()
+        .optional(),
+      uncertainMessages: z.number().optional(),
+      rejectedMessages: z.number().optional(),
+      retryingMessages: z.number().optional(),
+    }),
+  ),
+});
+export type ReplicasSpawn = z.infer<
+  typeof replicasWorkspaceSchema
+>["spawns"][number];
+const replicasSyncSchema = z.object({
+  discovery: z
+    .object({ status: z.string() })
+    .nullable()
+    .optional(),
+  allEnvironments: z.boolean().optional(),
+  environments: z
+    .array(
+      z.object({
+        environmentId: z.string(),
+        status: z.string(),
+        retryable: z.boolean().optional(),
+      }),
+    )
+    .optional(),
+});
+
+export const replicasApi = {
+  workspace: (workspace: string, signal?: AbortSignal) =>
+    adminRequest(`${base(workspace)}/replicas`, replicasWorkspaceSchema, {
+      signal,
+    }),
+  policies: (workspace: string, signal?: AbortSignal) =>
+    adminRequest(
+      `${base(workspace)}/replicas/environment-policies`,
+      replicasPolicySchema,
+      { signal },
+    ),
+  sync: (workspace: string) =>
+    adminRequest(
+      `${base(workspace)}/replicas/environments/sync`,
+      replicasSyncSchema,
+      { method: "POST", body: {} },
+    ),
+  updateEnvironment: (
+    workspace: string,
+    environmentId: string,
+    body: { enabled: boolean } | { retry_registration: true },
+  ) =>
+    adminRequest(
+      `${base(workspace)}/replicas/environments/${encodeURIComponent(environmentId)}`,
+      null,
+      { method: "PUT", body },
+    ),
+  setPrincipal: (workspace: string, userId: string | null) =>
+    adminRequest(
+      `${base(workspace)}/replicas/environment-principal`,
+      replicasPolicySchema,
+      { method: "PUT", body: { userId } },
+    ),
+};
