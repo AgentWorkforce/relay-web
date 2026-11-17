@@ -1,9 +1,12 @@
 import { useState, type FormEvent } from "react";
 import { adminApi, ApiError } from "./api";
 import {
+  MAX_LEADER_PATTERN_LENGTH,
+  MAX_LEADER_PATTERNS,
   MAX_OOPS_WINDOW_SECONDS,
   type CapturePolicy,
   type CaptureSettings,
+  type WorkspaceLeaders,
 } from "./contracts";
 import { message, useLoad } from "./use-load";
 
@@ -513,5 +516,209 @@ function RadioGroup(props: {
         </label>
       ))}
     </fieldset>
+  );
+}
+
+/**
+ * One pattern per line: trimmed, blank lines dropped, duplicates collapsed in
+ * first-seen order (as Control stores them). A string is the reason the list
+ * is refused before anything is sent.
+ */
+export function leaderPatternsFrom(text: string): string[] | string {
+  const patterns = [
+    ...new Set(
+      text
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean),
+    ),
+  ];
+  const long = patterns.findIndex(
+    (pattern) => pattern.length > MAX_LEADER_PATTERN_LENGTH,
+  );
+  if (long !== -1)
+    return `Pattern ${long + 1} is ${patterns[long]!.length} characters long; each pattern can be at most ${MAX_LEADER_PATTERN_LENGTH}.`;
+  if (patterns.length > MAX_LEADER_PATTERNS)
+    return `There are ${patterns.length} patterns; a workspace can have at most ${MAX_LEADER_PATTERNS}.`;
+  return patterns;
+}
+
+export function WorkspaceLeadersSection(props: { workspaceId: string }) {
+  const { data, error, reload } = useLoad((signal) =>
+    adminApi.getWorkspaceLeaders(props.workspaceId, signal),
+  );
+  // A write's answer is shown until the next explicit reload.
+  const [written, setWritten] = useState<WorkspaceLeaders | null>(null);
+  const [saves, setSaves] = useState(0);
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const leaders = written ?? data;
+
+  async function save(patterns: string[]) {
+    setNotice(null);
+    try {
+      const next = await adminApi.setWorkspaceLeaders(props.workspaceId, patterns);
+      setWritten(next);
+      setSaves((value) => value + 1);
+      setNotice({
+        kind: "status",
+        text: "Leaders saved. Hosts pick up the change within about a minute.",
+      });
+    } catch (failure) {
+      if (failure instanceof ApiError && failure.code === "invalid_request") {
+        setNotice({
+          kind: "alert",
+          text: `Control refused the patterns, and nothing was saved: ${failure.message}`,
+        });
+        return;
+      }
+      if (
+        failure instanceof ApiError &&
+        failure.code === "workspace_leaders_unavailable"
+      ) {
+        setNotice({
+          kind: "alert",
+          text: `The relay engine could not be reached, so nothing was saved: ${failure.message}`,
+        });
+        return;
+      }
+      setNotice({ kind: "alert", text: message(failure) });
+    }
+  }
+
+  return (
+    <section aria-labelledby="leaders-title" className="card policies">
+      <h2 id="leaders-title">Workspace leaders</h2>
+      <p>
+        Agents whose direct messages the hosts in this workspace treat as
+        instructions from a lead. Hosts refresh the list about once a minute.
+      </p>
+      {error && (
+        <p role="alert">
+          {leaders
+            ? `Couldn't load the latest leaders, so the ones shown may be out of date: ${message(error)}`
+            : message(error)}{" "}
+          <button
+            type="button"
+            onClick={() => {
+              setWritten(null);
+              reload();
+            }}
+          >
+            Try again
+          </button>
+        </p>
+      )}
+      {!leaders && !error && <p role="status">Loading leaders…</p>}
+      {leaders && (
+        <LeadersForm
+          // A fresh draft after each load or save.
+          key={`${saves}:${leaders.patterns.join("\n")}`}
+          leaders={leaders}
+          onSave={save}
+          onEdit={() => setNotice((value) => (value?.kind === "status" ? null : value))}
+        />
+      )}
+      {notice && <p role={notice.kind}>{notice.text}</p>}
+    </section>
+  );
+}
+
+function LeadersForm(props: {
+  leaders: WorkspaceLeaders;
+  onSave: (patterns: string[]) => Promise<void>;
+  onEdit: () => void;
+}) {
+  const saved = props.leaders.patterns.join("\n");
+  const [draft, setDraft] = useState(saved);
+  const [busy, setBusy] = useState(false);
+  const [invalid, setInvalid] = useState<string | null>(null);
+  const next = leaderPatternsFrom(draft);
+  const dirty =
+    typeof next === "string" || next.join("\n") !== props.leaders.patterns.join("\n");
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (typeof next === "string") {
+      setInvalid(next);
+      return;
+    }
+    setBusy(true);
+    try {
+      await props.onSave(next);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form
+      noValidate
+      onSubmit={(event) => void submit(event)}
+      aria-label="Workspace leaders"
+    >
+      <fieldset className="policy-group" disabled={busy}>
+        <legend>Leader patterns</legend>
+        <p className="policy-help" id="leader-patterns-help">
+          One agent name pattern per line, at most {MAX_LEADER_PATTERNS}{" "}
+          patterns of up to {MAX_LEADER_PATTERN_LENGTH} characters. A pattern
+          matches the whole agent name and is case-sensitive; <code>*</code>{" "}
+          matches any run of characters and <code>?</code> matches one
+          character. A line without either is an exact agent name. Duplicate
+          lines are collapsed.
+        </p>
+        <textarea
+          className="policy-patterns"
+          aria-label="Leader patterns"
+          aria-describedby="leader-patterns-help"
+          aria-invalid={invalid ? true : undefined}
+          rows={6}
+          spellCheck={false}
+          autoCapitalize="off"
+          autoComplete="off"
+          placeholder={"lead\nreview-*"}
+          value={draft}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            setInvalid(null);
+            props.onEdit();
+          }}
+        />
+      </fieldset>
+
+      {invalid && <p role="alert">{invalid}</p>}
+      <div className="row policy-actions">
+        <button className="primary" type="submit" disabled={busy || !dirty}>
+          {busy ? "Saving…" : "Save leaders"}
+        </button>
+        {dirty && !busy && (
+          <button
+            type="button"
+            onClick={() => {
+              setDraft(saved);
+              setInvalid(null);
+            }}
+          >
+            Discard changes
+          </button>
+        )}
+      </div>
+
+      <fieldset className="policy-group">
+        <legend>Currently matched leaders</legend>
+        {props.leaders.leaders.length ? (
+          <ul aria-label="Currently matched leaders" data-testid="matched-leaders">
+            {props.leaders.leaders.map((leader) => (
+              <li key={leader.agent_id}>{leader.name}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="policy-help" data-testid="matched-leaders">
+            {props.leaders.patterns.length
+              ? "No agent in this workspace matches these patterns right now."
+              : "No leaders are set."}
+          </p>
+        )}
+      </fieldset>
+    </form>
   );
 }

@@ -205,6 +205,14 @@ When Control's `SELFHOST_OPERATOR_CONTROLS` is `off`, writes answer
 reason. Control has no read that reports the switch, so the page learns it from
 the first refused write.
 
+The same page carries a **Workspace leaders** card for the current workspace:
+one agent-name pattern per line (`GET|PUT /cloud/api/v1/workspaces/{id}/leaders`,
+body `{ "patterns": [...] }`), checked before sending (at most 64 patterns of
+1 to 128 characters, whole-name and case-sensitive, `*` and `?` the only
+wildcards, duplicates collapsed), with the agents currently matched listed
+below. Control's `400 invalid_request` and `502 workspace_leaders_unavailable`
+messages are shown as is; hosts pick up a change within about a minute.
+
 ## Password sign-in (self-hosted)
 
 When relaycontrol lists `password` in `SELFHOST_SIGNIN_METHODS`, signed-out

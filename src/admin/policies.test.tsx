@@ -7,17 +7,34 @@ import {
   within,
 } from "@testing-library/react";
 import { adminApi, ApiError } from "./api";
-import { describeSeconds } from "./policies";
+import { describeSeconds, leaderPatternsFrom } from "./policies";
 import { Settings } from "./settings";
 
 type Call = { method: string; path: string; body: unknown; init: RequestInit };
 type Reply = { status?: number; body?: unknown };
 
 const POLICY = "/cloud/api/v1/organizations/o1/capture-policy";
+const LEADERS = "/cloud/api/v1/workspaces/w1/leaders";
+const ROSTER = [
+  { name: "lead", agent_id: "a1" },
+  { name: "review-1", agent_id: "a2" },
+  { name: "ops-7", agent_id: "a3" },
+];
 let calls: Call[] = [];
 let role: "owner" | "admin" | "member" = "owner";
 let policy: { version: 1; revision: number; settings: Record<string, unknown> };
 let override: ((call: Call) => Reply | undefined) | null = null;
+let leaderPatterns: string[] = [];
+
+/** Exact names only, plus a trailing `*`; enough for these tests. */
+const matched = (patterns: string[]) =>
+  ROSTER.filter((agent) =>
+    patterns.some((pattern) =>
+      pattern.endsWith("*")
+        ? agent.name.startsWith(pattern.slice(0, -1))
+        : agent.name === pattern,
+    ),
+  );
 
 function respond(call: Call): Reply {
   const custom = override?.(call);
@@ -30,6 +47,11 @@ function respond(call: Call): Reply {
         currentWorkspace: { id: "w1", name: "Primary" },
       },
     };
+  if (call.path.endsWith("/leaders")) {
+    if (call.method === "PUT")
+      leaderPatterns = (call.body as { patterns: string[] }).patterns;
+    return { body: { leaders: matched(leaderPatterns), patterns: leaderPatterns } };
+  }
   if (call.path.endsWith("/capture-policy")) {
     if (role === "member")
       return { status: 403, body: { error: "forbidden", message: "Forbidden" } };
@@ -55,6 +77,7 @@ beforeEach(() => {
   calls = [];
   role = "owner";
   override = null;
+  leaderPatterns = ["lead", "review-*"];
   policy = { version: 1, revision: 4, settings: { sharing_mode: "new" } };
   vi.stubGlobal(
     "fetch",
@@ -356,4 +379,146 @@ it("describes Oops windows in plain units", () => {
   expect(describeSeconds(900)).toBe("15 min");
   expect(describeSeconds(86_400)).toBe("24 h");
   expect(describeSeconds(3_661)).toBe("1 h 1 min 1 s");
+});
+
+const leaderBox = () =>
+  within(screen.getByRole("form", { name: "Workspace leaders" })).getByRole(
+    "textbox",
+    { name: "Leader patterns" },
+  ) as HTMLTextAreaElement;
+
+it("api: reads and replaces the workspace leader patterns", async () => {
+  expect(await adminApi.getWorkspaceLeaders("w/1")).toEqual({
+    leaders: [ROSTER[0], ROSTER[1]],
+    patterns: ["lead", "review-*"],
+  });
+  expect(calls[0]!.path).toBe("/cloud/api/v1/workspaces/w%2F1/leaders");
+
+  const saved = await adminApi.setWorkspaceLeaders("w1", ["lead"]);
+  expect(saved).toEqual({ leaders: [ROSTER[0]], patterns: ["lead"] });
+  const put = calls[1]!;
+  expect(put.method).toBe("PUT");
+  expect(put.path).toBe(LEADERS);
+  expect(put.body).toEqual({ patterns: ["lead"] });
+  expect(header(put, "Content-Type")).toBe("application/json");
+});
+
+it("shows the leader patterns and the agents they match", async () => {
+  render(<Settings section="policies" />);
+  expect(
+    await screen.findByRole("heading", { level: 2, name: "Workspace leaders" }),
+  ).toBeInTheDocument();
+  await waitFor(() => expect(leaderBox().value).toBe("lead\nreview-*"));
+  const list = screen.getByRole("list", { name: "Currently matched leaders" });
+  expect(
+    within(list)
+      .getAllByRole("listitem")
+      .map((item) => item.textContent),
+  ).toEqual(["lead", "review-1"]);
+  expect(screen.getByRole("button", { name: "Save leaders" })).toBeDisabled();
+});
+
+it("members never read the workspace leaders", async () => {
+  role = "member";
+  render(<Settings section="policies" />);
+  await screen.findByRole("heading", { level: 1, name: "Workspace" });
+  expect(calls.some((call) => call.path === LEADERS)).toBe(false);
+});
+
+it("saves the trimmed, de-duplicated patterns and shows the new matches", async () => {
+  render(<Settings section="policies" />);
+  await waitFor(() => expect(leaderBox().value).toBe("lead\nreview-*"));
+  fireEvent.change(leaderBox(), {
+    target: { value: "  lead \n\nops-*\nlead\n  release-?  \n" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save leaders" }));
+  expect(await screen.findByText(/Leaders saved/)).toBeInTheDocument();
+  const put = writes()[0]!;
+  expect(put.method).toBe("PUT");
+  expect(put.path).toBe(LEADERS);
+  expect(put.body).toEqual({ patterns: ["lead", "ops-*", "release-?"] });
+  expect(leaderBox().value).toBe("lead\nops-*\nrelease-?");
+  const list = screen.getByRole("list", { name: "Currently matched leaders" });
+  expect(within(list).getByText("ops-7")).toBeInTheDocument();
+  expect(within(list).queryByText("review-1")).not.toBeInTheDocument();
+});
+
+it("refuses a 65th pattern before sending anything", async () => {
+  render(<Settings section="policies" />);
+  await waitFor(() => expect(leaderBox().value).toBe("lead\nreview-*"));
+  fireEvent.change(leaderBox(), {
+    target: {
+      value: Array.from({ length: 65 }, (_, index) => `agent-${index}`).join("\n"),
+    },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save leaders" }));
+  expect(
+    await screen.findByText("There are 65 patterns; a workspace can have at most 64."),
+  ).toBeInTheDocument();
+  expect(writes()).toHaveLength(0);
+});
+
+it("refuses a pattern longer than 128 characters before sending anything", async () => {
+  render(<Settings section="policies" />);
+  await waitFor(() => expect(leaderBox().value).toBe("lead\nreview-*"));
+  fireEvent.change(leaderBox(), {
+    target: { value: `lead\n${"a".repeat(129)}` },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save leaders" }));
+  expect(
+    await screen.findByText(
+      "Pattern 2 is 129 characters long; each pattern can be at most 128.",
+    ),
+  ).toBeInTheDocument();
+  expect(writes()).toHaveLength(0);
+});
+
+it("says nothing was saved when the relay engine is unavailable", async () => {
+  override = (call) =>
+    call.method === "PUT" && call.path === LEADERS
+      ? {
+          status: 502,
+          body: {
+            error: "workspace_leaders_unavailable",
+            message: "Relaycast could not be reached",
+          },
+        }
+      : undefined;
+  render(<Settings section="policies" />);
+  await waitFor(() => expect(leaderBox().value).toBe("lead\nreview-*"));
+  fireEvent.change(leaderBox(), { target: { value: "lead" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save leaders" }));
+  expect(
+    await screen.findByText(
+      "The relay engine could not be reached, so nothing was saved: Relaycast could not be reached",
+    ),
+  ).toBeInTheDocument();
+  expect(leaderBox().value).toBe("lead");
+});
+
+it("shows Control's invalid_request message for refused patterns", async () => {
+  override = (call) =>
+    call.method === "PUT" && call.path === LEADERS
+      ? {
+          status: 400,
+          body: { error: "invalid_request", message: "patterns must be strings" },
+        }
+      : undefined;
+  render(<Settings section="policies" />);
+  await waitFor(() => expect(leaderBox().value).toBe("lead\nreview-*"));
+  fireEvent.change(leaderBox(), { target: { value: "lead" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save leaders" }));
+  expect(
+    await screen.findByText(
+      "Control refused the patterns, and nothing was saved: patterns must be strings",
+    ),
+  ).toBeInTheDocument();
+});
+
+it("normalizes leader patterns like Control", () => {
+  expect(leaderPatternsFrom(" a \r\n\n b\na ")).toEqual(["a", "b"]);
+  expect(leaderPatternsFrom("")).toEqual([]);
+  expect(leaderPatternsFrom("x".repeat(128))).toEqual(["x".repeat(128)]);
+  // Duplicates collapse before the count is checked.
+  expect(leaderPatternsFrom(Array(65).fill("lead").join("\n"))).toEqual(["lead"]);
 });
