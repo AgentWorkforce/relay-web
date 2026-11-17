@@ -271,7 +271,8 @@ export function Settings(props: {
                     )}
                   />
                   <RemoteAgentsSection key={`remote-${context.currentWorkspace.id}`}
-                    workspaceId={context.currentWorkspace.id} canManage={manage} />
+                    workspaceId={context.currentWorkspace.id}
+                    organizationId={context.currentOrganization.id} canManage={manage} />
                 </div>
               )}
               {active === "tokens" && manage && (

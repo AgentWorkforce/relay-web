@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AmpConnectionCard } from "./amp-connection-card";
 import { FactoryConnectionSection } from "./factory-connection";
+import { ReplicasConnectionCard } from "./replicas-settings";
 import { remoteAgentApi, type RemoteProvider } from "./remote-agent-api";
 import { useLoad, message } from "./use-load";
 import { ApiError } from "./api";
@@ -186,9 +187,12 @@ function AmpSettings({ workspaceId }: { workspaceId: string }) {
 /** Workspace-keyed by the parent: old requests, drafts and secrets never cross scopes. */
 export function RemoteAgentsSection({
   workspaceId,
+  organizationId,
   canManage,
 }: {
   workspaceId: string;
+  /** Lists members for the Replicas responsible-member choice. */
+  organizationId?: string;
   canManage: boolean;
 }) {
   const { data: catalog, error: catalogError } = useLoad((signal) =>
@@ -231,17 +235,30 @@ export function RemoteAgentsSection({
       {factory?.implemented && factory.enabled && (
         <FactoryConnectionSection workspaceId={workspaceId} canManage={canManage} />
       )}
-      {data?.providers.map((provider) => (
-        <RemoteConnectionCard
-          key={`${workspaceId}:${provider.id}`}
-          workspaceId={workspaceId}
-          provider={provider}
-          canManage={canManage}
-          onConflict={reload}
-          readRevision={data.readRevision}
-          currentReadRevision={() => readsIssued.current}
-        />
-      ))}
+      {data?.providers.map((provider) =>
+        provider.id === "replicas" ? (
+          <ReplicasConnectionCard
+            key={`${workspaceId}:${provider.id}`}
+            workspaceId={workspaceId}
+            organizationId={organizationId}
+            provider={provider}
+            canManage={canManage}
+            onConflict={reload}
+            readRevision={data.readRevision}
+            currentReadRevision={() => readsIssued.current}
+          />
+        ) : (
+          <RemoteConnectionCard
+            key={`${workspaceId}:${provider.id}`}
+            workspaceId={workspaceId}
+            provider={provider}
+            canManage={canManage}
+            onConflict={reload}
+            readRevision={data.readRevision}
+            currentReadRevision={() => readsIssued.current}
+          />
+        ),
+      )}
       {!data && !error && (
         <p role="status">Loading remote provider connections…</p>
       )}
