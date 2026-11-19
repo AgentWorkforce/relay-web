@@ -291,3 +291,39 @@ it("shows read errors and a loading state", () => {
   );
   expect(screen.getByRole("alert")).toHaveTextContent("temporarily unavailable");
 });
+
+it.each(["__proto__", "constructor", "toString", "hasOwnProperty"])(
+  "renders the prototype-named API value %j as raw text in every lookup",
+  (name) => {
+    const data = structuredClone(sessionIntelFixture);
+    data.status[0]!.state = name;
+    data.status[0]!.source = name;
+    data.handoffs[0]!.state = name;
+    data.handoffs[0]!.source = name;
+    data.alerts = [
+      {
+        ...data.alerts[1]!,
+        advisoryId: "fake-proto-alert",
+        class: name,
+        kind: name,
+        sessions: [{ source: name, sessionId: "fake-session-proto" }],
+        acked: [{ source: name, sessionId: "fake-session-proto", acked: false }],
+        evidence: [
+          { sessionId: "fake-session-proto", eventId: "fake-event-proto", ts: "2026-10-01T11:39:00.000Z", kind: name },
+        ],
+      },
+    ];
+    data.coverage.notes = [name];
+    data.coverage.claimsExtraction = name;
+    render(panel(data));
+    const rows = screen.getAllByRole("row");
+    expect(rows[1]).toHaveTextContent(name);
+    expect(screen.getByRole("region", { name: "Handoffs" })).toHaveTextContent(`${name} · `);
+    const alerts = screen.getByRole("region", { name: "Alerts" });
+    expect(within(alerts).getByRole("heading", { level: 3 })).toHaveTextContent("High · Unclassified (1)");
+    // An unknown harness shows its raw source name, not a prototype member.
+    expect(alerts).toHaveTextContent(`${name} session · fake-session-proto`);
+    expect(screen.getByRole("region", { name: "Coverage" })).toHaveTextContent(name);
+    expect(screen.getByRole("region", { name: "Coverage" })).toHaveTextContent("Claim extraction: unknown");
+  },
+);

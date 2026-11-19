@@ -78,16 +78,20 @@ const aliases: Record<string, string> = {
   "claude-terminal": "claude",
   "claude-cloud": "claude",
 };
-export const toolKey = (source: string) => aliases[source] ?? source;
+// Sources come from API data: look up own keys only, so `__proto__` or
+// `constructor` is an unknown harness, never an Object.prototype member.
+const own = <T>(table: Record<string, T>, key: string): T | undefined =>
+  Object.hasOwn(table, key) ? table[key] : undefined;
+export const toolKey = (source: string) => own(aliases, source) ?? source;
 /** Every raw source that shares this harness key (itself included). */
 export const harnessSources = (key: string) => [
   key,
   ...Object.keys(aliases).filter((alias) => aliases[alias] === key),
 ];
 export const harnessName = (source: string) =>
-  tools[toolKey(source)]?.label ?? source;
+  own(tools, toolKey(source))?.label ?? source;
 export const toolColor = (source: string) =>
-  tools[toolKey(source)]?.color ?? "var(--harness-other)";
+  own(tools, toolKey(source))?.color ?? "var(--harness-other)";
 
 /**
  * A value the sessions pipeline's scrubber replaced whole: nothing but

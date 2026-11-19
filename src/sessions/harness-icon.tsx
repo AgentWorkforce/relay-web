@@ -20,7 +20,8 @@ const ICONS: Record<string, string> = {
 
 /** The icon file for a source, or null when the harness has none. */
 export function harnessIconName(source: string): string | null {
-  return ICONS[toolKey(source)] ?? null;
+  const key = toolKey(source);
+  return Object.hasOwn(ICONS, key) ? ICONS[key]! : null;
 }
 
 export function HarnessIcon({

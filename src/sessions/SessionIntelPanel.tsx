@@ -406,7 +406,10 @@ const STATE_LABELS: Record<string, string> = {
   abandoned: "Abandoned",
   unknown: "Unknown",
 };
-const stateLabel = (state: string) => STATE_LABELS[state] ?? state;
+// API states are any string: only own keys are labels, so `__proto__` and
+// friends render as their raw text.
+const stateLabel = (state: string) =>
+  Object.hasOwn(STATE_LABELS, state) ? STATE_LABELS[state]! : state;
 
 function TitleList({
   items,
