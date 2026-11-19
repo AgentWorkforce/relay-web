@@ -44,7 +44,7 @@ import {
 } from "./OverlapsPanel";
 import { coordinationOverlaps } from "./overlaps-api";
 import { SessionIntelPanel } from "./SessionIntelPanel";
-import { sessionIntelWorkspace } from "./session-intel-api";
+import { useSessionIntel } from "./use-session-intel";
 import {
   harnessName,
   projectLabel,
@@ -220,10 +220,8 @@ export function SessionsPage({
     window.history.replaceState(null, "", listHref(debounced, tab));
   }, [debounced, tab]);
   // Off (null) unless the runtime config enables it and the read API serves
-  // it. Keyed by workspace alone, so no earlier workspace's view is kept.
-  const intel = useLoad(workspaceId, (signal) =>
-    sessionIntelWorkspace(workspaceId, signal),
-  );
+  // it; the first load per workspace decides. Refreshed while the tab is open.
+  const intel = useSessionIntel(workspaceId, tab === "intel");
   useEffect(() => {
     if (tab !== "overlaps" || overlaps.loading || overlaps.data !== null) return;
     window.history.replaceState(null, "", listHref(debounced));
@@ -343,6 +341,10 @@ export function SessionsPage({
           data={intel.data}
           loading={intel.loading}
           error={intel.error}
+          updatedAt={intel.updatedAt}
+          refreshing={intel.refreshing}
+          refreshError={intel.refreshError}
+          onRefresh={intel.refresh}
           onSignedOut={onSignedOut}
         />
       )}

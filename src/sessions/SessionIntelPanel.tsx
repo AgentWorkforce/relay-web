@@ -2,10 +2,11 @@
 // grouped by class, live status of active sessions, and recent handoffs. All
 // text is rendered as text; links are built only from session and event ids.
 import { useEffect, useState, type ReactNode } from "react";
-import { ArrowUpRight, BellOff, Info } from "lucide-react";
+import { ArrowUpRight, BellOff, Info, RefreshCw } from "lucide-react";
 import { SignedOut } from "../api/client";
 import {
   Badge,
+  Button,
   Card,
   Empty,
   EmptyDescription,
@@ -25,6 +26,18 @@ import type {
   SessionIntelStatus,
 } from "./session-intel-api";
 import { relativeTime } from "./visualizations/session-data";
+
+export const SESSION_INTEL_CLOCK_MS = 30_000;
+
+/** Wall-clock time that advances every `interval` ms while mounted. */
+function useClock(interval: number) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), interval);
+    return () => clearInterval(timer);
+  }, [interval]);
+  return now;
+}
 
 /** Plain labels for the alert classes, in the order the groups are shown. */
 export const CLASS_LABELS = {
@@ -561,6 +574,10 @@ export function SessionIntelPanel({
   error,
   onSignedOut,
   now: fixedNow,
+  updatedAt = null,
+  refreshing = false,
+  refreshError = null,
+  onRefresh,
 }: {
   workspaceId: string;
   query: string;
@@ -568,14 +585,22 @@ export function SessionIntelPanel({
   loading: boolean;
   error: Error | null;
   onSignedOut?: () => void;
-  /** The clock for relative times (tests). */
+  /** A fixed clock for relative times (tests); otherwise it advances. */
   now?: number;
+  /** When the shown view was read. */
+  updatedAt?: number | null;
+  refreshing?: boolean;
+  /** A failed refresh; the last good view stays shown. */
+  refreshError?: Error | null;
+  onRefresh?: () => void;
 }) {
-  const [openedAt] = useState(() => Date.now());
-  const now = fixedNow ?? openedAt;
+  const clock = useClock(SESSION_INTEL_CLOCK_MS);
+  // The clock also moves with each refresh, so ages are never older than the data.
+  const now = fixedNow ?? Math.max(clock, updatedAt ?? 0);
   useEffect(() => {
-    if (error instanceof SignedOut) onSignedOut?.();
-  }, [error, onSignedOut]);
+    if (error instanceof SignedOut || refreshError instanceof SignedOut)
+      onSignedOut?.();
+  }, [error, refreshError, onSignedOut]);
   const titles: Titles = new Map(
     data
       ? [...data.status, ...data.handoffs]
@@ -599,6 +624,38 @@ export function SessionIntelPanel({
       )}
       {data && (
         <>
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+            <p>
+              Updated{" "}
+              {updatedAt === null
+                ? "—"
+                : relativeTime(new Date(updatedAt).toISOString(), now).replace(
+                    "Just now",
+                    "just now",
+                  )}
+              {refreshError && !(refreshError instanceof SignedOut) && (
+                <span role="status" className="ml-2 text-[var(--status-warning)]">
+                  Refresh failed, retrying.
+                </span>
+              )}
+            </p>
+            {onRefresh && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="min-h-11 min-w-11"
+                onClick={onRefresh}
+                disabled={refreshing}
+                aria-label="Refresh session intelligence"
+              >
+                <RefreshCw
+                  aria-hidden="true"
+                  className={refreshing ? "animate-spin" : undefined}
+                />
+                Refresh
+              </Button>
+            )}
+          </div>
           <CoverageStrip coverage={data.coverage} now={now} />
           <AlertsSection data={data} titles={titles} workspaceId={workspaceId} query={query} />
           <StatusSection status={data.status} titles={titles} workspaceId={workspaceId} query={query} now={now} />
