@@ -72,6 +72,13 @@ case "$coordination_overlaps" in
   true|false) ;;
   *) echo "40-runtime-config: DASHBOARD_COORDINATION_OVERLAPS_ENABLED must be true or false" >&2; exit 1 ;;
 esac
+# The Sessions page's Session intelligence view (alerts, live status, handoffs).
+# Off by default even when the read API serves /v1/session-intel/workspace.
+session_intel="${DASHBOARD_SESSION_INTEL_ENABLED-false}"
+case "$session_intel" in
+  true|false) ;;
+  *) echo "40-runtime-config: DASHBOARD_SESSION_INTEL_ENABLED must be true or false" >&2; exit 1 ;;
+esac
 app_path="${DASHBOARD_APP_PATH:-/}"
 api_base_path="${DASHBOARD_API_BASE_PATH:-/cloud/api}"
 login_path="${DASHBOARD_LOGIN_PATH:-/login}"
@@ -118,6 +125,7 @@ tmp="${target}.tmp.$$"
   printf '  sessionAgentFilter: %s,\n' "$session_agent_filter"
   printf '  sessionShortSummaries: %s,\n' "$session_short_summaries"
   printf '  coordinationOverlaps: %s,\n' "$coordination_overlaps"
+  printf '  sessionIntelEnabled: %s,\n' "$session_intel"
   printf '  appPath: %s,\n' "$(json_string "$app_path" DASHBOARD_APP_PATH)"
   printf '  apiBasePath: %s,\n' "$(json_string "$api_base_path" DASHBOARD_API_BASE_PATH)"
   printf '  loginPath: %s,\n' "$(json_string "$login_path" DASHBOARD_LOGIN_PATH)"

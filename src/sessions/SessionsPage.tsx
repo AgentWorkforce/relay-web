@@ -43,6 +43,8 @@ import {
   type OverlapRange,
 } from "./OverlapsPanel";
 import { coordinationOverlaps } from "./overlaps-api";
+import { SessionIntelPanel } from "./SessionIntelPanel";
+import { sessionIntelWorkspace } from "./session-intel-api";
 import {
   harnessName,
   projectLabel,
@@ -217,16 +219,29 @@ export function SessionsPage({
     // Keep the URL shareable without adding history entries per keystroke.
     window.history.replaceState(null, "", listHref(debounced, tab));
   }, [debounced, tab]);
+  // Off (null) unless the runtime config enables it and the read API serves
+  // it. Keyed by workspace alone, so no earlier workspace's view is kept.
+  const intel = useLoad(workspaceId, (signal) =>
+    sessionIntelWorkspace(workspaceId, signal),
+  );
   useEffect(() => {
     if (tab !== "overlaps" || overlaps.loading || overlaps.data !== null) return;
     window.history.replaceState(null, "", listHref(debounced));
     window.dispatchEvent(new PopStateEvent("popstate"));
   }, [debounced, overlaps.data, overlaps.loading, tab]);
+  useEffect(() => {
+    if (tab !== "intel" || intel.loading || intel.data !== null) return;
+    window.history.replaceState(null, "", listHref(debounced));
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }, [debounced, intel.data, intel.loading, tab]);
   const showOverlapsTab =
     overlaps.data !== null &&
     (overlaps.data !== undefined ||
       overlaps.error !== null ||
       tab === "overlaps");
+  const showIntelTab =
+    intel.data !== null &&
+    (intel.data !== undefined || intel.error !== null || tab === "intel");
 
   return (
     <section className={styles.sessions}>
@@ -259,6 +274,19 @@ export function SessionsPage({
               )}
             >
               Overlaps
+            </a>
+          )}
+          {showIntelTab && (
+            <a
+              href={listHref(query, "intel")}
+              onClick={onLinkClick}
+              aria-current={tab === "intel" ? "page" : undefined}
+              className={buttonClass(
+                tab === "intel" ? "secondary" : "ghost",
+                "sm",
+              )}
+            >
+              Session intelligence
             </a>
           )}
           {sessionVisualizationsEnabled() && (
@@ -305,6 +333,16 @@ export function SessionsPage({
           data={overlaps.data}
           loading={overlaps.loading}
           error={overlaps.error}
+          onSignedOut={onSignedOut}
+        />
+      )}
+      {tab === "intel" && intel.data !== null && (
+        <SessionIntelPanel
+          workspaceId={workspaceId}
+          query={query}
+          data={intel.data}
+          loading={intel.loading}
+          error={intel.error}
           onSignedOut={onSignedOut}
         />
       )}
