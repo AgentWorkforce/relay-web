@@ -58,6 +58,11 @@ it("keeps list state in the URL", () => {
   expect(
     parseRoute({ pathname: "/dashboard/", search: "?tab=overlaps" }),
   ).toMatchObject({ view: "list", tab: "overlaps" });
+  expect(listHref("", "intel")).toBe("/?tab=intel");
+  expect(
+    parseRoute({ pathname: "/dashboard/", search: "?tab=intel" }),
+  ).toMatchObject({ view: "list", tab: "intel" });
+  expect(backHref("tab=intel")).toBe("/?tab=intel");
   expect(
     parseRoute({ pathname: "/dashboard/", search: "?tab=search&q=x" }),
   ).toEqual({

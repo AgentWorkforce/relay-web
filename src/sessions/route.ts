@@ -24,7 +24,10 @@ export type SessionRoute =
     };
 
 const base = () => appPath();
-export type SessionTab = "sessions" | "activity" | "overlaps";
+export type SessionTab = "sessions" | "activity" | "overlaps" | "intel";
+const LIST_TABS: readonly string[] = ["activity", "overlaps", "intel"];
+const listTab = (tab: string | null): SessionTab =>
+  tab && LIST_TABS.includes(tab) ? (tab as SessionTab) : "sessions";
 
 export function parseRoute(location: {
   pathname: string;
@@ -51,11 +54,10 @@ export function parseRoute(location: {
     };
     return source ? { view: "session", source, ...rest } : { view: "resolve", ...rest };
   }
-  const tab = params.get("tab");
   return {
     view: "list",
     q: params.get("q") ?? "",
-    tab: tab === "activity" || tab === "overlaps" ? tab : "sessions",
+    tab: listTab(params.get("tab")),
   };
 }
 
@@ -104,11 +106,7 @@ export function listHref(
 export function backHref(from: string | null) {
   if (!from) return listHref();
   const params = new URLSearchParams(from);
-  const tab = params.get("tab");
-  return listHref(
-    params.get("q") ?? "",
-    tab === "activity" || tab === "overlaps" ? tab : "sessions",
-  );
+  return listHref(params.get("q") ?? "", listTab(params.get("tab")));
 }
 
 /** The `from` value for links out of a list view. */

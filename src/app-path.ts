@@ -12,6 +12,7 @@ type RuntimeConfig = {
   sessionAgentFilter?: unknown;
   sessionShortSummaries?: unknown;
   coordinationOverlaps?: unknown;
+  sessionIntel?: unknown;
   analyticsEnabled?: unknown;
 };
 
