@@ -166,10 +166,43 @@ it("shows claims as unavailable, never as zero, when the claims read failed", ()
   render(<CoverageStrip coverage={coverage} now={SESSION_INTEL_NOW} />);
   const strip = screen.getByRole("region", { name: "Coverage" });
   expect(strip).toHaveTextContent("Summaries: 1 of 2 active sessions, newest 5m ago");
-  expect(strip).toHaveTextContent("Claims: unavailable");
+  expect(strip).toHaveTextContent("Intents/decisions: unavailable");
   expect(strip).toHaveTextContent("Claim extraction: unknown");
   expect(strip).toHaveTextContent("Claims couldn't be read");
   expect(strip).not.toHaveTextContent("summaries/search");
+});
+
+it("never guesses an evidence link when two harnesses share a session id", () => {
+  const data = structuredClone(sessionIntelFixture);
+  data.alerts = [
+    {
+      ...data.alerts[1]!,
+      advisoryId: "fake-shared-id",
+      sessions: [
+        { source: "claude", sessionId: "fake-shared-session" },
+        { source: "codex", sessionId: "fake-shared-session" },
+        { source: "gemini", sessionId: "fake-unique-session" },
+      ],
+      acked: [],
+      evidence: [
+        { sessionId: "fake-shared-session", eventId: "fake-event-shared", ts: "2026-10-01T11:39:00.000Z", kind: "tool_result" },
+        { sessionId: "fake-unique-session", eventId: "fake-event-unique", ts: "2026-10-01T11:38:00.000Z", kind: "file_edit" },
+      ],
+    },
+  ];
+  render(panel(data));
+  const alerts = screen.getByRole("region", { name: "Alerts" });
+  const hrefs = within(alerts).getAllByRole("link").map((link) => link.getAttribute("href"));
+  // Both harnesses' sessions are linked separately.
+  expect(hrefs).toContain("/?session=fake-shared-session&source=claude&workspace=fake-workspace&from=tab%3Dintel");
+  expect(hrefs).toContain("/?session=fake-shared-session&source=codex&workspace=fake-workspace&from=tab%3Dintel");
+  // The ambiguous evidence is text, not a link to either harness.
+  expect(hrefs.filter((href) => href!.includes("fake-event-shared"))).toEqual([]);
+  expect(within(alerts).getByText(/tool result .*\(source\s+ambiguous\)/)).toBeVisible();
+  // Unambiguous evidence still links to its one session.
+  expect(hrefs).toContain(
+    "/?session=fake-unique-session&source=gemini&workspace=fake-workspace&event=fake-event-unique&from=tab%3Dintel",
+  );
 });
 
 it("shows zero claims and an off extractor as they are", () => {
@@ -180,7 +213,7 @@ it("shows zero claims and an off extractor as they are", () => {
     />,
   );
   const strip = screen.getByRole("region", { name: "Coverage" });
-  expect(strip).toHaveTextContent("Claims: 0 of 2");
+  expect(strip).toHaveTextContent("Intents/decisions: 0 of 2");
   expect(strip).toHaveTextContent("Claim extraction: off");
   expect(strip).toHaveTextContent("depend on claim extraction");
 });
@@ -189,7 +222,7 @@ it("shows partial claims and never implies full coverage, even when every count 
   const { unmount } = render(
     <CoverageStrip coverage={{ ...coverage, sessionsWithClaims: 1, notes: [] }} now={SESSION_INTEL_NOW} />,
   );
-  expect(screen.getByRole("region", { name: "Coverage" })).toHaveTextContent("Claims: 1 of 2");
+  expect(screen.getByRole("region", { name: "Coverage" })).toHaveTextContent("Intents/decisions: 1 of 2");
   unmount();
   render(
     <CoverageStrip

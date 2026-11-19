@@ -131,7 +131,7 @@ export function CoverageStrip({
             : "none"}
         </li>
         <li>
-          Claims:{" "}
+          Intents/decisions:{" "}
           {coverage.sessionsWithClaims === null
             ? "unavailable"
             : `${coverage.sessionsWithClaims.toLocaleString()} of ${active}`}
@@ -218,9 +218,14 @@ function AlertCard({
   workspaceId: string;
   query: string;
 }) {
-  const bySession = new Map(
-    alert.sessions.map((session) => [session.sessionId, session]),
-  );
+  // A session is its source and id; two harnesses can share an id. Evidence
+  // names only the id, so it links only when exactly one of the alert's
+  // sessions has that id, and is never guessed otherwise.
+  const sessions = [
+    ...new Map(alert.sessions.map((session) => [sessionKey(session), session])).values(),
+  ];
+  const sessionsWithId = (sessionId: string) =>
+    sessions.filter((session) => session.sessionId === sessionId);
   return (
     <Card className="p-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -288,15 +293,27 @@ function AlertCard({
           ))}
         </ul>
       )}
-      {alert.evidence.some((item) => bySession.has(item.sessionId)) && (
+      {alert.evidence.some((item) => sessionsWithId(item.sessionId).length > 0) && (
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3 text-xs">
           <span className="text-muted-foreground">Jump to evidence</span>
-          {alert.evidence.map((item) => {
-            const session = bySession.get(item.sessionId);
-            if (!session) return null;
+          {alert.evidence.map((item, index) => {
+            const matches = sessionsWithId(item.sessionId);
+            const key = `${index}:${item.sessionId}:${item.eventId}`;
+            if (matches.length === 0) return null;
+            if (matches.length > 1)
+              return (
+                <span
+                  key={key}
+                  className="rounded-md bg-muted px-2 py-1 text-muted-foreground"
+                >
+                  {item.kind.replaceAll("_", " ")} · {dateTime(item.ts)} (source
+                  ambiguous)
+                </span>
+              );
+            const session = matches[0]!;
             return (
               <SessionAnchor
-                key={`${item.sessionId}:${item.eventId}`}
+                key={key}
                 session={session}
                 event={item.eventId}
                 workspaceId={workspaceId}
