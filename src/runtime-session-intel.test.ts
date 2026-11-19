@@ -12,9 +12,9 @@ it.each([undefined, "false", "true"])("writes the Session intelligence view gate
     if (value === undefined) delete env.DASHBOARD_SESSION_INTEL_ENABLED;
     else env.DASHBOARD_SESSION_INTEL_ENABLED = value;
     execFileSync("sh", [resolve("docker/40-runtime-config.sh")], { env, stdio: "pipe" });
-    const context = { window: {} as { __AGENT_RELAY_DASHBOARD_CONFIG__?: { sessionIntelEnabled: unknown } } };
+    const context = { window: {} as { __AGENT_RELAY_DASHBOARD_CONFIG__?: { sessionIntel: unknown } } };
     runInNewContext(readFileSync(join(directory, "runtime-config.js"), "utf8"), context);
-    expect(context.window.__AGENT_RELAY_DASHBOARD_CONFIG__?.sessionIntelEnabled).toBe(value === "true");
+    expect(context.window.__AGENT_RELAY_DASHBOARD_CONFIG__?.sessionIntel).toBe(value === "true");
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 

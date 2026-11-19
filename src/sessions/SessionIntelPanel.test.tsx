@@ -49,20 +49,51 @@ it("the fixture matches the contract", () => {
   expect(sessionIntelResponseSchema.parse(emptySessionIntelFixture)).toEqual(emptySessionIntelFixture);
 });
 
-it("orders groups rule broken, conflicting decisions, duplicate work, working nearby, high urgency first", () => {
-  const low = { ...sessionIntelFixture.alerts[1]!, advisoryId: "fake-low", urgency: "low" as const };
-  const groups = groupAlerts([low, ...sessionIntelFixture.alerts, { ...low, advisoryId: "fake-null", class: null }]);
-  expect(groups.map((group) => group.label)).toEqual([
-    "Rule broken",
-    "Conflicting decisions",
-    "Duplicate work",
-    "Working nearby",
-    "Unclassified",
+it("puts every high alert before any low one, then orders classes, newest first", () => {
+  const base = sessionIntelFixture.alerts[1]!;
+  const alert = (advisoryId: string, urgency: "high" | "low", cls: string | null, createdAt: string) => ({
+    ...base,
+    advisoryId,
+    urgency,
+    class: cls,
+    createdAt,
+  });
+  const groups = groupAlerts([
+    alert("fake-low-rule", "low", "constraint_violation", "2026-10-01T11:59:00.000Z"),
+    alert("fake-high-dup-old", "high", "collision", "2026-10-01T10:00:00.000Z"),
+    alert("fake-low-none", "low", null, "2026-10-01T11:00:00.000Z"),
+    alert("fake-high-dup-new", "high", "collision", "2026-10-01T11:00:00.000Z"),
+    alert("fake-high-plans", "high", "planned_fleet", "2026-10-01T11:00:00.000Z"),
+    alert("fake-high-other", "high", "none", "2026-10-01T11:00:00.000Z"),
+    alert("fake-high-nearby", "high", "overlap", "2026-10-01T11:00:00.000Z"),
+    alert("fake-high-intent", "high", "intent_conflict", "2026-10-01T11:00:00.000Z"),
   ]);
-  expect(groups[2]!.alerts.map((alert) => alert.advisoryId)).toEqual([
-    "fake-advisory-collision",
-    "fake-low",
+  expect(groups.map((group) => `${group.urgency} ${group.label}`)).toEqual([
+    "high Conflicting decisions",
+    "high Duplicate work",
+    "high Working nearby",
+    "high Conflicting plans",
+    "high Other",
+    "low Rule broken",
+    "low Unclassified",
   ]);
+  expect(groups[1]!.alerts.map((item) => item.advisoryId)).toEqual([
+    "fake-high-dup-new",
+    "fake-high-dup-old",
+  ]);
+});
+
+it("renders a high Duplicate work alert above a low Rule broken one", () => {
+  const data = structuredClone(sessionIntelFixture);
+  data.alerts = [
+    { ...data.alerts[2]!, advisoryId: "fake-low-rule", urgency: "low" },
+    { ...data.alerts[1]!, advisoryId: "fake-high-dup" },
+  ];
+  render(panel(data));
+  const alerts = screen.getByRole("region", { name: "Alerts" });
+  expect(
+    within(alerts).getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent),
+  ).toEqual(["High · Duplicate work (1)", "Low · Rule broken (1)"]);
 });
 
 it("renders alerts grouped by class with urgency, artifact, times, both session links and delivery", () => {
@@ -71,10 +102,10 @@ it("renders alerts grouped by class with urgency, artifact, times, both session 
   expect(
     within(alerts).getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent),
   ).toEqual([
-    "Rule broken (1)",
-    "Conflicting decisions (1)",
-    "Duplicate work (1)",
-    "Working nearby (1)",
+    "High · Rule broken (1)",
+    "High · Conflicting decisions (1)",
+    "High · Duplicate work (1)",
+    "Low · Working nearby (1)",
   ]);
   const collision = within(alerts).getByText("migrations/0001_fake.sql").closest("[class*='p-4']")!;
   const card = within(collision as HTMLElement);

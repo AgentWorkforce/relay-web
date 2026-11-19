@@ -50,26 +50,39 @@ const classRank = (value: string | null) => {
 };
 
 /**
- * Alerts grouped by class: rule broken, conflicting decisions, duplicate
- * work, then working nearby (then any other class). High urgency comes first
- * inside a group; otherwise the read API's order (newest first) is kept.
+ * Alerts grouped by urgency, then class: every high alert comes before any
+ * low one; within an urgency the classes run rule broken, conflicting
+ * decisions, duplicate work, working nearby, conflicting plans, other, then
+ * unclassified. Newest first within a group.
  */
 export function groupAlerts(alerts: SessionIntelAlert[]) {
-  const groups = new Map<string, SessionIntelAlert[]>();
+  const groups = new Map<
+    string,
+    { urgency: "high" | "low"; label: string; rank: number; alerts: SessionIntelAlert[] }
+  >();
   for (const alert of alerts) {
     const label = alertClassLabel(alert.class);
-    groups.set(label, [...(groups.get(label) ?? []), alert]);
-  }
-  return [...groups.entries()]
-    .map(([label, items]) => ({
+    const key = `${alert.urgency}:${label}`;
+    const group = groups.get(key) ?? {
+      urgency: alert.urgency,
       label,
-      rank: classRank(items[0]!.class),
-      alerts: [
-        ...items.filter((alert) => alert.urgency === "high"),
-        ...items.filter((alert) => alert.urgency !== "high"),
-      ],
+      rank: classRank(alert.class),
+      alerts: [],
+    };
+    group.alerts.push(alert);
+    groups.set(key, group);
+  }
+  const time = (alert: SessionIntelAlert) => Date.parse(alert.createdAt) || 0;
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      alerts: [...group.alerts].sort((a, b) => time(b) - time(a)),
     }))
-    .sort((a, b) => a.rank - b.rank);
+    .sort(
+      (a, b) =>
+        (a.urgency === "high" ? 0 : 1) - (b.urgency === "high" ? 0 : 1) ||
+        a.rank - b.rank,
+    );
 }
 
 const NOTE_TEXT: Record<string, string | null> = {
@@ -333,9 +346,9 @@ function AlertsSection({
         </Empty>
       ) : (
         groups.map((group) => (
-          <div key={group.label} className="flex flex-col gap-2">
+          <div key={`${group.urgency}:${group.label}`} className="flex flex-col gap-2">
             <h3 className="text-sm font-medium text-foreground">
-              {group.label}{" "}
+              {group.urgency === "high" ? "High" : "Low"} · {group.label}{" "}
               <span className="text-muted-foreground">
                 ({group.alerts.length.toLocaleString()})
               </span>

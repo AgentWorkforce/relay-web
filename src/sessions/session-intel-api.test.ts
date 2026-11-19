@@ -31,7 +31,7 @@ beforeEach(() => {
   forgetReadApiAccess();
   window.__AGENT_RELAY_DASHBOARD_CONFIG__ = {
     sessionReadApi: true,
-    sessionIntelEnabled: true,
+    sessionIntel: true,
   };
 });
 
@@ -46,9 +46,9 @@ it("requests nothing unless the dashboard enables the view and the read API", as
   for (const config of [
     {},
     { sessionReadApi: true },
-    { sessionReadApi: true, sessionIntelEnabled: false },
-    { sessionReadApi: true, sessionIntelEnabled: "true" },
-    { sessionReadApi: false, sessionIntelEnabled: true },
+    { sessionReadApi: true, sessionIntel: false },
+    { sessionReadApi: true, sessionIntel: "true" },
+    { sessionReadApi: false, sessionIntel: true },
   ]) {
     window.__AGENT_RELAY_DASHBOARD_CONFIG__ = config;
     await expect(

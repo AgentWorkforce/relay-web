@@ -1,6 +1,6 @@
 // The Sessions page's Session intelligence view: one read of the session read
 // API's GET /v1/session-intel/workspace (contract `session-intel-workspace/1`).
-// Off unless the runtime config sets `sessionIntelEnabled: true`
+// Off unless the runtime config sets `sessionIntel: true`
 // (DASHBOARD_SESSION_INTEL_ENABLED=true); when off, nothing is requested.
 import { z } from "zod";
 import { ReadApiUnavailable, readApiEnabled, readApiGet } from "./read-api";
@@ -70,7 +70,7 @@ export type SessionIntelCoverage = SessionIntelResponse["coverage"];
 /** Strict boolean opt-in; missing or malformed runtime values stay off. */
 export const sessionIntelViewEnabled = () =>
   typeof window !== "undefined" &&
-  window.__AGENT_RELAY_DASHBOARD_CONFIG__?.sessionIntelEnabled === true;
+  window.__AGENT_RELAY_DASHBOARD_CONFIG__?.sessionIntel === true;
 
 /**
  * The workspace view, or null when the view is off here or the read API
