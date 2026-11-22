@@ -308,6 +308,10 @@
   background: var(--background);
   padding-right: 4px;
 }
+.searchBar:has(.searchTrigger:focus-visible) {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+}
 .searchTrigger {
   display: flex;
   align-items: center;
@@ -315,13 +319,21 @@
   flex: 1;
   min-width: 0;
   padding: 10px 12px;
-  color: var(--muted-foreground);
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
   text-align: left;
   font-size: 12px;
   cursor: pointer;
 }
+.searchTrigger:focus-visible {
+  outline: none;
+}
 .searchTrigger span {
   flex: 1;
+}
+.searchTrigger span[data-placeholder="true"] {
+  color: var(--muted-foreground);
 }
 .searchTrigger kbd {
   border: 1px solid var(--border);
@@ -343,7 +355,11 @@
   border-radius: 5px;
   padding: 3px 8px;
   background: var(--muted);
+  color: var(--foreground);
   font-size: 11px;
+}
+.searchChips button:hover {
+  background: var(--accent);
 }
 .searchPanel.searchPanel {
   top: 12vh;
@@ -375,7 +391,11 @@
 }
 .searchInputGroup input {
   flex: 1;
+  border-radius: 0;
   border: 0;
+  background: transparent;
+}
+.searchInputGroup input:focus-visible {
   outline: 0;
   box-shadow: none;
 }
@@ -401,9 +421,12 @@
   font-size: 13px;
   cursor: pointer;
 }
-.suggestion:hover,
+.suggestion:hover {
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+}
 .suggestion[data-highlighted="true"] {
   background: var(--accent);
+  color: var(--accent-foreground);
 }
 .suggestion code {
   margin-left: auto;

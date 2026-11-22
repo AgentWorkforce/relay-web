@@ -61,7 +61,7 @@ export function SessionSearch({
   const list = useRef<HTMLDivElement>(null);
   const listId = useId();
   const titleId = useId();
-  const filters = parseSessionQuery(query).filters;
+  const { filters, text } = parseSessionQuery(query);
   const agents = queryAgents(query);
   const draft = agentDraft(query);
   // The existing workspace-scoped roster is only fetched while typing @name.
@@ -233,8 +233,8 @@ export function SessionSearch({
           aria-haspopup="dialog"
           aria-expanded={open}
         >
-          <span className="truncate">
-            {parseSessionQuery(query).text ||
+          <span className="truncate" data-placeholder={text.length === 0}>
+            {text ||
               (filters.length ? "Add filters…" : "Search or filter sessions…")}
           </span>
           <kbd>/</kbd>
