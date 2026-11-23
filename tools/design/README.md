@@ -11,8 +11,12 @@ it needs no backend, secrets, extra packages or login. The
   It does not load the product Vite config or its backend proxy environment.
   Building this config is refused. The normal `npm run build` still has only
   the production entry.
-- `main.tsx`: the workbench, catalog and hand-authored operator concept. It uses
+- `main.tsx` and the tooling panels: the workbench, catalog and hand-authored operator concept. They use
   the production theme tokens, Button and Card components.
+- `preview-navigation.ts`: reports the frame’s push/replace/hash routes and
+  accepts validated theme messages. The frame stays mounted across panels;
+  explicit scenario/surface commands reset it. Open preview and Data follow
+  the current route, including drill-downs and restored links.
 - `preview.tsx`: the **actual production App**, with its existing shell,
   usage/person/session pages and transcript renderer. Runtime flags are set
   before mount, analytics stays off, and direct reader mode stays off. The
@@ -39,7 +43,8 @@ it needs no backend, secrets, extra packages or login. The
 - `contracts.test.ts`: fixtures exercised through production API clients and
   parsers, plus linked evidence, pagination, error, refusal and abort coverage.
 
-All generated rows use the fixed clock shown in the UI. Thirty busy-team
+All generated rows use the reference clock shown in the UI, anchored at noon
+on the current UTC day so fresh previews stay within the activity window. Thirty busy-team
 sessions span three pages. Person counts and summary links come from that same
 dataset. Partial coverage preserves `null`, `unavailable` and `truncated`.
 

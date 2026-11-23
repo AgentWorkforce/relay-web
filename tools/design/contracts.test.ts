@@ -4,6 +4,9 @@ import { adminApi } from "../../src/admin/api";
 import { getProductCapabilities } from "../../src/features/capabilities";
 import {
   listSessions,
+  agentNames,
+  sessionActivity,
+  sessionOutput,
   sessionCatalog,
   sessionEvents,
   sessionTiming,
@@ -15,6 +18,9 @@ import { createFixtureFetch, fixtureReply } from "./transport";
 import {
   dataset,
   organization,
+  range,
+  fixtureClock,
+  usage as fixtureUsage,
   proposedInitiatives,
   scenarios,
   seed,
@@ -33,6 +39,100 @@ afterEach(() => {
 });
 
 describe("designer fixture contracts", () => {
+  it("filters activity with the same query semantics as the list and counts cross-midnight evidence", async () => {
+    install("busy");
+    const window = { first: range(7).from, last: range(7).to };
+    for (const q of [
+      "billing",
+      "@edge*",
+      'project:"Edge migration"',
+      "nothing-matches-this",
+    ]) {
+      const activity = await sessionActivity(
+        workspace.id,
+        { ...window, q },
+        signal(),
+      );
+      const expectedRows = dataset("busy").filter(({ row }) =>
+        q === "billing"
+          ? row.project.name === "Billing integration"
+          : q === "@edge*"
+            ? row.agentName === "edge-builder"
+            : q.startsWith("project:")
+              ? row.project.name === "Edge migration"
+              : false,
+      );
+      for (const day of activity) {
+        const expected = expectedRows.filter(({ events }) =>
+          events.some((event) => event.ts.startsWith(day.date)),
+        );
+        expect(day.conversations).toBe(expected.length);
+        expect(
+          Object.values(day.bySource).reduce((n, count) => n + count, 0),
+        ).toBe(expected.length);
+      }
+    }
+    const prefix = await listSessions(
+      workspace.id,
+      { agent: "edge*" },
+      null,
+      signal(),
+    );
+    expect(prefix.items).toHaveLength(5);
+    const cross = dataset("busy").find(
+      ({ events }) =>
+        new Set(events.map((event) => event.ts.slice(0, 10))).size > 1,
+    )!;
+    expect(cross).toBeTruthy();
+    const activity = await sessionActivity(workspace.id, window, signal());
+    for (const date of new Set(
+      cross.events.map((event) => event.ts.slice(0, 10)),
+    )) {
+      const expected = dataset("busy").filter(({ events }) =>
+        events.some((event) => event.ts.startsWith(date)),
+      ).length;
+      expect(activity.find((day) => day.date === date)?.conversations).toBe(
+        expected,
+      );
+    }
+  });
+
+  it("counts summaries on generation days and keeps fleet timestamps non-null", () => {
+    const usage = fixtureUsage("stale", 7).usage;
+    const builtDate = dataset("stale").find(
+      ({ summary }) => summary.status === "ready",
+    )!.summary;
+    if (builtDate.status !== "ready")
+      throw new Error("Expected recorded summary");
+    expect(
+      usage.days.find((day) => day.date === builtDate.builtAt.slice(0, 10))
+        ?.summaries,
+    ).toBe(3);
+    expect(
+      usage.days.find((day) => day.date === fixtureClock.slice(0, 10))
+        ?.summaries,
+    ).toBe(0);
+    expect(usage.days.reduce((n, day) => n + (day.summaries ?? 0), 0)).toBe(
+      usage.totals.summaries,
+    );
+    const fleet = catalog
+      .find((entry) => entry.id === "fleet")!
+      .example("small") as {
+      body: {
+        range: unknown;
+        totals: unknown;
+        next_cursor: null;
+        members: Array<{ machines: Array<{ lastSeenAt: string }> }>;
+      };
+    };
+    expect(fleet.body.range).toEqual(range(30));
+    expect(fleet.body.totals).toBeTruthy();
+    expect(fleet.body.next_cursor).toBeNull();
+    for (const member of fleet.body.members)
+      for (const machine of member.machines)
+        expect(Number.isFinite(Date.parse(machine.lastSeenAt))).toBe(true);
+  });
+
   for (const scenario of scenarios.filter(
     ({ id }) => id !== "error" && id !== "loading",
   )) {
@@ -47,6 +147,16 @@ describe("designer fixture contracts", () => {
       expect((await getProductCapabilities(signal())).usage_people).toBe(true);
       const page = await listSessions(workspace.id, {}, null, signal());
       expect(page.items.length).toBe(Math.min(12, dataset(scenario.id).length));
+      expect(await agentNames(workspace.id, signal())).toEqual([
+        ...new Set(dataset(scenario.id).map(({ row }) => row.agentName)),
+      ]);
+      expect(await adminApi.workspaces(organization.id)).toEqual([workspace]);
+      const window = { first: range(90).from, last: range(90).to };
+      const activity = await sessionActivity(workspace.id, window, signal());
+      expect(
+        activity.reduce((n, day) => n + day.conversations, 0),
+      ).toBeGreaterThanOrEqual(dataset(scenario.id).length);
+      expect(await sessionOutput(workspace.id, window, signal())).toBeNull();
       const usage = await adminApi.usage(organization.id, 30);
       const people = await adminApi.usagePeople(organization.id, 30);
       expect(usage.totals.sessionsUploaded).toBe(dataset(scenario.id).length);
@@ -180,7 +290,8 @@ describe("designer fixture contracts", () => {
     for (const method of ["POST", "PUT", "PATCH", "DELETE"])
       expect((await fetch(base, { method })).status).toBe(405);
     expect(
-      (await fetch("https://agentrelay.com/cloud/api/auth/session")).status,
+      (await fetch("https://external.example.test/cloud/api/auth/session"))
+        .status,
     ).toBe(405);
     expect((await fetch("/cloud/api/v1/unknown")).status).toBe(404);
     expect(

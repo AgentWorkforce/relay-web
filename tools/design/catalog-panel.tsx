@@ -42,9 +42,11 @@ export function CatalogPanel({
           >
             {entry.availability}
           </span>
-          <a href={entry.source} target="_blank" rel="noreferrer">
-            Source contract <ArrowUpRight size={13} />
-          </a>
+          {entry.source && (
+            <a href={entry.source} target="_blank" rel="noreferrer">
+              Source contract <ArrowUpRight size={13} />
+            </a>
+          )}
         </div>
         <h2>{entry.title}</h2>
         <p>{entry.description}</p>
@@ -57,8 +59,9 @@ export function CatalogPanel({
           </dd>
           <dt>Coverage</dt>
           <dd>
-            Source contract inspected 23 Nov 2026. Deployed availability is
-            unverified.
+            {entry.availability === "Proposed"
+              ? "Design proposal only. No server contract or deployed capability is asserted."
+              : "Source contract inspected 23 Nov 2026. Deployed availability is unverified."}
           </dd>
         </dl>
         <div className="design-notice">

@@ -8,7 +8,11 @@ import {
 } from "../../src/admin/contracts";
 import type { SessionModelSummaryView } from "../../src/sessions/model-summary";
 
-export const fixtureClock = "2026-11-23T20:00:00.000Z";
+/** Stable within the current UTC day, so preview date windows never age out. */
+export function scenarioClock(now = new Date()) {
+  return `${now.toISOString().slice(0, 10)}T12:00:00.000Z`;
+}
+export const fixtureClock = scenarioClock();
 export const scenarios = [
   {
     id: "small",
@@ -184,7 +188,10 @@ export function usage(id: ScenarioId, days = 30) {
       summaries:
         id === "partial"
           ? null
-          : rows.filter(({ summary }) => summary.status === "ready").length,
+          : data.filter(
+              ({ summary }) =>
+                summary.status === "ready" && summary.builtAt.startsWith(date),
+            ).length,
     };
   });
   return usageSchema.parse({

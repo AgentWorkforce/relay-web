@@ -4,9 +4,10 @@ import "../../src/styles.css";
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "../../src/app";
-import { initTheme } from "../../src/shell/theme";
+import { initTheme, setThemePreference } from "../../src/shell/theme";
 import { scenarioId } from "./scenarios";
 import { createFixtureFetch } from "./transport";
+import { installPreviewBridge } from "./preview-navigation";
 
 const scenario = scenarioId(location.pathname.split("/")[2]);
 window.__AGENT_RELAY_DASHBOARD_CONFIG__ = {
@@ -37,6 +38,15 @@ window.fetch = async (input, init) => {
   return response;
 };
 initTheme();
+const stopBridge = installPreviewBridge(
+  window,
+  (route) => {
+    if (parent !== window)
+      parent.postMessage({ type: "design-route", route }, location.origin);
+  },
+  setThemePreference,
+);
+import.meta.hot?.dispose(stopBridge);
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />

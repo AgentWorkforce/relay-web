@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { Workbench } from "./workbench";
 
@@ -77,4 +77,56 @@ it("keeps proposed fields distinct and copies the selected JSON", async () => {
   expect(await screen.findByText("Copied")).toBeInTheDocument();
   const copied = vi.mocked(navigator.clipboard.writeText).mock.calls[0]![0];
   expect(JSON.parse(copied)).toMatchObject({ designProposal: true });
+});
+
+it("retains in-frame drill-downs across theme and catalog changes and selects the matching data", async () => {
+  render(<Workbench />);
+  const frame = screen.getByTitle(
+    "Real dashboard with synthetic data",
+  ) as HTMLIFrameElement;
+  const route = "/preview/small/?session=design-session-2&source=claude";
+  act(() =>
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        origin: location.origin,
+        source: frame.contentWindow,
+        data: { type: "design-route", route },
+      }),
+    ),
+  );
+  expect(screen.getByRole("link", { name: "Open preview" })).toHaveAttribute(
+    "href",
+    route,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Toggle theme" }));
+  expect(screen.getByTitle("Real dashboard with synthetic data")).toBe(frame);
+  fireEvent.click(screen.getByRole("button", { name: "Data" }));
+  expect(
+    screen.getByRole("heading", { name: "Transcript evidence" }),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /01Dashboard/ }));
+  expect(screen.getByTitle("Real dashboard with synthetic data")).toBe(frame);
+  expect(screen.getByRole("link", { name: "Open preview" })).toHaveAttribute(
+    "href",
+    route,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Team usage" }));
+  expect(screen.getByTitle("Real dashboard with synthetic data")).not.toBe(
+    frame,
+  );
+  expect(screen.getByRole("link", { name: "Open preview" })).toHaveAttribute(
+    "href",
+    "/preview/small/#/settings/usage",
+  );
+});
+
+it("does not present a server contract for proposed fields", () => {
+  history.replaceState(null, "", "/?view=Data+catalog&data=initiatives");
+  render(<Workbench />);
+  expect(
+    screen.queryByRole("link", { name: "Source contract" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByText(/No server contract or deployed capability is asserted/),
+  ).toBeInTheDocument();
 });

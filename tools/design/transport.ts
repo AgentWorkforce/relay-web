@@ -1,3 +1,8 @@
+import { sessionRow } from "../../src/sessions/data";
+import {
+  matchesSessionFilters,
+  parseSessionQuery,
+} from "../../src/sessions/query";
 import {
   account,
   context,
@@ -72,6 +77,37 @@ export function fixtureReply(
     : result;
 }
 
+function matchesAgent(name: string, value: string) {
+  const wanted = value.toLowerCase();
+  return wanted.endsWith("*")
+    ? name.toLowerCase().startsWith(wanted.slice(0, -1))
+    : name.toLowerCase() === wanted;
+}
+
+function matchesQuery(
+  row: ReturnType<typeof dataset>[number]["row"],
+  value: string,
+) {
+  const parsed = parseSessionQuery(value);
+  const text = JSON.stringify([
+    row.title,
+    row.project.name,
+    row.agentName,
+    row.shortSummary,
+  ]).toLowerCase();
+  return (
+    parsed.text
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean)
+      .every((word) => text.includes(word)) &&
+    matchesSessionFilters(sessionRow(row), value, Date.parse(fixtureClock)) &&
+    parsed.filters
+      .filter((f) => f.field === "agent")
+      .every((f) => matchesAgent(row.agentName, f.value))
+  );
+}
+
 function route(
   path: string,
   query: URLSearchParams,
@@ -96,20 +132,13 @@ function route(
       if (!value) continue;
       filtered = filtered.filter((row) =>
         key === "q"
-          ? JSON.stringify([
-              row.title,
-              row.project.name,
-              row.agentName,
-              row.shortSummary,
-            ])
-              .toLowerCase()
-              .includes(value.toLowerCase().replace(/^@/, ""))
+          ? matchesQuery(row, value)
           : key === "project"
             ? row.projectId === value
             : key === "source"
               ? row.source === value
               : key === "agent"
-                ? row.agentName === value
+                ? matchesAgent(row.agentName, value)
                 : key === "since"
                   ? row.lastTs >= value
                   : row.firstTs <= value,
@@ -129,24 +158,30 @@ function route(
   if (path === `${base}/sessions/activity`) {
     const first = query.get("first") ?? "";
     const last = query.get("last") ?? "9999";
+    const filtered = rows.filter(({ row }) =>
+      matchesQuery(row, query.get("q") ?? ""),
+    );
     return reply({
       days: usage(scenario, 90)
         .usage.days.filter((day) => day.date >= first && day.date <= last)
-        .map((day) => ({
-          date: day.date,
-          conversations: day.sessionsUploaded,
-          bySource: Object.fromEntries(
-            ["codex", "claude"].map((source) => [
-              source,
-              rows.filter(
-                ({ row }) =>
-                  row.source === source && row.lastTs.startsWith(day.date),
-              ).length,
-            ]),
-          ),
-        })),
+        .map(({ date }) => {
+          const active = filtered.filter(({ events }) =>
+            events.some((event) => event.ts.startsWith(date)),
+          );
+          return {
+            date,
+            conversations: active.length,
+            bySource: Object.fromEntries(
+              ["codex", "claude"].map((source) => [
+                source,
+                active.filter(({ row }) => row.source === source).length,
+              ]),
+            ),
+          };
+        }),
     });
   }
+
   if (path === `${base}/sessions/output`) return reply({ output: null });
   const sessionPath = new RegExp(
     `^${base}/sessions/([^/]+)/(events|turns|timing|catalog|summary)$`,

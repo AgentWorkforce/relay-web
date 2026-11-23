@@ -126,15 +126,15 @@ export function GuidePanel({
             uploaded is not progress. Nullable tokens are not a dollar bill.
           </p>
           <p>
-            Customer evidence is still needed. Khaliq and Will should provide
+            Customer evidence is still needed. The product leads should provide
             three to five approved excerpts explaining the operator’s question
             and decision. The meeting brief is in{" "}
             <code>docs/designer-onboarding.md</code>; this kit does not invent
             customer interviews.
           </p>
           <p>
-            Fixture clock: <time>{fixtureClock}</time>. Status and dates are
-            deliberately reproducible.
+            Scenario clock: <time>{fixtureClock}</time>. Scenarios are
+            reproducible within the current UTC day.
           </p>
           <Button
             variant="outline"

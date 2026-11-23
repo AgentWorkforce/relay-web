@@ -1,7 +1,7 @@
 # Designer onboarding: dashboard first, Desktop next
 
 The first design pass is an operator overview and one project drill-down.
-This brief comes from Khaliq and Florian’s November 23, 2026 working discussion.
+This brief comes from the November 23, 2026 product onboarding discussion.
 It records product direction, not customer research or a commitment that every
 proposed field is already available.
 
@@ -40,8 +40,8 @@ surprise port. Commands here run from the `relay-web` checkout, not infra.
    a screenshot for an asynchronous review.
 
 The fictional Northstar Studio has three people, three machines and three
-projects. People, sessions, transcripts and summaries are linked. The fixed
-fixture clock is **2026-11-23 20:00 UTC**; these are not live activity reports.
+projects. People, sessions, transcripts and summaries are linked. The scenario
+reference clock is anchored at **12:00 UTC on the current day**; these are not live activity reports.
 Change the story in `tools/design/fixtures/northstar.json`. Change scenario
 behavior in `tools/design/scenarios.ts`. Download the scenario pack from
 **Start here** to inspect the complete local data.
@@ -88,7 +88,7 @@ workspaces and credential handoff; it is not a second session store.
 
 ## Inputs for the first review
 
-Khaliq/Will should supply three to five approved customer conversation excerpts.
+The product leads should supply three to five approved customer conversation excerpts.
 For each, record the user’s role, the question they were trying to answer, the
 decision that followed and the evidence they needed. Those excerpts are not
 included in this public repository. The meeting provides product direction;

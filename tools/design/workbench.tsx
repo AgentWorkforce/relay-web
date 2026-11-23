@@ -3,6 +3,7 @@ import { ArrowUpRight, Code2, Copy, Layers, Moon, Sun } from "lucide-react";
 import { Button } from "../../src/shell/ui";
 import { setThemePreference, themePreference } from "../../src/shell/theme";
 import { catalog } from "./catalog";
+import { validPreviewRoute, previewDataEntry } from "./preview-navigation";
 import { OperatorConcept } from "./operator-concept";
 import { CatalogPanel } from "./catalog-panel";
 import { GuidePanel } from "./guide-panel";
@@ -49,12 +50,14 @@ export function Workbench() {
   const [scenario, setScenario] = useState(() =>
     scenarioId(initial.get("scenario")),
   );
-  const [savedPreview, setSavedPreview] = useState(() => {
-    const value = initial.get("preview");
-    return value?.startsWith(`/preview/${scenarioId(initial.get("scenario"))}/`)
-      ? value
-      : null;
-  });
+  const [savedPreview, setSavedPreview] = useState(() =>
+    validPreviewRoute(
+      initial.get("preview"),
+      scenarioId(initial.get("scenario")),
+    ),
+  );
+  const [currentPreview, setCurrentPreview] = useState<string | null>(null);
+  const [navigationId, setNavigationId] = useState(0);
   const [project, setProject] = useState(
     () =>
       proposedInitiatives.find((p) => p.name === initial.get("project"))
@@ -81,7 +84,16 @@ export function Workbench() {
   const frame = useRef<HTMLIFrameElement>(null);
   const scenarioInfo = scenarios.find((item) => item.id === scenario)!;
   const data = dataset(scenario);
-  const preview = savedPreview ?? previewPath(scenario, surface, focus);
+  const requestedPreview =
+    savedPreview ?? previewPath(scenario, surface, focus);
+  const preview = currentPreview ?? requestedPreview;
+  const currentData = previewDataEntry(preview);
+  const currentSurface =
+    currentData === "people"
+      ? "person"
+      : currentData === "usage"
+        ? "usage"
+        : "sessions";
 
   useEffect(() => {
     const query = new URLSearchParams({
@@ -91,12 +103,10 @@ export function Workbench() {
       data: entryId,
       width,
     });
-    if (savedPreview) query.set("preview", savedPreview);
-    if (focus && !savedPreview)
-      query.set("preview", previewPath(scenario, surface, focus));
+    query.set("preview", preview);
     if (project) query.set("project", project);
     history.replaceState(null, "", `/?${query}`);
-  }, [scenario, view, surface, entryId, width, savedPreview, focus, project]);
+  }, [scenario, view, surface, entryId, width, preview, project]);
   useEffect(() => {
     const receive = (event: MessageEvent) => {
       if (
@@ -108,7 +118,12 @@ export function Workbench() {
         type?: string;
         path?: unknown;
         status?: unknown;
+        route?: unknown;
       };
+      if (data?.type === "design-route") {
+        const route = validPreviewRoute(data.route, scenario);
+        if (route) setCurrentPreview(route);
+      }
       if (
         data?.type === "design-read" &&
         typeof data.path === "string" &&
@@ -120,7 +135,7 @@ export function Workbench() {
     };
     addEventListener("message", receive);
     return () => removeEventListener("message", receive);
-  }, []);
+  }, [scenario]);
 
   async function copyText(text: string) {
     try {
@@ -132,21 +147,15 @@ export function Workbench() {
   }
   function copyViewLink() {
     const url = new URL(location.href);
-    if (view === "Dashboard") {
-      const current = frame.current?.contentWindow?.location;
-      if (current?.pathname.startsWith(`/preview/${scenario}/`)) {
-        url.searchParams.set(
-          "preview",
-          current.pathname + current.search + current.hash,
-        );
-      }
-    }
+    if (view === "Dashboard") url.searchParams.set("preview", preview);
     void copyText(url.href);
   }
   function showSession(sessionId: string) {
     const session = data.find(({ row }) => row.sessionId === sessionId)?.row;
     if (session) {
       setSavedPreview(null);
+      setCurrentPreview(null);
+      setNavigationId((id) => id + 1);
       setFocus(session);
       setSurface("sessions");
       setReads([]);
@@ -211,6 +220,10 @@ export function Workbench() {
               const next = theme === "light" ? "dark" : "light";
               setThemePreference(next);
               setTheme(next);
+              frame.current?.contentWindow?.postMessage(
+                { type: "design-theme", preference: next },
+                location.origin,
+              );
             }}
           >
             {theme === "light" ? <Moon size={15} /> : <Sun size={15} />}
@@ -249,6 +262,8 @@ export function Workbench() {
                 onChange={(e) => {
                   setScenario(scenarioId(e.target.value));
                   setSavedPreview(null);
+                  setCurrentPreview(null);
+                  setNavigationId((id) => id + 1);
                   setProject(null);
                   setFocus(undefined);
                   setReads([]);
@@ -271,97 +286,88 @@ export function Workbench() {
             {copy}
           </p>
 
-          {view === "Dashboard" && (
-            <section aria-label="Production dashboard preview">
-              <div className="design-preview-toolbar">
-                <div role="group" aria-label="Dashboard surface">
-                  {(["usage", "sessions", "person"] as const).map((item) => (
-                    <Button
-                      key={item}
-                      variant={
-                        surface === item && !focus ? "secondary" : "ghost"
-                      }
-                      size="sm"
-                      onClick={() => {
-                        setSurface(item);
-                        setSavedPreview(null);
-                        setFocus(undefined);
-                        setReads([]);
-                      }}
-                    >
-                      {item === "usage"
-                        ? "Team usage"
-                        : item === "sessions"
-                          ? "Sessions"
-                          : "Person drill-down"}
-                    </Button>
-                  ))}
-                </div>
-                <div className="design-inline">
-                  <label className="design-width-label">
-                    Width
-                    <select
-                      value={width}
-                      onChange={(e) => setWidth(e.target.value)}
-                    >
-                      <option value="desktop">Desktop</option>
-                      <option value="mobile">390 px</option>
-                    </select>
-                  </label>
-                  <a href={preview} target="_blank" rel="noreferrer">
-                    Open preview <ArrowUpRight size={13} />
-                  </a>
+          <section
+            aria-label="Production dashboard preview"
+            hidden={view !== "Dashboard"}
+          >
+            <div className="design-preview-toolbar">
+              <div role="group" aria-label="Dashboard surface">
+                {(["usage", "sessions", "person"] as const).map((item) => (
                   <Button
-                    variant="ghost"
+                    key={item}
+                    variant={currentSurface === item ? "secondary" : "ghost"}
                     size="sm"
-                    onClick={() =>
-                      inspect(
-                        surface === "usage"
-                          ? "usage"
-                          : surface === "person"
-                            ? "people"
-                            : "sessions",
-                      )
-                    }
+                    onClick={() => {
+                      setSurface(item);
+                      setSavedPreview(null);
+                      setCurrentPreview(null);
+                      setNavigationId((id) => id + 1);
+                      setFocus(undefined);
+                      setReads([]);
+                    }}
                   >
-                    <Code2 size={14} /> Data
+                    {item === "usage"
+                      ? "Team usage"
+                      : item === "sessions"
+                        ? "Sessions"
+                        : "Person drill-down"}
                   </Button>
-                </div>
+                ))}
               </div>
-              <div className="design-preview-stage">
-                <iframe
-                  key={`${scenario}-${surface}-${theme}`}
-                  ref={frame}
-                  title="Real dashboard with synthetic data"
-                  src={preview}
-                  className={width === "mobile" ? "design-preview-mobile" : ""}
-                />
+              <div className="design-inline">
+                <label className="design-width-label">
+                  Width
+                  <select
+                    value={width}
+                    onChange={(e) => setWidth(e.target.value)}
+                  >
+                    <option value="desktop">Desktop</option>
+                    <option value="mobile">390 px</option>
+                  </select>
+                </label>
+                <a href={preview} target="_blank" rel="noreferrer">
+                  Open preview <ArrowUpRight size={13} />
+                </a>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => inspect(currentData)}
+                >
+                  <Code2 size={14} /> Data
+                </Button>
               </div>
-              <details className="design-network">
-                <summary>
-                  Fixture reads · {reads.length} recent requests
-                </summary>
-                <p>
-                  Reads are answered in memory. Unconfigured routes and writes
-                  are refused. No request falls through to a live backend.
-                </p>
-                <ul>
-                  {reads.map((read, i) => (
-                    <li key={i}>
-                      <code>
-                        {read.status} GET {read.path}
-                      </code>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-              <p className="design-footnote">
-                Same App, shell, SessionsPage and UsageSection as production.
-                Edit <code>src/</code> to change those components; this
-                workbench lives in <code>tools/design/</code>.
+            </div>
+            <div className="design-preview-stage">
+              <iframe
+                key={`${scenario}-${navigationId}`}
+                ref={frame}
+                title="Real dashboard with synthetic data"
+                src={requestedPreview}
+                className={width === "mobile" ? "design-preview-mobile" : ""}
+              />
+            </div>
+            <details className="design-network">
+              <summary>Fixture reads · {reads.length} recent requests</summary>
+              <p>
+                Reads are answered in memory. Unconfigured routes and writes are
+                refused. No request falls through to a live backend.
               </p>
-            </section>
-          )}
+              <ul>
+                {reads.map((read, i) => (
+                  <li key={i}>
+                    <code>
+                      {read.status} GET {read.path}
+                    </code>
+                  </li>
+                ))}
+              </ul>
+            </details>
+            <p className="design-footnote">
+              Same App, shell, SessionsPage and UsageSection as production. Edit{" "}
+              <code>src/</code> to change those components; this workbench lives
+              in <code>tools/design/</code>.
+            </p>
+          </section>
 
           {view === "Operator concept" && (
             <OperatorConcept

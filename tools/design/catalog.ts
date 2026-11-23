@@ -1,5 +1,7 @@
 import {
   dataset,
+  fixtureClock,
+  range,
   organization,
   proposedInitiatives,
   seed,
@@ -16,7 +18,7 @@ export type CatalogEntry = {
   description: string;
   owner: string;
   endpoint: string;
-  source: string;
+  source?: string;
   limitation: string;
   fields: Field[];
   example: (scenario: ScenarioId) => unknown;
@@ -189,12 +191,12 @@ export const catalog: CatalogEntry[] = [
     description:
       "The documented fleet endpoint connects members with Desktop machines, last reports and policy state. Useful context for the later IC design pass.",
     limitation:
-      "Documentation-shaped example only: not served by this preview and not validated by a production dashboard fleet parser. Owner/admin-only. Token session status is not agent liveness.",
+      "Complete documentation-shaped example only: not served by this preview and not validated by a production dashboard fleet parser. Owner/admin-only. Token session status is not agent liveness.",
     fields: [
       {
         name: "members[].machines",
         meaning:
-          "Device sessions for a member; platform, hostname and last report can be missing.",
+          "Device sessions for a member; platform and hostname can be missing; lastSeenAt is a required timestamp.",
       },
       {
         name: "policyMatch / lastSeenAt",
@@ -202,22 +204,54 @@ export const catalog: CatalogEntry[] = [
           "Policy state and last report, rather than proof a machine is online now.",
       },
     ],
-    example: () => ({
+    example: (id) => ({
       exampleOnly: true,
-      members: seed.people.map((person) => ({
-        user: { id: person.id, name: person.name, email: person.email },
-        role: person.role,
-        machines: seed.machines
-          .filter((m) => m.ownerId === person.id)
-          .map((m) => ({
-            sessionId: m.id,
-            hostName: m.name,
-            platform: m.platform,
-            lastSeenAt: null,
-            status: "active",
-            policyMatch: "unknown",
-          })),
-      })),
+      body: {
+        policy_revision: 1,
+        range: range(30),
+        totals: {
+          members: seed.people.length,
+          machines: seed.machines.length,
+          managed: 0,
+          policy: {
+            current: 0,
+            stale: 0,
+            unknown: seed.machines.length,
+            mismatch: 0,
+          },
+          clientVersions: [{ version: null, machines: seed.machines.length }],
+        },
+        members: seed.people.map((person) => ({
+          user: { id: person.id, name: person.name, email: person.email },
+          role: person.role,
+          machines: seed.machines
+            .filter((m) => m.ownerId === person.id)
+            .map((m) => ({
+              sessionId: m.id,
+              hostName: m.name,
+              clientVersion: null,
+              platform: m.platform,
+              enrolledVia: null,
+              policyRevision: null,
+              policyMatch: "unknown",
+              managed: false,
+              lastSeenAt: fixtureClock,
+              status: "active",
+            })),
+          usage: {
+            sessionsUploaded: dataset(id).filter(({ row }) =>
+              row.userIds.includes(person.id),
+            ).length,
+            lastSessionAt:
+              dataset(id).find(({ row }) => row.userIds.includes(person.id))
+                ?.row.lastTs ?? null,
+            topProjects: [],
+          },
+        })),
+        usage_unavailable: [],
+        truncated: false,
+        next_cursor: null,
+      },
     }),
   },
   {
@@ -253,7 +287,6 @@ export const catalog: CatalogEntry[] = [
     availability: "Proposed",
     owner: "Product + session analysis owners",
     endpoint: "No current operator endpoint",
-    source: `${control}openapi.yaml`,
     description:
       "A proposed synthesis of related work, blockers, decisions and next steps. Try the Operator concept to discuss the hierarchy.",
     limitation:
