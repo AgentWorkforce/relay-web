@@ -39,8 +39,9 @@ export function OperatorConcept({
       <div className="design-notice">
         <strong>Proposed product experience</strong>
         <p>
-          These initiative summaries, decisions and next steps are hand-authored
-          design examples. They are not returned by today’s operator APIs.
+          This concept uses hand-authored design examples. Initiative synthesis
+          is shown only when the selected scenario has current analysis. These
+          proposed fields are not returned by today’s operator APIs.
           Activity is not completion; no percentage or spend is implied.
         </p>
         <Button

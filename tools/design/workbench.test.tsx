@@ -1,3 +1,5 @@
+import { GuidePanel } from "./guide-panel";
+import { operatorData } from "./operator-data";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { Workbench } from "./workbench";
@@ -157,6 +159,21 @@ it("does not show current initiative cards or restored project detail without cu
     expect(screen.queryByRole("region", {name: "Proposed project drill-down"})).not.toBeInTheDocument();
     expect(screen.queryByRole("button", {name: "Edge migration"})).not.toBeInTheDocument();
     expect(screen.queryByText("Routing implemented; staging validation pending")).not.toBeInTheDocument();
+    rendered.unmount();
+  }
+});
+
+it("downloads the same cohort and analysis availability from the onboarding guide", () => {
+  for (const scenario of ["busy", "stale", "partial", "empty"] as const) {
+    const download = vi.fn();
+    const rendered = render(<GuidePanel scenario={scenario} onConcept={vi.fn()} onDownload={download} />);
+    fireEvent.click(screen.getByRole("button", {name: "Download scenario pack"}));
+    const [pack, filename] = download.mock.calls[0]!;
+    const analysis = operatorData(scenario);
+    expect(pack.proposedInitiatives).toEqual(analysis.initiatives);
+    expect(pack.operatorAnalysis).toEqual(analysis);
+    expect(pack.sessions).toHaveLength(analysis.coverage.recordedSessions);
+    expect(filename).toBe(`relay-${scenario}-design-pack.json`);
     rendered.unmount();
   }
 });
