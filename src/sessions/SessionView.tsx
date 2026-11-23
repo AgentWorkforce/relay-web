@@ -50,6 +50,7 @@ import {
 import { formatSessionDuration } from "./model/session-timing";
 import { backHref, graphHref, onLinkClick, sessionHref } from "./route";
 import { DeleteSession } from "./DeleteSession";
+import { SessionAccess } from "./SessionAccess";
 import { Transcript } from "./Transcript";
 import { sessionVisualizationsEnabled } from "../app-path";
 import { TraceWaterfall } from "./visualizations/trace-waterfall";
@@ -570,6 +571,11 @@ export function SessionView({
                   Details
                 </Button>
                 {resume && <CopyResumeCommand command={resume} />}
+                <SessionAccess
+                  workspaceId={workspaceId}
+                  sessionId={sessionId}
+                  onSignedOut={onSignedOut}
+                />
                 <DeleteSession
                   workspaceId={workspaceId}
                   source={source}
