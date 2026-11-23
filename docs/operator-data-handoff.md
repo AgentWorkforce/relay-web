@@ -81,6 +81,12 @@ storage binding and deployment. These are separate operator-gated work.
 Source-session erasure must invalidate or regenerate derived artifacts; a result prefix alone
 does not establish permission or freshness. The final contract and exact route are not agreed yet.
 
+**Accepted first implementation:** sessions-intel-lead owns Stage 1; layered-sessions-pipeline
+reviews and lands. The owner has started code-only preparation and estimates about four hours
+to a review request: pure aggregator, contract/JSON schema, validated synthetic F1 cohort,
+offline CLI artifact and tests. No read route, flag, migration or real-data run is included.
+This estimate is for review readiness, not production availability. Stage 2 is separate.
+
 The proposed pack in the workbench demonstrates this shape; its names are **not an agreed API**:
 
 - Explicit organization/workspace, time window, generated-at time, source/analyzer versions and
