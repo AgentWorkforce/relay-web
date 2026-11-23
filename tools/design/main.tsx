@@ -1,4 +1,4 @@
-import "../../src/globals.css";
+import "./styles.css";
 import "../../src/brand.css";
 import "../../src/styles.css";
 import "./workbench.css";

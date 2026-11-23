@@ -1,0 +1,6 @@
+/* The workbench has its own Vite root. Explicitly scan production components
+   as well, so their layout utilities and SVG sizing are generated in dev. */
+@import "../../src/globals.css";
+@source "../../src";
+@source ".";
+@source not "./**/*.test.*";

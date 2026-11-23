@@ -17,6 +17,10 @@ it needs no backend, secrets, extra packages or login. The
   usage/person/session pages and transcript renderer. Runtime flags are set
   before mount, analytics stays off, and direct reader mode stays off. The
   existing Control-shaped session paths are sufficient for this first set.
+- `styles.css`: imports the product theme and explicitly scans `src/` for
+  Tailwind utilities. The separate Vite root otherwise omits the production
+  component classes, including icon sizing and filter-row layout. Test files
+  are excluded so CSS assertions cannot supply their own utility candidates.
 - `transport.ts`: an entry-local fetch replacement. Only enumerated GET routes
   for the fictional workspace are supported. Unknown routes, external URLs and
   every mutation return a fixture refusal; there is no fetch fallback, backend
