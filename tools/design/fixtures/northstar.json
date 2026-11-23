@@ -1,0 +1,139 @@
+{
+  "organization": {
+    "id": "design-org",
+    "name": "Northstar Studio"
+  },
+  "workspace": {
+    "id": "design-workspace",
+    "name": "Engineering"
+  },
+  "people": [
+    {
+      "id": "design-ana",
+      "name": "Ana Silva",
+      "email": "ana@example.test",
+      "role": "owner"
+    },
+    {
+      "id": "design-leo",
+      "name": "Leo Martin",
+      "email": "leo@example.test",
+      "role": "member"
+    },
+    {
+      "id": "design-maya",
+      "name": "Maya Chen",
+      "email": "maya@example.test",
+      "role": "member"
+    }
+  ],
+  "machines": [
+    {
+      "id": "design-laptop",
+      "name": "Ana’s laptop",
+      "ownerId": "design-ana",
+      "platform": "macos",
+      "location": "local"
+    },
+    {
+      "id": "design-cloud",
+      "name": "Build runner",
+      "ownerId": "design-leo",
+      "platform": "linux",
+      "location": "cloud"
+    },
+    {
+      "id": "design-mini",
+      "name": "Studio Mac mini",
+      "ownerId": "design-maya",
+      "platform": "macos",
+      "location": "remote"
+    }
+  ],
+  "work": [
+    {
+      "project": "Edge migration",
+      "repo": "edge-service",
+      "title": "Move asset delivery to the edge",
+      "agent": "edge-builder",
+      "source": "codex",
+      "person": 0,
+      "machine": 0,
+      "status": "active",
+      "summary": "Asset routing is implemented. The next step is validating cache invalidation in staging.",
+      "prompt": "Move asset delivery to the edge. Keep the existing cache invalidation behavior.",
+      "result": "Routing is implemented and the focused tests pass. Staging validation is still pending.",
+      "file": "src/asset-routing.ts"
+    },
+    {
+      "project": "Edge migration",
+      "repo": "edge-service",
+      "title": "Validate cache invalidation",
+      "agent": "cache-reviewer",
+      "source": "claude",
+      "person": 1,
+      "machine": 1,
+      "status": "idle",
+      "summary": "The cache tests pass locally. Staging validation is waiting for a test hostname.",
+      "prompt": "Validate the edge migration against the cache contract.",
+      "result": "Local cache tests pass. I need a staging hostname before running the integration check.",
+      "file": "test/cache.test.ts"
+    },
+    {
+      "project": "Billing integration",
+      "repo": "billing-service",
+      "title": "Handle duplicate payment events",
+      "agent": "billing-builder",
+      "source": "claude",
+      "person": 2,
+      "machine": 2,
+      "status": "finished",
+      "summary": "Duplicate payment events now return the original outcome. Regression tests pass.",
+      "prompt": "Make payment event processing idempotent.",
+      "result": "Added event deduplication and a regression test. The focused test suite passes.",
+      "file": "src/payments.ts"
+    },
+    {
+      "project": "Billing integration",
+      "repo": "billing-service",
+      "title": "Document webhook recovery",
+      "agent": "billing-docs",
+      "source": "codex",
+      "person": 1,
+      "machine": 1,
+      "status": "finished",
+      "summary": "The recovery guide now explains replay and deduplication using the new event identifier.",
+      "prompt": "Document how to recover a delayed payment webhook.",
+      "result": "Updated the recovery guide with a replay example and verification steps.",
+      "file": "docs/recovery.md"
+    },
+    {
+      "project": "Developer experience",
+      "repo": "developer-tools",
+      "title": "Make workspace settings easier to find",
+      "agent": "settings-builder",
+      "source": "codex",
+      "person": 0,
+      "machine": 0,
+      "status": "active",
+      "summary": "A visible Settings entry is implemented. Keyboard navigation is being reviewed.",
+      "prompt": "Make workspace settings discoverable without opening the avatar menu.",
+      "result": "Added a visible settings entry. I am checking focus order and keyboard navigation.",
+      "file": "src/navigation.tsx"
+    },
+    {
+      "project": "Developer experience",
+      "repo": "developer-tools",
+      "title": "Review first-run setup",
+      "agent": "onboarding-reviewer",
+      "source": "claude",
+      "person": 2,
+      "machine": 2,
+      "status": "idle",
+      "summary": "The first-run review identified two unclear CLI setup labels. A wording review is pending.",
+      "prompt": "Review the first-run CLI setup flow for clarity.",
+      "result": "Found two setup labels that need clearer language. The findings are ready for review.",
+      "file": "docs/first-run.md"
+    }
+  ]
+}
