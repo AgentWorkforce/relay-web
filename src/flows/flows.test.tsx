@@ -65,6 +65,7 @@ beforeEach(() => {
     usage: false,
     usage_people: false,
     session_delete: false,
+    session_access: false,
   });
   window.location.hash = "";
   vi.mocked(getAccount).mockResolvedValue({

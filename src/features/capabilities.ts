@@ -14,6 +14,8 @@ const responseSchema = z.object({
     usage_people: z.boolean().default(false),
     // Derived by Control from erase configuration; older installs omit it.
     session_delete: z.boolean().default(false),
+    // Per-session read access managed through relaygate; older installs omit it.
+    session_access: z.boolean().default(false),
   }),
 });
 export type ProductCapabilities = z.infer<
@@ -26,6 +28,7 @@ export const NO_CAPABILITIES: ProductCapabilities = Object.freeze({
   usage: false,
   usage_people: false,
   session_delete: false,
+  session_access: false,
 });
 
 export async function getProductCapabilities(signal: AbortSignal) {

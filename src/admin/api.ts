@@ -46,6 +46,8 @@ export class ApiError extends Error {
     readonly status: number,
     readonly code: string,
     message: string,
+    /** The parsed error body, for answers that carry more than a code. */
+    readonly body: unknown = null,
   ) {
     super(message);
   }
@@ -104,6 +106,7 @@ async function call<T>(
         (response.status === 403
           ? "Only organization owners and admins can do that."
           : "Something went wrong. Please try again."),
+      body,
     );
   }
   return schema ? schema.parse(body) : (body as T);
