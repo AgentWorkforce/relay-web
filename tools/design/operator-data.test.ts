@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { operatorData } from "./operator-data";
-import { dataset } from "./scenarios";
+import { dataset, scenarios } from "./scenarios";
 
 it("links every theme, intent and improvement to the same source session evidence", () => {
   const pack = operatorData("busy");
@@ -58,5 +58,24 @@ it("stale snapshots cite only evidence available when analysis ran", () => {
     for (const claim of [...understanding.intents, understanding.outcome, ...understanding.outcomes.flatMap(outcome => [outcome.intent, outcome.assessment])]) {
       for (const id of claim.evidenceIds) expect(Date.parse(evidence.get(id)!.at)).toBeLessThanOrEqual(at);
     }
+  }
+});
+
+it("resolves every aggregate reference in every scenario and counts all blocker reports", () => {
+  for (const {id} of scenarios) {
+    const pack = operatorData(id);
+    const sessions = new Map(pack.sessions.map(session => [session.sessionId, session]));
+    const evidence = new Map(pack.sessions.flatMap(session => session.evidence.map(item => [item.id, item] as const)));
+    for (const item of [...pack.initiatives, ...pack.themes, ...pack.improvementOpportunities]) {
+      for (const sessionId of item.sessionIds) expect(sessions.has(sessionId)).toBe(true);
+      for (const evidenceId of item.evidenceIds) {
+        const ref = evidence.get(evidenceId)!;
+        expect(ref).toBeDefined();
+        expect(item.sessionIds).toContain(ref.sessionId);
+        expect(sessions.get(ref.sessionId)!.source).toBe(ref.source);
+      }
+    }
+    const blockerSessions = pack.sessions.filter(session => session.analysisStatus === "current" && session.understanding?.blockers.length);
+    expect(pack.improvementOpportunities.reduce((sum, item) => sum + item.reportCount, 0)).toBe(blockerSessions.length);
   }
 });

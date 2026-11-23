@@ -43,15 +43,10 @@ The analysis read route is `GET /v1/sessions/:id/analysis`, scoped by the Reader
 identity and source/workspace contract. It returns jobs/requests and stored results, not the
 abbreviated excerpt in the workbench. Absent configuration returns 501 `analysis_not_configured`.
 Analysis request/enqueue is a separate mutation; this GET-only design kit does not invoke it.
-The pipeline lead's producer inventory says to **treat real F1 samples as unavailable**.
-Code is verified; a production job/object census has not been read. Dated operator-lane reports
-say the live indexing build lacks analysis code and Reader admission is not bound. Empty job
-tables, an empty result prefix and the exact live flag state are inferred, not verified reads.
-Do not turn this into a claim that a production census returned zero rows.
-
-The Reader owner reports that the latest supplied production database receipt (23 Nov, 14:56Z)
-had a migration ledger top of 062010; this does not prove that 062170 has been applied later.
-Do not present the workspace view as live based on the frontend or schema alone.
+No verified real F1 samples accompany this kit. The code is implemented and default off;
+its deployed and populated state is not verified here. The workspace coordination view needs
+migration `20261105062170`; the per-session analysis path also requires its own dependencies.
+Do not infer production availability from this design pack or the presence of a frontend.
 
 ## Smallest useful data delivery
 
@@ -60,7 +55,7 @@ per-session analyses and claims, with a versioned contract agreed with the Reade
 Start with one complete cohort, not a global live dashboard. A batch JSON artifact can unblock
 layout before a continuously refreshed endpoint exists.
 
-The pipeline lead proposes `workspace-synthesis/1` as new code, in two stages:
+The pipeline design proposes `workspace-synthesis/1` as new code, in two stages:
 
 1. **Deterministic first slice:** completed scrubbed per-session v2 inputs; work-type/outcome
    counts and members, usage coverage, freshness and skipped reasons. Define
@@ -81,11 +76,10 @@ storage binding and deployment. These are separate operator-gated work.
 Source-session erasure must invalidate or regenerate derived artifacts; a result prefix alone
 does not establish permission or freshness. The final contract and exact route are not agreed yet.
 
-**Accepted first implementation:** sessions-intel-lead owns Stage 1; layered-sessions-pipeline
-reviews and lands. The owner has started code-only preparation and estimates about four hours
-to a review request: pure aggregator, contract/JSON schema, validated synthetic F1 cohort,
-offline CLI artifact and tests. No read route, flag, migration or real-data run is included.
-This estimate is for review readiness, not production availability. Stage 2 is separate.
+**First implementation scope:** a pure aggregator, contract/JSON schema, validated synthetic
+F1 cohort, offline CLI artifact and tests. The analysis owner prepares it and the pipeline
+owner reviews it. No read route, flag, migration or real-data run is included.
+Review readiness and production availability are separate. Stage 2 is separate.
 
 The proposed pack in the workbench demonstrates this shape; its names are **not an agreed API**:
 
@@ -112,7 +106,7 @@ linking to a guessed event. Aggregate access must follow existing workspace/shar
 The current workbench opens the supporting session; event IDs are included in the download, but
 there is no invented event-anchor URL.
 
-## What Florian can use now
+## What the designer can use now
 
 The workbench connects the same invented prompts, agent replies, project summaries and sessions.
 The categories/themes are hand-authored; the statistics are calculated over the complete in-memory
@@ -137,12 +131,13 @@ tracked in [relay-web #151](https://github.com/AgentWorkforce/relay-web/pull/151
 ## Source-owned contracts
 
 - [Per-session analysis v2 and validation](https://github.com/AgentWorkforce/relayhistory-pipeline/blob/b3594f11/src/session-analysis/engine/session-analysis-result.ts)
+- [Analysis route configuration and errors](https://github.com/AgentWorkforce/relayhistory-pipeline/blob/b3594f11/src/session-read-api/app.ts)
 - [Analysis read lifecycle](https://github.com/AgentWorkforce/relayhistory-pipeline/blob/b3594f11/src/session-analysis/read.ts)
 - [Workspace coordination API, full example JSON](https://github.com/AgentWorkforce/relayhistory-pipeline/blob/b3594f11/docs/session-intel-workspace-api.md)
 - [Output/digest availability and omitted fields](https://github.com/AgentWorkforce/relayhistory-pipeline/blob/b3594f11/docs/output-digest-clickhouse-design.md)
 - [Offline descriptive patterns and their limits](https://github.com/AgentWorkforce/relayhistory-pipeline/blob/b3594f11/docs/session-intel-patterns.md)
 
-Pipeline synthesis/producer coordination: sessionspipelinegrok and layered-sessions-pipeline.
-Reader/contract integration: layered-relayhistory. Coordination fixtures: sessions-intel-lead.
+The pipeline owner coordinates producer availability; the analysis owner prepares synthesis.
+The Reader owner owns scoped read contracts and the coordination owner owns those fixtures.
 Real workspace samples belong in a private, access-controlled handoff, never this public repo.
 Deploys, migrations, credentials and customer-trace collection retain their existing explicit gates.

@@ -77,7 +77,7 @@ export function OperatorConcept({
           <h2>{selectedProject.name}</h2>
           <p>{selectedProject.progress}</p>
           <h3>What the humans asked for</h3>
-          {data.filter(({row}) => selectedProject.sessionIds.includes(row.sessionId)).map(({row, events}) => <div key={row.sessionId} className="design-notice"><p>{events[0]!.content}</p><Button variant="ghost" size="sm" onClick={() => showSession(row.sessionId)}>Inspect original prompt</Button></div>)}
+          {data.filter(({row}) => row.project.name === selectedProject.name).map(({row, events}) => <div key={row.sessionId} className="design-notice"><p>{events[0]!.content}</p><Button variant="ghost" size="sm" onClick={() => showSession(row.sessionId)}>Inspect original prompt</Button></div>)}
           {selectedProject.decision && (
             <div className="design-notice">
               <strong>Proposed decision needed</strong>
@@ -94,8 +94,8 @@ export function OperatorConcept({
             makes a claim.
           </p>
           <div className="design-project-detail-sessions">
-            {selectedProject.sessionIds.map((ref) => {
-              const record = data.find(({ row }) => row.sessionId === ref)!;
+            {data.filter(({ row }) => row.project.name === selectedProject.name).map((record) => {
+              const ref = record.row.sessionId;
               return (
                 <Card key={ref}>
                   <CardHeader>
@@ -170,17 +170,18 @@ export function OperatorConcept({
                 </div>
                 <div className="design-evidence">
                   <span>Supporting sessions</span>
-                  {item.sessionIds.map((ref) => (
+                  {data.filter(({ row }) => row.project.name === item.name).slice(0, 3).map(({row}) => (
                     <Button
-                      key={ref}
+                      key={row.sessionId}
                       variant="ghost"
                       size="sm"
-                      onClick={() => showSession(ref)}
+                      onClick={() => showSession(row.sessionId)}
                     >
-                      {data.find(({ row }) => row.sessionId === ref)?.row.title}
+                      {row.title}
                       <ArrowUpRight size={13} />
                     </Button>
                   ))}
+                  <Button variant="ghost" size="sm" onClick={() => setProject(item.name)}>View all {data.filter(({row}) => row.project.name === item.name).length} supporting sessions</Button>
                 </div>
               </CardContent>
             </Card>
@@ -189,9 +190,9 @@ export function OperatorConcept({
       )}
       {!selectedProject && <OperatorEvidence scenario={scenario} onSession={showSession} onInspect={inspect} />}
       <p className="design-footnote">
-        Concept scope: the first six synthetic sessions. “Service error” and
-        “Slow service” affect the supporting dashboard reads; this hand-authored
-        proposal is not a live synthesis.
+        Counts and project membership use the complete selected synthetic cohort.
+        “Service error” and “Slow service” affect the supporting dashboard reads;
+        this hand-authored proposal is not a live synthesis.
       </p>
     </section>
   );

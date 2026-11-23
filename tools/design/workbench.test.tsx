@@ -140,3 +140,11 @@ it("drills a work category into the actual supporting human prompt", () => {
   fireEvent.click(within(detail).getByRole("button", { name: /Open prompt evidence/ }));
   expect(screen.getByTitle("Real dashboard with synthetic data")).toHaveAttribute("src", "/preview/small/?session=design-session-2&source=claude");
 });
+
+it("uses the full busy cohort in initiative cards and project drill-downs", () => {
+  history.replaceState(null, "", "/?view=Operator+concept&scenario=busy");
+  render(<Workbench />);
+  expect(screen.getAllByRole("button", {name: "View all 10 supporting sessions"})).toHaveLength(3);
+  fireEvent.click(screen.getByRole("button", {name: "Edge migration"}));
+  expect(within(screen.getByRole("region", {name: "Proposed project drill-down"})).getAllByRole("button", {name: "Inspect transcript"})).toHaveLength(10);
+});
