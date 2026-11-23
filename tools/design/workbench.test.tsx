@@ -130,3 +130,13 @@ it("does not present a server contract for proposed fields", () => {
     screen.getByText(/No server contract or deployed capability is asserted/),
   ).toBeInTheDocument();
 });
+
+it("drills a work category into the actual supporting human prompt", () => {
+  render(<Workbench />);
+  fireEvent.click(screen.getByRole("button", { name: /Operator concept/ }));
+  fireEvent.click(screen.getByRole("button", { name: "testing (1)" }));
+  const detail = screen.getByLabelText("Work category drill-down");
+  expect(within(detail).getByText("Validate the edge migration against the cache contract.")).toBeInTheDocument();
+  fireEvent.click(within(detail).getByRole("button", { name: /Open prompt evidence/ }));
+  expect(screen.getByTitle("Real dashboard with synthetic data")).toHaveAttribute("src", "/preview/small/?session=design-session-2&source=claude");
+});

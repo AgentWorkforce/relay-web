@@ -1,3 +1,5 @@
+import { operatorData } from "./operator-data";
+import { OperatorEvidence } from "./operator-evidence";
 import { ArrowUpRight } from "lucide-react";
 import {
   Button,
@@ -28,6 +30,7 @@ export function OperatorConcept({
   onSession: (id: string) => void;
 }) {
   const data = dataset(scenario);
+  const analysisPack = operatorData(scenario);
   const selectedProject = proposedInitiatives.find(
     (item) => item.name === project,
   );
@@ -73,6 +76,8 @@ export function OperatorConcept({
           </Button>
           <h2>{selectedProject.name}</h2>
           <p>{selectedProject.progress}</p>
+          <h3>What the humans asked for</h3>
+          {data.filter(({row}) => selectedProject.sessionIds.includes(row.sessionId)).map(({row, events}) => <div key={row.sessionId} className="design-notice"><p>{events[0]!.content}</p><Button variant="ghost" size="sm" onClick={() => showSession(row.sessionId)}>Inspect original prompt</Button></div>)}
           {selectedProject.decision && (
             <div className="design-notice">
               <strong>Proposed decision needed</strong>
@@ -151,6 +156,7 @@ export function OperatorConcept({
                 </CardTitle>
               </CardHeader>
               <CardContent>
+                {analysisPack.initiatives.find(initiative => initiative.title === item.name) && <p><strong>Human goal:</strong> {analysisPack.initiatives.find(initiative => initiative.title === item.name)!.humanGoal}</p>}
                 <p>{item.progress}</p>
                 {item.decision && (
                   <div className="design-decision">
@@ -181,6 +187,7 @@ export function OperatorConcept({
           ))}
         </div>
       )}
+      {!selectedProject && <OperatorEvidence scenario={scenario} onSession={showSession} onInspect={inspect} />}
       <p className="design-footnote">
         Concept scope: the first six synthetic sessions. “Service error” and
         “Slow service” affect the supporting dashboard reads; this hand-authored

@@ -1,3 +1,4 @@
+import { operatorData } from "./operator-data";
 import {
   dataset,
   fixtureClock,
@@ -280,6 +281,40 @@ export const catalog: CatalogEntry[] = [
     example: () => ({
       note: "See the existing test-only fixture in src/sessions/overlaps-fixture.ts. No backend availability is asserted.",
     }),
+  },
+  {
+    id: "analysis-inputs",
+    title: "Intent, outcomes & work type",
+    availability: "Conditional",
+    owner: "Session analysis pipeline + Reader",
+    endpoint: "GET /v1/sessions/:id/analysis (native Reader; configuration required)",
+    source: "https://github.com/AgentWorkforce/relayhistory-pipeline/blob/b3594f11/src/session-analysis/engine/session-analysis-result.ts",
+    description: "The implemented per-session analysis vocabulary includes human intent, constraints, decisions, blockers, work type, outcomes, verification, metrics and evidence references.",
+    limitation: "Abbreviated synthetic excerpt only, not an HTTP response or proof of deployed/populated analysis. The complete result has an envelope, job history, snapshot, coverage and metrics. Child delegated instructions must not be labelled as the root human’s prompt. Schema and data availability are separate.",
+    fields: [
+      { name: "understanding.intents / constraints / decisions / blockers", meaning: "Claims carry evidenceIds, confidence and observed/inferred/unknown basis." },
+      { name: "understanding.sessionType", meaning: "planning, implementation, debugging, review, testing, research, conversation, mixed or unknown. A work category is not an initiative." },
+      { name: "understanding.outcomes[]", meaning: "Distinguishes implemented, reported-complete and verified, including remaining work and contradictions. Verification applies to the stated scope." },
+      { name: "evidence.references / coverage / analyzedAt", meaning: "Prompt/tool locators, included versus available evidence and analysis time. Stale or incomplete analysis must remain visible." },
+      { name: "metrics.usage / tools / interactionPeriods", meaning: "Observed tokens, nullable cost, recorded tool errors and interaction periods. Backend telemetry is the analyzer’s own spend; it must not be counted as the team’s usage." },
+    ],
+    example: id => ({ abbreviated: true, synthetic: true, notAnHttpResponse: true, sessions: operatorData(id).sessions }),
+  },
+  {
+    id: "operator-data",
+    title: "Team themes & improvement",
+    availability: "Proposed",
+    owner: "Product + session analysis owners",
+    endpoint: "No agreed operator synthesis endpoint",
+    description: "A downloadable, linked design pack for automatic initiative grouping, human intent, common prompt themes, work categories, improvement hypotheses and statistics with evidence drill-down.",
+    limitation: "Grouping and classifications are hand-authored. Counts are calculated over the complete synthetic dataset; this does not implement an automatic analyzer. Shared work themes are separate from recurring issues. Impact, organization spend and initiative completion remain unknown.",
+    fields: [
+      { name: "scope / generatedAt / coverage", meaning: "Explicit organization/workspace/window; current, stale and unavailable analysis plus token coverage." },
+      { name: "statistics.categories / uncategorizedSessions", meaning: "One illustrative primary work type per current analyzed session. Unknown sessions are kept in the denominator; child-fleet deduplication is a production requirement." },
+      { name: "themes[].sessionIds / evidenceIds", meaning: "Every proposed theme leads to its supporting root prompts. A recurring issue needs repeated independent evidence and deduplication, not just a shared keyword." },
+      { name: "improvementOpportunities", meaning: "Observation, hypothesis, supporting evidence and a suggested measure. No unmeasured savings or employee productivity score." },
+    ],
+    example: operatorData,
   },
   {
     id: "initiatives",
