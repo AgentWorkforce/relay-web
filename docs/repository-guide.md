@@ -31,6 +31,14 @@ authority or a disabled gateway stops delivery until the context changes.
 A gateway `202` means the gateway accepted the request, not that the collector
 has persisted it. Collector durability requires independent file readback.
 
+## Designer development
+
+For UI iteration without a backend, run `npm ci` and `npm run design`. The
+separate development workbench renders the real App against synthetic responses,
+with a data catalog and explicit proposed-field labels. It is excluded from the
+production entry and adds no product sample-data mode or authentication path.
+See [designer onboarding](designer-onboarding.md).
+
 ## Run
 
 Install dependencies here with `npm ci`, then run `npm run dev` from the Cloud

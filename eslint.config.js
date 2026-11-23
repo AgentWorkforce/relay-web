@@ -8,10 +8,10 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ["src/**/*.{ts,tsx}"],
+    files: ["src/**/*.{ts,tsx}", "tools/design/**/*.{ts,tsx}"],
     languageOptions: { globals: globals.browser },
     plugins: { "react-hooks": hooks },
     rules: hooks.configs.recommended.rules,
   },
-  { files: ["*.{js,ts}"], languageOptions: { globals: globals.node } },
+  { files: ["*.{js,ts}", "tools/design/vite.config.ts", "tools/design/*.mjs"], languageOptions: { globals: globals.node } },
 );

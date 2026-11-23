@@ -15,7 +15,10 @@
     "typecheck": "tsc -b",
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
-    "check": "npm run lint && npm run test && npm run build"
+    "check": "npm run lint && npm run design:check && npm run test && npm run build && npm run design:isolation",
+    "design": "vite --config tools/design/vite.config.ts",
+    "design:check": "tsc -p tools/design/tsconfig.json",
+    "design:isolation": "node tools/design/verify-production.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.8.0",
