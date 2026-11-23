@@ -43,7 +43,11 @@ The analysis read route is `GET /v1/sessions/:id/analysis`, scoped by the Reader
 identity and source/workspace contract. It returns jobs/requests and stored results, not the
 abbreviated excerpt in the workbench. Absent configuration returns 501 `analysis_not_configured`.
 Analysis request/enqueue is a separate mutation; this GET-only design kit does not invoke it.
-The analysis producer's current populated status is still being verified with its owner.
+The pipeline lead's producer inventory says to **treat real F1 samples as unavailable**.
+Code is verified; a production job/object census has not been read. Dated operator-lane reports
+say the live indexing build lacks analysis code and Reader admission is not bound. Empty job
+tables, an empty result prefix and the exact live flag state are inferred, not verified reads.
+Do not turn this into a claim that a production census returned zero rows.
 
 The Reader owner reports that the latest supplied production database receipt (23 Nov, 14:56Z)
 had a migration ledger top of 062010; this does not prove that 062170 has been applied later.
@@ -55,6 +59,27 @@ The next backend deliverable should be a bounded, dated workspace projection ove
 per-session analyses and claims, with a versioned contract agreed with the Reader owner.
 Start with one complete cohort, not a global live dashboard. A batch JSON artifact can unblock
 layout before a continuously refreshed endpoint exists.
+
+The pipeline lead proposes `workspace-synthesis/1` as new code, in two stages:
+
+1. **Deterministic first slice:** completed scrubbed per-session v2 inputs; work-type/outcome
+   counts and members, usage coverage, freshness and skipped reasons. Define
+   `considered = analyzed + skipped`; define eligibility separately so overlapping populations
+   cannot be added. Exact shared artifacts or failed commands are investigation candidates;
+   independent failure evidence is needed to call them recurring issues.
+2. **Model synthesis later:** initiative goals, semantic themes/issues and improvement hypotheses.
+   Each group must resolve to at least two supporting analysis IDs and their evidence IDs in the
+   same workspace/window; unresolved references are refused. Model/provider/budget remain open.
+
+Proposed limits: 30 days, 500 sessions with truncation stated, 20 initiatives, 10 issues,
+10 hypotheses, five evidence references per item, 280 characters per text field, 256 KB artifact.
+Start with a local synthetic artifact and contract; a default-off scoped read route can follow.
+The public pack here is a design proposal, not that full source-validated F1 input or a finished
+`workspace-synthesis/1` implementation. Actual data still depends on F1 enablement: schema and
+completeness proofs, runner image/chart/network/IAM/model configuration, and Reader admission,
+storage binding and deployment. These are separate operator-gated work.
+Source-session erasure must invalidate or regenerate derived artifacts; a result prefix alone
+does not establish permission or freshness. The final contract and exact route are not agreed yet.
 
 The proposed pack in the workbench demonstrates this shape; its names are **not an agreed API**:
 
@@ -92,8 +117,9 @@ analysis does not produce current categories, themes or improvement hypotheses. 
 coverage stays visible; cost stays null. Service error/Slow service affect the existing dashboard
 reads; the hand-authored concept remains a separately labelled design example.
 
-The improvement sample deliberately contains one reported staging blocker. It is shown as a
-hypothesis with unmeasured impact, not a proven recurring issue. Shared cache/payment/setup topics
+The improvement sample counts and links every staging-blocker report: one in Small team,
+five repeated fixture stories in Busy team. Independent-case count is unknown. It is shown as
+a hypothesis with unmeasured impact, not a proven recurring issue. Shared cache/payment/setup topics
 are work themes, not evidence that the team is failing.
 
 For the implemented coordination shape, use the full synthetic JSON in the

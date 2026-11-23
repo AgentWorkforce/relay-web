@@ -19,16 +19,25 @@ export function operatorData(scenario: ScenarioId) {
   const sessions = records.map(({ row, events }, index) => ({
     sessionId: row.sessionId, source: row.source, project: row.project.name,
     userIds: row.userIds, lastActivityAt: row.lastTs,
-    analyzedAt: supported ? (scenario === "stale" ? new Date(Date.parse(row.lastTs) - 72 * 3_600_000).toISOString() : row.lastTs) : null,
+    analyzedAt: supported ? (scenario === "stale" ? new Date(Date.parse(row.firstTs) + 500).toISOString() : row.lastTs) : null,
     analysisStatus: supported ? (current ? "current" : "stale") : "unavailable",
     // Abbreviated SessionSemanticAnalysis excerpt, not a GET /analysis response.
     understanding: supported ? {
       intents: [claim(events[0]!.content, events[0]!.eventId)],
       sessionType: { value: workTypes[index % workTypes.length]!, explanation: "Hand-authored fixture classification", evidenceIds: [events[0]!.eventId], confidence: "medium", basis: "inferred" },
-      outcome: claim(events[3]!.content, events[3]!.eventId),
-      blockers: index % 6 === 1 ? [claim("Staging validation needs a hostname.", events[3]!.eventId)] : [],
+      outcome: current ? claim(events[3]!.content, events[3]!.eventId) : { text: "Outcome not yet observed at this snapshot.", evidenceIds: [], confidence: "low", basis: "unknown" },
+      outcomes: [{
+        id: `${row.sessionId}-outcome`,
+        intent: claim(events[0]!.content, events[0]!.eventId),
+        status: current ? (row.workState.status === "finished" ? "reported-complete" : "in-progress") : "unknown",
+        assessment: current ? claim(events[3]!.content, events[3]!.eventId) : { text: "Only the opening prompt is available at this snapshot.", evidenceIds: [events[0]!.eventId], confidence: "low", basis: "observed" },
+        changes: [],
+        verification: { value: "not-observed", explanation: "This excerpt does not assess verification of the complete requested outcome.", evidenceIds: [], confidence: "low", basis: "unknown" },
+        remaining: [], contradictions: [], supersededBy: null,
+      }],
+      blockers: current && index % 6 === 1 ? [claim("Staging validation needs a hostname.", events[3]!.eventId)] : [],
     } : null,
-    evidence: [events[0]!, events[3]!].map(event => ({
+    evidence: (current ? [events[0]!, events[3]!] : [events[0]!]).map(event => ({
       id: event.eventId, source: row.source, sessionId: row.sessionId,
       kind: event.kind === "prompt" ? "human-message" : "assistant-message",
       at: event.ts, summary: event.content,
@@ -39,6 +48,7 @@ export function operatorData(scenario: ScenarioId) {
     value, sessionIds: sessions.filter(session => session.analysisStatus === "current" && session.understanding?.sessionType.value === value).map(session => session.sessionId),
   }));
   const tokenRows = records.filter(({row}) => row.totalInputTokens !== null && row.totalOutputTokens !== null);
+  const blockerSessions = sessions.filter(session => session.analysisStatus === "current" && session.understanding?.blockers.length);
   return {
     designProposal: true,
     provenance: "Synthetic, hand-authored examples. No model or live operator endpoint is called.",
@@ -80,12 +90,13 @@ export function operatorData(scenario: ScenarioId) {
       evidenceIds: sessions.filter((_, index) => theme.slots.includes(index % 6)).map(session => session.evidence[0]!.id),
       kind: "work-theme", // A shared topic is not automatically a recurring failure.
     })).filter(theme => theme.sessionIds.length >= 2) : [],
-    improvementOpportunities: current && records.length ? [{
+    improvementOpportunities: blockerSessions.length ? [{
       id: "staging-preflight",
-      observation: "One session reports that staging validation is waiting for a hostname.",
+      observation: `${blockerSessions.length} session${blockerSessions.length === 1 ? " reports" : "s report"} staging validation waiting for a hostname.`,
+      reportCount: blockerSessions.length, independentCaseCount: null,
       recommendation: "Try including staging prerequisites and a responsible contact in the migration brief.",
       basis: "inferred", confidence: "low", recurringIssue: false,
-      sessionIds: ["design-session-2"], evidenceIds: ["design-session-2-reply"],
+      sessionIds: blockerSessions.map(session => session.sessionId), evidenceIds: blockerSessions.flatMap(session => session.understanding!.blockers.flatMap(blocker => blocker.evidenceIds)),
       suggestedMeasure: "Compare staging-prerequisite blockers per analyzed migration session in the next equivalent window.",
       measuredImpact: null,
     }] : [],

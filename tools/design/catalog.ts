@@ -290,7 +290,7 @@ export const catalog: CatalogEntry[] = [
     endpoint: "GET /v1/sessions/:id/analysis (native Reader; configuration required)",
     source: "https://github.com/AgentWorkforce/relayhistory-pipeline/blob/b3594f11/src/session-analysis/engine/session-analysis-result.ts",
     description: "The implemented per-session analysis vocabulary includes human intent, constraints, decisions, blockers, work type, outcomes, verification, metrics and evidence references.",
-    limitation: "Abbreviated synthetic excerpt only, not an HTTP response or proof of deployed/populated analysis. The complete result has an envelope, job history, snapshot, coverage and metrics. Child delegated instructions must not be labelled as the root human’s prompt. Schema and data availability are separate.",
+    limitation: "Abbreviated synthetic excerpt only, not an HTTP response or proof of deployed/populated analysis. The complete result has an envelope, job history, snapshot, coverage and metrics. Child delegated instructions must not be labelled as the root human’s prompt. Both outcome (summary claim) and outcomes[] (per-goal assessments) exist in v2. No verified real samples are available from the current producer inventory.",
     fields: [
       { name: "understanding.intents / constraints / decisions / blockers", meaning: "Claims carry evidenceIds, confidence and observed/inferred/unknown basis." },
       { name: "understanding.sessionType", meaning: "planning, implementation, debugging, review, testing, research, conversation, mixed or unknown. A work category is not an initiative." },

@@ -34,8 +34,8 @@ export function OperatorEvidence({ scenario, onSession, onInspect }: { scenario:
     </div>
     {data.improvementOpportunities.map(item => <div className="design-notice" key={item.id}>
       <strong>Improvement hypothesis</strong><p>{item.observation}</p><p>{item.recommendation}</p>
-      <p className="design-footnote">One observed blocker; recurrence and impact are unproven. {item.suggestedMeasure}</p>
-      <Button size="sm" variant="outline" onClick={() => onSession(item.sessionIds[0]!)}>Inspect supporting report</Button>
+      <p className="design-footnote">Report count does not establish independent cases, recurrence or impact. {item.suggestedMeasure}</p>
+      {item.sessionIds.map(id => <Button key={id} size="sm" variant="outline" onClick={() => onSession(id)}>Inspect report · {id}</Button>)}
     </div>)}
   </section>;
 }

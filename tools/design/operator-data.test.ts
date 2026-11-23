@@ -17,6 +17,10 @@ it("links every theme, intent and improvement to the same source session evidenc
     }
   }
   for (const opportunity of pack.improvementOpportunities) {
+    expect(opportunity.reportCount).toBe(5);
+    expect(opportunity.sessionIds).toHaveLength(5);
+    expect(opportunity.evidenceIds).toHaveLength(5);
+    expect(opportunity.independentCaseCount).toBeNull();
     expect(opportunity.recurringIssue).toBe(false);
     expect(opportunity.measuredImpact).toBeNull();
     for (const id of opportunity.evidenceIds) expect(opportunity.sessionIds).toContain(evidence.get(id)?.sessionId);
@@ -39,4 +43,20 @@ it("keeps stale, unavailable and empty analysis out of current synthesis", () =>
   expect(operatorData("partial").statistics.inputTokensObserved).toBeNull();
   expect(operatorData("partial").coverage.tokenSessions).toBe(0);
   expect(operatorData("stale").coverage.tokenSessions).toBe(3);
+});
+
+it("stale snapshots cite only evidence available when analysis ran", () => {
+  for (const session of operatorData("stale").sessions) {
+    const at = Date.parse(session.analyzedAt!);
+    const evidence = new Map(session.evidence.map(item => [item.id, item]));
+    expect(at).toBeLessThan(Date.parse(session.lastActivityAt));
+    for (const item of session.evidence) expect(Date.parse(item.at)).toBeLessThanOrEqual(at);
+    const understanding = session.understanding!;
+    expect(understanding.outcomes).toHaveLength(1);
+    expect(understanding.outcomes[0]!.status).toBe("unknown");
+    expect(understanding.blockers).toEqual([]);
+    for (const claim of [...understanding.intents, understanding.outcome, ...understanding.outcomes.flatMap(outcome => [outcome.intent, outcome.assessment])]) {
+      for (const id of claim.evidenceIds) expect(Date.parse(evidence.get(id)!.at)).toBeLessThanOrEqual(at);
+    }
+  }
 });
