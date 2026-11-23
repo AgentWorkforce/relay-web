@@ -11,6 +11,9 @@ it needs no backend, secrets, extra packages or login. The
   It does not load the product Vite config or its backend proxy environment.
   Building this config is refused. The normal `npm run build` still has only
   the production entry.
+  Its dependency cache is separate from the product server, and the CSS test
+  uses a disposable private cache so running checks cannot invalidate an open
+  preview. Markdown dependencies are optimized before transcript drill-downs.
 - `main.tsx` and the tooling panels: the workbench, catalog and hand-authored operator concept. They use
   the production theme tokens, Button and Card components.
 - `preview-navigation.ts`: reports the frame’s push/replace/hash routes and
