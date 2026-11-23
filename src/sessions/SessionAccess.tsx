@@ -110,6 +110,8 @@ function SessionAccessControl({
   const inFlight = useRef(false);
   // Each opening is one generation; late answers from an earlier one are dropped.
   const generation = useRef(0);
+  // Whether the dialog is open, for a write that settles after a reopening.
+  const isOpen = useRef(false);
   const reading = useRef<AbortController | null>(null);
   const historyReading = useRef<AbortController | null>(null);
   const descriptionId = useId();
@@ -130,6 +132,7 @@ function SessionAccessControl({
 
   function close() {
     generation.current += 1;
+    isOpen.current = false;
     reading.current?.abort();
     historyReading.current?.abort();
     setStep("closed");
@@ -179,6 +182,7 @@ function SessionAccessControl({
 
   function open() {
     generation.current += 1;
+    isOpen.current = true;
     setHistory(null);
     void load();
   }
@@ -193,9 +197,22 @@ function SessionAccessControl({
     setWriteProblem(null);
     setNotice(null);
     const opened = generation.current;
+    // True when this answer must not be shown as it is: the component is
+    // gone, or the dialog was closed (and maybe opened again) while the write
+    // was pending. A reopened dialog read the access before the write settled,
+    // so it reads again now; a closed one reads on its next opening.
+    const reopened = (note: string | null) => {
+      if (!mounted.current) return true;
+      if (generation.current === opened) return false;
+      if (isOpen.current) {
+        setHistory(null);
+        void load(note);
+      }
+      return true;
+    };
     try {
       const value = await send();
-      if (!current(opened)) return;
+      if (reopened(null)) return;
       setPolicy(value);
       setHistory(null);
       setNotice(done);
@@ -205,8 +222,13 @@ function SessionAccessControl({
         if (mounted.current) signedOut();
         return;
       }
-      if (!current(opened)) return;
+      if (!mounted.current) return;
       const found = accessProblem(error, true);
+      if (
+        reopened(found.kind === "outcome_unknown" ? OUTCOME_UNKNOWN : null)
+      ) {
+        return;
+      }
       if (found.kind === "not_configured") return notConfigured();
       if (found.kind === "outcome_unknown") {
         // Never resent: read the access again and show it as it is now.
@@ -411,6 +433,11 @@ function SessionAccessControl({
   );
 }
 
+// The mode's middle digit is for the session's owning group, which the panel
+// shows but cannot change.
+const owningGroupText = (gid: number | null) =>
+  gid === null ? "No owning group" : `Group ${gid}`;
+
 function problemText(problem: AccessProblem): string {
   switch (problem.kind) {
     case "not_admin":
@@ -476,6 +503,8 @@ function PolicyView({ policy }: { policy: AccessPolicy }) {
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
         <dt className="text-muted-foreground">Mode</dt>
         <dd className="font-mono">{policy.mode}</dd>
+        <dt className="text-muted-foreground">Owning group</dt>
+        <dd>{owningGroupText(policy.gid)}</dd>
         <dt className="text-muted-foreground">Label</dt>
         <dd>{policy.label ?? "None"}</dd>
         <dt className="text-muted-foreground">Version</dt>
@@ -791,7 +820,8 @@ function AccessForm({
             onChange={(event) => setMode(event.target.value)}
           />
           <span id={`${id}-mode-help`} className="text-xs text-muted-foreground">
-            Owner, group and others; each 0, 2, 4 or 6.
+            Owner, owning group ({owningGroupText(policy.gid)}) and others;
+            each 0, 2, 4 or 6. The owning group cannot be changed here.
           </span>
         </div>
         <div className="flex flex-1 flex-col gap-1">
@@ -979,7 +1009,7 @@ function AccessForm({
         <Button type="submit" size="sm" disabled={busy || blocked}>
           {busy ? "Saving…" : "Save access"}
         </Button>
-        <Button variant="ghost" size="sm" onClick={onCancel}>
+        <Button variant="ghost" size="sm" disabled={busy} onClick={onCancel}>
           Cancel
         </Button>
       </div>
@@ -1063,7 +1093,7 @@ function ResetForm({
         >
           Yes, reset access
         </Button>
-        <Button variant="ghost" size="sm" onClick={onCancel}>
+        <Button variant="ghost" size="sm" disabled={busy} onClick={onCancel}>
           Cancel
         </Button>
       </div>
@@ -1098,6 +1128,7 @@ function snapshotText(snapshot: NonNullable<AccessSnapshot>): string {
   );
   return [
     `mode ${snapshot.mode ?? "unset"}`,
+    `owning group ${snapshot.gid ?? "none"}`,
     `label ${snapshot.label ?? "none"}`,
     `members: ${members.join(", ") || "none"}`,
     `groups: ${groups.join(", ") || "none"}`,

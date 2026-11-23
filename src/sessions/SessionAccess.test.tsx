@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render as renderView,
   screen,
@@ -35,7 +36,7 @@ const policy = {
   reset: false,
   version: 3,
   mode: "640",
-  gid: 100,
+  gid: 1200,
   groups: [{ gid: 100, perm: "r" }],
   members: [
     {
@@ -166,6 +167,21 @@ it("loads and renders the policy, including a former member", async () => {
   expect(view.getByText("u9")).toBeInTheDocument();
   expect(view.getByText("Group 100")).toBeInTheDocument();
   expect(view.getByText("Read and write (rw)")).toBeInTheDocument();
+  expect(view.getByText("Owning group")).toBeInTheDocument();
+  expect(view.getByText("Group 1200")).toBeInTheDocument();
+});
+
+it("says plainly when the session has no owning group", async () => {
+  stub(() => Response.json({ access: { ...current, gid: null } }));
+  render(<SessionAccess workspaceId="w1" sessionId="s1" />);
+  const dialog = await openPanel();
+  expect(
+    await within(dialog).findByText("No owning group"),
+  ).toBeInTheDocument();
+  await openEditor(dialog);
+  expect(
+    within(dialog).getByText(/Owner, owning group \(No owning group\) and others/),
+  ).toBeInTheDocument();
 });
 
 it("says only that the person is not an administrator", async () => {
@@ -396,7 +412,7 @@ it("asks for a reason before resetting to the defaults", async () => {
 it("pages the history with after", async () => {
   const snapshot = {
     mode: "640",
-    gid: 100,
+    gid: 1200,
     groups: [{ gid: 100, perm: "r" }],
     members: [policy.members[0]],
     label: "team",
@@ -459,7 +475,7 @@ it("pages the history with after", async () => {
   expect(first.textContent).toContain("version 1");
   expect(first.textContent).not.toContain("Before:");
   expect(first.textContent).toContain(
-    "After: mode 640; label team; members: reader@example.test rw; groups: group 100 r",
+    "After: mode 640; owning group 1200; label team; members: reader@example.test rw; groups: group 100 r",
   );
   fireEvent.click(history.getByRole("button", { name: "Load more history" }));
   const second = (
@@ -523,4 +539,130 @@ it("reports a signed-out read", async () => {
   await openPanel();
   await waitFor(() => expect(onSignedOut).toHaveBeenCalledTimes(1));
   expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+function pendingWrite(method: string) {
+  const write: { answer: (response: Response) => void; applied: boolean } = {
+    answer: () => undefined,
+    applied: false,
+  };
+  const updated = { ...current, version: 4, mode: "600" };
+  const stubbed = stub((call) =>
+    call.method === method
+      ? new Promise<Response>((resolve) => {
+          write.answer = resolve;
+        })
+      : Response.json({ access: write.applied ? updated : current }),
+  );
+  return { ...stubbed, write, updated };
+}
+
+async function saveThenReopen() {
+  const dialog = await openEditor(await openPanel());
+  const form = within(dialog);
+  type(form.getByLabelText("Mode"), "600");
+  type(form.getByLabelText("Reason (required)"), "narrow access");
+  save(dialog);
+  fireEvent.click(form.getByRole("button", { name: "Close" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  const reopened = await openPanel();
+  // The reopening read lands first, with the access as it was.
+  expect(await within(reopened).findByText("640")).toBeInTheDocument();
+  expect(
+    within(reopened).getByRole("button", { name: "Edit access" }),
+  ).toBeDisabled();
+  expect(
+    within(reopened).getByRole("button", { name: "Reset to defaults" }),
+  ).toBeDisabled();
+  return reopened;
+}
+
+it("reads again when a write settles after the panel was reopened", async () => {
+  const { calls, write, updated } = pendingWrite("PATCH");
+  render(<SessionAccess workspaceId="w1" sessionId="s1" />);
+  const dialog = await saveThenReopen();
+  expect(reads(calls)).toHaveLength(2);
+  write.applied = true;
+  write.answer(Response.json({ access: updated }));
+  await waitFor(() => expect(reads(calls)).toHaveLength(3));
+  const view = within(dialog);
+  expect(await view.findByText("600")).toBeInTheDocument();
+  expect(view.getByRole("button", { name: "Edit access" })).toBeEnabled();
+  expect(view.queryByText("640")).toBeNull();
+  expect(writes(calls)).toHaveLength(1);
+});
+
+it("warns and reads again when a write's outcome is unknown after a reopening", async () => {
+  const { calls, write } = pendingWrite("PATCH");
+  render(<SessionAccess workspaceId="w1" sessionId="s1" />);
+  const dialog = await saveThenReopen();
+  write.applied = true;
+  write.answer(failure(504, "session_access_outcome_unknown"));
+  const view = within(dialog);
+  expect(
+    await view.findByText(/The change may have been applied/),
+  ).toBeInTheDocument();
+  await waitFor(() => expect(reads(calls)).toHaveLength(3));
+  expect(await view.findByText("600")).toBeInTheDocument();
+  expect(writes(calls)).toHaveLength(1);
+});
+
+it("does nothing when a write settles while the panel is closed", async () => {
+  const { calls, write, updated } = pendingWrite("PATCH");
+  render(<SessionAccess workspaceId="w1" sessionId="s1" />);
+  const dialog = await openEditor(await openPanel());
+  const form = within(dialog);
+  type(form.getByLabelText("Mode"), "600");
+  type(form.getByLabelText("Reason (required)"), "narrow access");
+  save(dialog);
+  fireEvent.click(form.getByRole("button", { name: "Close" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  write.applied = true;
+  write.answer(Response.json({ access: updated }));
+  // Let the write's answer be read and settle while the panel stays closed.
+  for (let turn = 0; turn < 5; turn += 1) {
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+  }
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(reads(calls)).toHaveLength(1);
+  const reopened = within(await openPanel());
+  expect(await reopened.findByText("600")).toBeInTheDocument();
+  expect(reopened.getByRole("button", { name: "Edit access" })).toBeEnabled();
+  expect(reads(calls)).toHaveLength(2);
+});
+
+it("disables Cancel while a save is pending", async () => {
+  const { write, updated } = pendingWrite("PATCH");
+  render(<SessionAccess workspaceId="w1" sessionId="s1" />);
+  const dialog = await openEditor(await openPanel());
+  const form = within(dialog);
+  type(form.getByLabelText("Mode"), "600");
+  type(form.getByLabelText("Reason (required)"), "narrow access");
+  expect(form.getByRole("button", { name: "Cancel" })).toBeEnabled();
+  save(dialog);
+  expect(form.getByRole("button", { name: "Cancel" })).toBeDisabled();
+  write.answer(Response.json({ access: updated }));
+  expect(await form.findByText("Session access saved.")).toBeInTheDocument();
+});
+
+it("disables Cancel while a reset is pending", async () => {
+  const { write } = pendingWrite("POST");
+  render(<SessionAccess workspaceId="w1" sessionId="s1" />);
+  const dialog = await openPanel();
+  const panel = within(dialog);
+  fireEvent.click(
+    await panel.findByRole("button", { name: "Reset to defaults" }),
+  );
+  type(panel.getByLabelText("Reason (required)"), "back to defaults");
+  expect(panel.getByRole("button", { name: "Cancel" })).toBeEnabled();
+  fireEvent.click(panel.getByRole("button", { name: "Yes, reset access" }));
+  expect(panel.getByRole("button", { name: "Cancel" })).toBeDisabled();
+  write.answer(
+    Response.json({
+      access: { ...current, runtime: false, reset: true, version: 4 },
+    }),
+  );
+  expect(
+    await panel.findByText("Session access reset to the installation defaults."),
+  ).toBeInTheDocument();
 });
