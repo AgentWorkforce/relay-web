@@ -46,7 +46,7 @@ export function SessionSearch({
   workspaceId: string;
   query: string;
   onChange: (value: string) => void;
-  tab: "sessions" | "activity" | "overlaps";
+  tab: "sessions" | "activity" | "overlaps" | "intel";
   rows?: SessionRow[];
   members?: Member[];
   now?: number;

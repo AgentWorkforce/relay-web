@@ -1,5 +1,9 @@
 import { expect, it } from "vitest";
+import { harnessIconName } from "./harness-icon";
 import {
+  harnessName,
+  toolColor,
+  toolKey,
   projectLabel,
   promptLabel,
   recordedHandle,
@@ -195,3 +199,13 @@ it("cuts a very long id at a separator with an ellipsis, never mid-word", () => 
   // No separator to cut at: a plain prefix, still marked as cut.
   expect(shortSessionId("x".repeat(40))).toBe(`${"x".repeat(31)}…`);
 });
+
+it.each(["__proto__", "constructor", "toString", "hasOwnProperty"])(
+  "treats the prototype-named source %j as an unknown harness",
+  (name) => {
+    expect(toolKey(name)).toBe(name);
+    expect(harnessName(name)).toBe(name);
+    expect(toolColor(name)).toBe("var(--harness-other)");
+    expect(harnessIconName(name)).toBeNull();
+  },
+);
