@@ -65,7 +65,9 @@ const failure = (
   extra: Record<string, unknown> = {},
 ) => Response.json({ error, message: `Refused: ${error}.`, ...extra }, { status });
 
-function stub(route: Route, capability: unknown = true) {
+function stub(route: Route, ...given: [capability?: unknown]) {
+  // An explicit undefined means the key is absent, as on an older install.
+  const capability = given.length ? given[0] : true;
   const calls: Call[] = [];
   const fetch = vi.fn(async (url: string, init?: RequestInit) => {
     if (url.endsWith("/capabilities")) {
@@ -210,8 +212,10 @@ it("sends the loaded version, the full lists and the reason exactly once", async
   type(form.getByLabelText("Add member by email"), "new@example.test");
   fireEvent.click(form.getByRole("button", { name: "Add member" }));
   type(form.getByLabelText("Reason (required)"), "  narrow access  ");
-  save(dialog);
-  save(dialog);
+  // The button is renamed while saving, so keep hold of it.
+  const button = form.getByRole("button", { name: "Save access" });
+  fireEvent.click(button);
+  fireEvent.click(button);
   fireEvent.submit(form.getByLabelText("Mode").closest("form")!);
   await waitFor(() => expect(writes(calls)).toHaveLength(1));
   expect(writes(calls)[0]).toEqual({
