@@ -67,6 +67,7 @@ export function PipelineSample({ onDownload }: { onDownload: (value: unknown, na
           <h3>{analysis.title}</h3><p>{selected.source} / {selected.sessionId} · analyzed {analysis.analyzedAt}</p>
           <h4>Human intent claims</h4>{analysis.understanding.intents.map((claim, index) => <p key={index}>{claim.text} ({claim.basis}, {claim.confidence})</p>)}
           <h4>Outcome assessments</h4>{analysis.understanding.outcomes.map(outcome => <p key={outcome.id}>{outcome.status} · {outcome.assessment.text} · verification: {outcome.verification.value}</p>)}
+          {selected.eventId && <Button variant="outline" size="sm" onClick={() => setSelected({source: selected.source, sessionId: selected.sessionId})}>Back to session evidence</Button>}
           {selected.eventId ? reference ? <div aria-label="Pipeline evidence reference">
             <h4>{reference.kind}</h4><p>{reference.summary}</p>
             {reference.detail && <pre>{reference.detail}</pre>}

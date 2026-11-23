@@ -9,7 +9,9 @@ when imported; it adds no verified live endpoint or real-data availability to th
 - `schema.json` serializes `WORKSPACE_SYNTHESIS_SCHEMA` from the same commit's
   `src/session-intel/synthesis/schema.ts`. No schema fields are manually redefined here.
 - `provenance.json` records the repository, exact commit, paths, SHA-256 hashes, byte counts
-  and independent source-test result. The fixture hash test catches local drift.
+  and independent source-test result. The fixture hash test catches local drift. A `.gitattributes` `-text` rule prevents
+  checkout line-ending conversion, and the sample/catalog copy and download paths preserve
+  the source text bytes.
 
 Independent proof: in a temporary detached worktree at that exact source commit,
 `bun test src/session-intel/__tests__/synthesis.test.ts` passed 30 tests / 386 assertions.

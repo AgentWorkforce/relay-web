@@ -1,3 +1,4 @@
+import { CatalogPanel } from "./catalog-panel";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -60,6 +61,11 @@ it("opens a recurrence candidate by its F1 reference rather than guessing a tran
   expect(within(detail).getByText(ref.eventId)).toBeInTheDocument();
   expect(within(detail).getByText(pipelineReference(ref, ref.eventId)!.summary)).toBeInTheDocument();
   expect(screen.queryByRole("link", {name: /transcript/i})).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", {name: "Back to session evidence"}));
+  expect(screen.queryByLabelText("Pipeline evidence reference")).not.toBeInTheDocument();
+  const prompt = pipelineAnalysis(ref)!.evidence.references.find(item => item.kind === "human-message")!;
+  fireEvent.click(screen.getByRole("button", {name: `Inspect human-message · ${prompt.id}`}));
+  expect(within(screen.getByLabelText("Pipeline evidence reference")).getByText(prompt.summary)).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", {name: "Download computed output"}));
   expect(download).toHaveBeenCalledWith(pipelineDownloads.synthesis.text, "expected-synthesis.json", true);
 });
@@ -72,4 +78,14 @@ it("keeps the frozen pipeline cohort independent of the Northstar scenario selec
   expect(screen.getByRole("region", {name: "Source-owned pipeline sample"})).toBeInTheDocument();
   expect(screen.getByText(/separate frozen synthetic pipeline cohort/)).toBeInTheDocument();
   expect(screen.queryByText("Everything here belongs to the fictional Northstar Studio.")).not.toBeInTheDocument();
+});
+
+it("preserves source bytes through the catalog copy and download actions", () => {
+  const copy = vi.fn().mockResolvedValue(undefined);
+  const download = vi.fn();
+  render(<CatalogPanel scenario="small" entryId="pipeline-synthesis" copy="" onSelect={vi.fn()} onCopy={copy} onDownload={download} />);
+  fireEvent.click(screen.getByRole("button", {name: "Copy JSON"}));
+  expect(copy).toHaveBeenCalledWith(pipelineDownloads.synthesis.text);
+  fireEvent.click(screen.getByRole("button", {name: "JSON"}));
+  expect(download).toHaveBeenCalledWith(pipelineDownloads.synthesis.text, "expected-synthesis.json", true);
 });

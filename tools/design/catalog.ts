@@ -1,4 +1,4 @@
-import { synthesis, pipelineSource } from "./pipeline-sample-data";
+import { synthesis, pipelineSource, pipelineDownloads } from "./pipeline-sample-data";
 import { operatorData } from "./operator-data";
 import {
   dataset,
@@ -20,6 +20,7 @@ export type CatalogEntry = {
   owner: string;
   endpoint: string;
   source?: string;
+  rawExport?: { text: string; name: string };
   limitation: string;
   fields: Field[];
   example: (scenario: ScenarioId) => unknown;
@@ -284,6 +285,7 @@ export const catalog: CatalogEntry[] = [
   },
   {
     id: "pipeline-synthesis",
+    rawExport: pipelineDownloads.synthesis,
     title: "Pipeline synthesis v1",
     availability: "Experimental",
     owner: "Session analysis pipeline",

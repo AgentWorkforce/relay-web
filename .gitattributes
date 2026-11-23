@@ -1,0 +1,2 @@
+# Preserve provenance-pinned fixture bytes on every checkout.
+tools/design/fixtures/synthesis/*.json -text
