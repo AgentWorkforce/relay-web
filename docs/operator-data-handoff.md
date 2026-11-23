@@ -48,6 +48,33 @@ its deployed and populated state is not verified here. The workspace coordinatio
 migration `20261105062170`; the per-session analysis path also requires its own dependencies.
 Do not infer production availability from this design pack or the presence of a frontend.
 
+## Source-owned sample available now
+
+Open **Pipeline sample** in the workbench. It imports pipeline review commit
+[`1e6d6e46e`](https://github.com/AgentWorkforce/relayhistory-pipeline/commit/1e6d6e46e8008fb399cd79ae59182bb734b28e4e),
+which is unlanded and synthetic. The source's 30 synthesis tests passed independently at that
+exact commit. The workbench preserves the source cohort and computed output byte-for-byte,
+exports its JSON schema, and records hashes and source paths in the
+[fixture provenance](../tools/design/fixtures/synthesis/README.md).
+
+The sample has 60 eligible, 53 considered, 40 analyzed and 13 skipped sessions. Seven eligible
+sessions are not supplied; negative cases deliberately exercise the skip paths. No configured
+cap is hit, which does not imply full workspace coverage. Its 34 work-type/outcome buckets
+partition the 40 included analyses, and three exact-key failure candidates cite included F1
+evidence. Scope-group counts use repository/project/source keys, not proved human/fleet roots.
+
+This is a frozen November 1–8 cohort. The 35 stale analyses are counted relative to its injected
+November 8 generation time, and still contribute to the retrospective aggregate. Do not combine
+its clocks, workspace or memberships with the Northstar scenarios. The sample view disables the
+scenario selector and opens F1 evidence locally; it never guesses a production session URL.
+
+The actual `/1` artifact contains coverage, freshness, usage coverage, categories and recurrence
+candidates. **It has no initiatives, semantic themes, improvement hypotheses or token/cost sums.**
+Those remain proposals for a later synthesis stage. The broader Operator concept and its
+Northstar pack are explicitly separate. No route, deploy or real data is supplied by this source
+commit. Use the [source-owned contract](https://github.com/AgentWorkforce/relayhistory-pipeline/blob/1e6d6e46e8008fb399cd79ae59182bb734b28e4e/docs/session-intel-workspace-synthesis.md)
+for exact fields, caps, skip reasons and the evidence-reference interpretation.
+
 ## Smallest useful data delivery
 
 The next backend deliverable should be a bounded, dated workspace projection over scrubbed
@@ -74,7 +101,7 @@ The public pack here is a design proposal, not that full source-validated F1 inp
 completeness proofs, runner image/chart/network/IAM/model configuration, and Reader admission,
 storage binding and deployment. These are separate operator-gated work.
 Source-session erasure must invalidate or regenerate derived artifacts; a result prefix alone
-does not establish permission or freshness. The final contract and exact route are not agreed yet.
+does not establish permission or freshness. The first review contract is pinned in the source-owned sample above; a production read route is not verified here.
 
 **First implementation scope:** a pure aggregator, contract/JSON schema, validated synthetic
 F1 cohort, offline CLI artifact and tests. The analysis owner prepares it and the pipeline

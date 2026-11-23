@@ -1,0 +1,31 @@
+{
+  "repository": "https://github.com/AgentWorkforce/relayhistory-pipeline",
+  "commit": "1e6d6e46e8008fb399cd79ae59182bb734b28e4e",
+  "status": "Unlanded review commit; synthetic only",
+  "contract": "workspace-synthesis/1",
+  "fixedCohort": true,
+  "files": {
+    "cohort.json": {
+      "path": "src/session-intel/__tests__/fixtures/synthesis/cohort.json",
+      "sha256": "028a49d76405ad559ae51a48950bfd5b1e7bcc1355d9d4730ca949a31578dbee",
+      "bytes": 303701
+    },
+    "expected-synthesis.json": {
+      "path": "src/session-intel/__tests__/fixtures/synthesis/expected-synthesis.json",
+      "sha256": "b403da355bd20806c46ecc0e43c8c3d84c53331699a9ab68d4979d260552259a",
+      "bytes": 15669
+    },
+    "schema.json": {
+      "path": "src/session-intel/synthesis/schema.ts#WORKSPACE_SYNTHESIS_SCHEMA",
+      "sha256": "7769bc4a11aa4f4d462ba4b5dc2327ba42b8be5ca0d2c78c5ace828e240af8e1",
+      "bytes": 15363
+    }
+  },
+  "validation": {
+    "sourceCommand": "bun test src/session-intel/__tests__/synthesis.test.ts",
+    "passed": 30,
+    "failed": 0,
+    "assertions": 386,
+    "note": "Independent exact-commit check; cohort intentionally includes malformed and skipped cases. Only 40 analyzed entries contribute to the output."
+  }
+}
