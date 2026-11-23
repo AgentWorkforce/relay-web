@@ -148,3 +148,15 @@ it("uses the full busy cohort in initiative cards and project drill-downs", () =
   fireEvent.click(screen.getByRole("button", {name: "Edge migration"}));
   expect(within(screen.getByRole("region", {name: "Proposed project drill-down"})).getAllByRole("button", {name: "Inspect transcript"})).toHaveLength(10);
 });
+
+it("does not show current initiative cards or restored project detail without current analysis", () => {
+  for (const scenario of ["stale", "partial"]) {
+    history.replaceState(null, "", `/?view=Operator+concept&scenario=${scenario}&project=Edge+migration`);
+    const rendered = render(<Workbench />);
+    expect(screen.getByText("Current initiative analysis is unavailable")).toBeInTheDocument();
+    expect(screen.queryByRole("region", {name: "Proposed project drill-down"})).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", {name: "Edge migration"})).not.toBeInTheDocument();
+    expect(screen.queryByText("Routing implemented; staging validation pending")).not.toBeInTheDocument();
+    rendered.unmount();
+  }
+});

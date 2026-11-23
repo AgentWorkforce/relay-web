@@ -66,6 +66,14 @@ export function OperatorConcept({
             No recorded work yet. Start with a clear onboarding state.
           </CardContent>
         </Card>
+      ) : analysisPack.coverage.currentAnalysisSessions === 0 ? (
+        <Card>
+          <CardContent className="p-6">
+            <strong>Current initiative analysis is unavailable</strong>
+            <p>{analysisPack.coverage.staleAnalysisSessions > 0 ? "The analysis is older than the recorded activity. Refresh it before showing a current initiative synthesis." : "These sessions have no available analysis. Recorded transcripts remain available in the dashboard."}</p>
+            <Button variant="outline" size="sm" onClick={() => inspect("operator-data")}>Inspect analysis coverage</Button>
+          </CardContent>
+        </Card>
       ) : selectedProject ? (
         <section
           className="design-project-detail"
@@ -188,7 +196,7 @@ export function OperatorConcept({
           ))}
         </div>
       )}
-      {!selectedProject && <OperatorEvidence scenario={scenario} onSession={showSession} onInspect={inspect} />}
+      {(!selectedProject || analysisPack.coverage.currentAnalysisSessions === 0) && <OperatorEvidence scenario={scenario} onSession={showSession} onInspect={inspect} />}
       <p className="design-footnote">
         Counts and project membership use the complete selected synthetic cohort.
         “Service error” and “Slow service” affect the supporting dashboard reads;

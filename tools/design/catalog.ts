@@ -4,7 +4,6 @@ import {
   fixtureClock,
   range,
   organization,
-  proposedInitiatives,
   seed,
   workspace,
   type ScenarioId,
@@ -340,11 +339,7 @@ export const catalog: CatalogEntry[] = [
     ],
     example: (id) => ({
       designProposal: true,
-      initiatives: proposedInitiatives.filter((item) =>
-        item.sessionIds.some((ref) =>
-          dataset(id).some(({ row }) => row.sessionId === ref),
-        ),
-      ),
+      initiatives: operatorData(id).initiatives,
     }),
   },
 ];

@@ -1,4 +1,5 @@
 import { expect, it } from "vitest";
+import { catalog } from "./catalog";
 import { operatorData } from "./operator-data";
 import { dataset, scenarios } from "./scenarios";
 
@@ -78,4 +79,12 @@ it("resolves every aggregate reference in every scenario and counts all blocker 
     const blockerSessions = pack.sessions.filter(session => session.analysisStatus === "current" && session.understanding?.blockers.length);
     expect(pack.improvementOpportunities.reduce((sum, item) => sum + item.reportCount, 0)).toBe(blockerSessions.length);
   }
+});
+
+it("uses the same complete cohort in both initiative catalog entries", () => {
+  const entry = catalog.find(item => item.id === "initiatives")!;
+  for (const {id} of scenarios) {
+    expect(entry.example(id)).toEqual({designProposal: true, initiatives: operatorData(id).initiatives});
+  }
+  expect(operatorData("busy").initiatives.map(item => item.sessionIds.length)).toEqual([10, 10, 10]);
 });
