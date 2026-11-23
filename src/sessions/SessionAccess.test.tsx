@@ -631,6 +631,47 @@ it("does nothing when a write settles while the panel is closed", async () => {
   expect(reads(calls)).toHaveLength(2);
 });
 
+it("says a refused write was not saved after a reopening", async () => {
+  const { calls, write } = pendingWrite("PATCH");
+  render(<SessionAccess workspaceId="w1" sessionId="s1" />);
+  const dialog = await saveThenReopen();
+  write.answer(failure(409, "conflict", { currentVersion: 4 }));
+  const view = within(dialog);
+  expect(
+    await view.findByText(/Your last change was not saved\. Session access changed meanwhile\./),
+  ).toBeInTheDocument();
+  await waitFor(() => expect(reads(calls)).toHaveLength(3));
+  expect(await view.findByText("640")).toBeInTheDocument();
+  expect(writes(calls)).toHaveLength(1);
+});
+
+it("says on the next opening that a write refused while closed was not saved", async () => {
+  const { calls, write } = pendingWrite("PATCH");
+  render(<SessionAccess workspaceId="w1" sessionId="s1" />);
+  const dialog = await openEditor(await openPanel());
+  const form = within(dialog);
+  type(form.getByLabelText("Mode"), "600");
+  type(form.getByLabelText("Reason (required)"), "narrow access");
+  save(dialog);
+  fireEvent.click(form.getByRole("button", { name: "Close" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  write.answer(failure(409, "conflict", { currentVersion: 4 }));
+  for (let turn = 0; turn < 5; turn += 1) {
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+  }
+  expect(reads(calls)).toHaveLength(1);
+  const reopened = within(await openPanel());
+  expect(
+    await reopened.findByText(/Your last change was not saved\. Session access changed meanwhile\./),
+  ).toBeInTheDocument();
+  expect(await reopened.findByText("640")).toBeInTheDocument();
+  fireEvent.click(reopened.getByRole("button", { name: "Close" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  const again = within(await openPanel());
+  expect(await again.findByText("640")).toBeInTheDocument();
+  expect(again.queryByText(/Your last change was not saved\./)).toBeNull();
+});
+
 it("disables Cancel while a save is pending", async () => {
   const { write, updated } = pendingWrite("PATCH");
   render(<SessionAccess workspaceId="w1" sessionId="s1" />);

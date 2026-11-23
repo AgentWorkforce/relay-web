@@ -72,6 +72,9 @@ const UNAVAILABLE = "Session access is temporarily unavailable. Please try again
 const OUTCOME_UNKNOWN =
   "The change may have been applied. This is the session access as it is now; check it before changing anything again.";
 
+const notSaved = (problem: AccessProblem) =>
+  `Your last change was not saved. ${problemText(problem)}`;
+
 const PERM_LABEL: Record<Perm, string> = {
   r: "Read (r)",
   w: "Write (w)",
@@ -112,6 +115,9 @@ function SessionAccessControl({
   const generation = useRef(0);
   // Whether the dialog is open, for a write that settles after a reopening.
   const isOpen = useRef(false);
+  // What a write that settled while the dialog was closed has to say; shown
+  // on the next opening.
+  const carried = useRef<string | null>(null);
   const reading = useRef<AbortController | null>(null);
   const historyReading = useRef<AbortController | null>(null);
   const descriptionId = useId();
@@ -184,7 +190,9 @@ function SessionAccessControl({
     generation.current += 1;
     isOpen.current = true;
     setHistory(null);
-    void load();
+    const note = carried.current;
+    carried.current = null;
+    void load(note);
   }
 
   async function write(
@@ -200,13 +208,16 @@ function SessionAccessControl({
     // True when this answer must not be shown as it is: the component is
     // gone, or the dialog was closed (and maybe opened again) while the write
     // was pending. A reopened dialog read the access before the write settled,
-    // so it reads again now; a closed one reads on its next opening.
+    // so it reads again now; a closed one reads on its next opening. Either
+    // way a refusal or an unknown outcome is said beside that read.
     const reopened = (note: string | null) => {
       if (!mounted.current) return true;
       if (generation.current === opened) return false;
       if (isOpen.current) {
         setHistory(null);
         void load(note);
+      } else {
+        carried.current = note;
       }
       return true;
     };
@@ -225,7 +236,9 @@ function SessionAccessControl({
       if (!mounted.current) return;
       const found = accessProblem(error, true);
       if (
-        reopened(found.kind === "outcome_unknown" ? OUTCOME_UNKNOWN : null)
+        reopened(
+          found.kind === "outcome_unknown" ? OUTCOME_UNKNOWN : notSaved(found),
+        )
       ) {
         return;
       }
