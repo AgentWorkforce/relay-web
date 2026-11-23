@@ -19,9 +19,9 @@ export function validPreviewRoute(
 
 export function previewDataEntry(route: string) {
   const url = new URL(route, "http://design.test");
-  if (url.searchParams.has("session")) return "events";
   if (url.hash.startsWith("#/settings/usage/people/")) return "people";
-  return url.hash.startsWith("#/settings/usage") ? "usage" : "sessions";
+  if (url.hash.startsWith("#/settings/usage")) return "usage";
+  return url.searchParams.has("session") ? "events" : "sessions";
 }
 
 /** Development frame bridge; production history and theme code stay untouched. */

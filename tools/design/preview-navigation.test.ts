@@ -59,4 +59,12 @@ it("validates frame routes and identifies their data domain", () => {
     previewDataEntry("/preview/small/#/settings/usage/people/design-ana"),
   ).toBe("people");
   expect(previewDataEntry("/preview/small/#/settings/usage")).toBe("usage");
+  expect(
+    previewDataEntry("/preview/small/?session=s1&source=codex#/settings/usage"),
+  ).toBe("usage");
+  expect(
+    previewDataEntry(
+      "/preview/small/?session=s1&source=codex#/settings/usage/people/design-ana",
+    ),
+  ).toBe("people");
 });
