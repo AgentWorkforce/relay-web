@@ -39,7 +39,7 @@ use the source-owned decoder and existing workspace authorization, freshness and
 ## Provisional v2 producer preview
 
 `expected-synthesis-v2.json`, `expected-stage2-input.json` and `stage2-reply.json` are byte-identical
-copies from pipeline review commit `1c0c0735bdabfbb4868a2efadcb17e0241b5a76c`.
+copies from pipeline review commit `8b9ab4696cf702ba70182d01ea5ef38126b8fe0f`.
 `provenance-v2.json` records their hashes. This is a **provisional, unlanded** contract under review.
 The synthetic cohort and v1 golden above are unchanged at the reviewed Stage 1 head `d75b6320`.
 The v1 JSON schema source is also unchanged from the original pin.
@@ -47,10 +47,11 @@ The v1 JSON schema source is also unchanged from the original pin.
 The v2 producer constructs its input from F1 claim texts, then validates a **hand-written fake
 model reply**. No model was called. Removing `stage2` and `stage2Reason` and changing `contract`
 back to `/1` yields the v1 golden exactly. Independent source tests at the v2 pin:
-`bun test src/session-intel/__tests__/synthesis.test.ts src/session-intel/__tests__/synthesis-stage2.test.ts`
-passed 68 tests / 995 assertions, including title-withholding checks. This proves contract and reference handling,
-not real-world model quality. The input and fake reply are unchanged from the earlier pin; the golden adds only
-`stage2.titlesWithheldByScrub: 0`.
+`bun test src/session-intel/__tests__/synthesis.test.ts src/session-intel/__tests__/synthesis-stage2.test.ts src/session-analysis/__tests__/workspace-synthesis-stage2-job.test.ts`
+passed 81 tests / 1,111 assertions, including title-withholding and job-generation checks. This proves contract and reference handling,
+not real-world model quality. Both the golden and prompt input use `workspace-synthesis-stage2/2` for the
+scrubbed generation. That version value is their only change from the title-scrub pin `1c0c0735`; the fake
+reply remains unchanged. `stage2.titlesWithheldByScrub` remains zero in the golden.
 
 `titleRef` identifies a per-session claim: `i` intent, `d` decision, `b` blocker, `o` outcome assessment,
 followed by its one-based position. Resolve that claim's `evidenceIds` to F1 references and then transcript

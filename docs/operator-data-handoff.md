@@ -106,10 +106,10 @@ The pipeline owner reports it awaits landing after the schema release freeze.
 
 **Pipeline sample → Producer v2 preview** and **Data catalog → Pipeline synthesis v2 preview** now
 include the source-owned provisional test golden from
-[`1c0c0735`](https://github.com/AgentWorkforce/relayhistory-pipeline/commit/1c0c0735bdabfbb4868a2efadcb17e0241b5a76c).
+[`8b9ab469`](https://github.com/AgentWorkforce/relayhistory-pipeline/commit/8b9ab4696cf702ba70182d01ea5ef38126b8fe0f).
 All F1 inputs are invented and the model reply is hand-written. The producer filters the fake reply;
-there is no real model call. The source's v1/v2 tests passed independently: 68 tests, 995 assertions,
-including withholding and rejecting references to titles that fail the scrub check.
+there is no real model call. The source's v1/v2 and Stage 2 job tests passed independently: 81 tests, 1,111 assertions,
+including title-withholding checks and distinct artifact keys for the /1 and /2 generations.
 The output, fake reply and prompt projection are preserved byte-for-byte with a separate provenance
 receipt. This is an unlanded review contract and can still change.
 
@@ -127,8 +127,10 @@ F1 reads scrubbed canonical transcripts. Stage 2 now checks its generated claim 
 with relayscrubber before the second model call. A title is withheld if the scrubber would change its
 full text or bounded excerpt, or refuses it; a redacted fragment is never sent. Withheld references
 cannot support a model group. `stage2.titlesWithheldByScrub` counts the omitted titles among kept
-sessions, and is zero in this synthetic golden. This is the only golden field added since the previous
-pin; the prompt projection and fake reply are unchanged. The public fixtures contain synthetic text only.
+sessions, and is zero in this synthetic golden. Both the golden and prompt projection now declare
+`promptVersion: "workspace-synthesis-stage2/2"` for the scrubbed generation, distinct from the previous
+`/1` generation. Their only change since the title-scrub pin is that version value; the fake reply is
+unchanged. The public fixtures contain synthetic text only.
 
 Neither version supplies owner/team joins, project/team token/cost totals or parent/child/cross-source
 usage deduplication. The analysis owner has taken the spend-attribution slice design; the owner/team

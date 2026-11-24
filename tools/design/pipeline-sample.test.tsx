@@ -99,6 +99,8 @@ it("pins the provisional v2 producer input, fake reply and computed output witho
   }
   const { stage2, stage2Reason, ...base } = synthesisV2;
   expect(stage2Reason).toBeNull();
+  expect(stage2.promptVersion).toBe("workspace-synthesis-stage2/2");
+  expect(JSON.parse(pipelineV2Downloads.input.text).promptVersion).toBe(stage2.promptVersion);
   expect({...base, contract: "workspace-synthesis/1"}).toEqual(synthesis);
   for (const item of [...stage2.initiatives, ...stage2.themes]) {
     for (const ref of item.evidence) {
