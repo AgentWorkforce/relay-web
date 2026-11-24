@@ -1,4 +1,4 @@
-import { synthesis, pipelineSource, pipelineDownloads } from "./pipeline-sample-data";
+import { synthesis, pipelineSource, pipelineDownloads, synthesisV2, pipelineV2Source, pipelineV2Downloads } from "./pipeline-sample-data";
 import { operatorData } from "./operator-data";
 import {
   dataset,
@@ -21,6 +21,7 @@ export type CatalogEntry = {
   endpoint: string;
   source?: string;
   rawExport?: { text: string; name: string };
+  fixedCohort?: boolean;
   limitation: string;
   fields: Field[];
   example: (scenario: ScenarioId) => unknown;
@@ -285,6 +286,7 @@ export const catalog: CatalogEntry[] = [
   },
   {
     id: "pipeline-synthesis",
+    fixedCohort: true,
     rawExport: pipelineDownloads.synthesis,
     title: "Pipeline synthesis v1",
     availability: "Experimental",
@@ -300,6 +302,24 @@ export const catalog: CatalogEntry[] = [
       {name: "issues[].evidence", meaning: "Recurrence candidates with source/session/F1-reference identities. eventId is an F1 reference ID, not a guessed transcript event UID."},
     ],
     example: () => synthesis,
+  },
+  {
+    id: "pipeline-synthesis-v2",
+    fixedCohort: true,
+    rawExport: pipelineV2Downloads.synthesis,
+    title: "Pipeline synthesis v2 preview",
+    availability: "Experimental",
+    owner: "Session analysis pipeline",
+    endpoint: "Provisional offline contract; no v2 serving in this pin",
+    source: `${pipelineV2Source}docs/session-intel-workspace-synthesis.md`,
+    description: "Source-owned workspace-synthesis/2 test output: the v1 document plus initiative goals, themes and improvement hypotheses. Inspect its claim references in Pipeline sample.",
+    limitation: "Unlanded, provisional review commit. All F1 inputs are synthetic and the model reply is hand-written; no real model call or populated feed is demonstrated. This is separate from the broader Northstar product proposal. Neither version supplies project/team spend attribution. stage2.usage measures the simulated synthesis call, not team activity.",
+    fields: [
+      {name: "stage2.initiatives / themes / hypotheses", meaning: "Actual producer field names. Hypothesis impact is unmeasured; topic/workflow themes are distinct from recurring-issue labels."},
+      {name: "stage2.*.evidence[].titleRef", meaning: "Local F1 claim references: i=human intent, d=decision, b=blocker, o=outcome assessment. Resolve the claim, then its evidenceIds. These are not transcript event IDs."},
+      {name: "stage2.dropped / keptSessions / truncatedSessions / stage2Reason", meaning: "Rejected model items, included-session coverage, truncation and unavailable reasons remain explicit. Structural validation does not establish factual accuracy."},
+    ],
+    example: () => synthesisV2,
   },
   {
     id: "analysis-inputs",

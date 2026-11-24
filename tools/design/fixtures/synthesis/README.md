@@ -35,3 +35,32 @@ This separate cohort is not adapted into the Northstar production-App fixture tr
 `pipeline-sample-data.ts` projects this trusted pinned fixture; it is not a backend decoder.
 Never copy real customer data into this public repository. For a future backend integration,
 use the source-owned decoder and existing workspace authorization, freshness and erase rules.
+
+## Provisional v2 producer preview
+
+`expected-synthesis-v2.json`, `expected-stage2-input.json` and `stage2-reply.json` are byte-identical
+copies from pipeline review commit `923778b559c6090565814e90cfaf3c49684da98d`.
+`provenance-v2.json` records their hashes. This is a **provisional, unlanded** contract under review.
+The synthetic cohort and v1 golden above are unchanged at the reviewed Stage 1 head `d75b6320`.
+The v1 JSON schema source is also unchanged from the original pin.
+
+The v2 producer constructs its input from F1 claim texts, then validates a **hand-written fake
+model reply**. No model was called. Removing `stage2` and `stage2Reason` and changing `contract`
+back to `/1` yields the v1 golden exactly. Independent source tests at the v2 pin:
+`bun test src/session-intel/__tests__/synthesis.test.ts src/session-intel/__tests__/synthesis-stage2.test.ts`
+passed 63 tests / 920 assertions. This proves contract and reference handling, not real-world model quality.
+
+`titleRef` identifies a per-session claim: `i` intent, `d` decision, `b` blocker, `o` outcome assessment,
+followed by its one-based position. Resolve that claim's `evidenceIds` to F1 references and then transcript
+locators. It is neither a transcript event ID nor a v1 recurrence-candidate `eventId`.
+
+The preview exposes its actual initiative/theme/hypothesis fields and rejected-item counts separately
+from the broader Northstar product proposal. `stage2.usage` is simulated synthesis-call telemetry,
+not team token consumption. Neither version provides project/team attribution or deduplicated spend.
+The source pin has no runtime model transport, durable budget ledger or v2 serving. No verified real
+populated F1/aggregate accompanies either pack.
+
+F1 reads scrubbed transcripts, but its generated claim texts are not re-scrubbed before Stage 2
+in the source pin. Title-scrubbing posture remains an open pre-run decision. A capped Stage 2 window
+is partial: consumers must show kept/truncated counts and preserve the kept session list, even when
+the inherited v1 document covers more analyzed sessions.
