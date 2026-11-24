@@ -123,6 +123,7 @@ it("labels v2 as a simulated reply and resolves its claim citation through F1 ev
   const preview = screen.getByLabelText("Pipeline v2 producer preview");
   expect(within(preview).getByText(/reply is hand-written/)).toBeInTheDocument();
   expect(within(preview).getByText(/synthesis-call telemetry/)).toBeInTheDocument();
+  expect(within(preview).getByText(/^Titles withheld by scrubbing: 0\./)).toBeInTheDocument();
   const ref = synthesisV2.stage2.initiatives[0]!.evidence[0]!;
   fireEvent.click(within(preview).getByRole("button", {name: `Inspect ${ref.titleRef} · ${ref.source} / ${ref.sessionId}`}));
   const claim = pipelineTitleClaim(ref, ref.titleRef)!;
