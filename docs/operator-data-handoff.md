@@ -58,7 +58,7 @@ No production enablement or database change was made for this handoff.
 | Live coordination | `GET /v1/session-intel/workspace?workspace=…`, contract `session-intel-workspace/1` | Alerts, active sessions/open intents, and handoffs/decisions only. Default off, requires migration 062170; no verified populated production overview in this inventory. |
 | Daily rollup | `GET /v1/digest/daily`, project/branch groups, session/event counts and recorded usage | A branch group is not a semantic initiative. No current populated-response receipt was supplied. Hide `outcomes.reverted` when the omitted-field header names it. |
 | Pattern discovery | Offline workspace pattern CLI with evidence-linked shared-file groups | No HTTP route or prompt-theme model. Shared-file groups do not establish a semantic workstream or a recurring failure. |
-| Automatic initiatives, prompt themes and improvement synthesis | Reviewed Stage 1 branch and provisional `workspace-synthesis/2` code/fixtures (below) | Unlanded and no verified populated production feed. Runtime model transport, durable budget ledger and v2 serving remain separate work. |
+| Automatic initiatives, prompt themes and improvement synthesis | Reviewed Stage 1 branch and provisional `workspace-synthesis/2` code/fixtures (below) | Source pin includes model transport and default-off v2 read code. Runtime wiring, durable budget storage and real-run prerequisites remain; no populated production feed is verified by this handoff. |
 
 The analysis read route is `GET /v1/sessions/:id/analysis`, scoped by the Reader's existing
 identity and source/workspace contract. It returns jobs/requests and stored results, not the
@@ -106,9 +106,10 @@ The pipeline owner reports it awaits landing after the schema release freeze.
 
 **Pipeline sample → Producer v2 preview** and **Data catalog → Pipeline synthesis v2 preview** now
 include the source-owned provisional test golden from
-[`923778b5`](https://github.com/AgentWorkforce/relayhistory-pipeline/commit/923778b559c6090565814e90cfaf3c49684da98d).
+[`1c0c0735`](https://github.com/AgentWorkforce/relayhistory-pipeline/commit/1c0c0735bdabfbb4868a2efadcb17e0241b5a76c).
 All F1 inputs are invented and the model reply is hand-written. The producer filters the fake reply;
-there is no real model call. The source's v1/v2 tests passed independently: 63 tests, 920 assertions.
+there is no real model call. The source's v1/v2 tests passed independently: 68 tests, 995 assertions,
+including withholding and rejecting references to titles that fail the scrub check.
 The output, fake reply and prompt projection are preserved byte-for-byte with a separate provenance
 receipt. This is an unlanded review contract and can still change.
 
@@ -122,19 +123,21 @@ When the model input cap trims a window to the newest sessions that fit, v2 is p
 `keptSessions`, `truncatedSessions` and the kept `sessions` list. Inclusion of all analyzed sessions
 still does not establish coverage of the eligible workspace population.
 
-F1 reads scrubbed canonical transcripts. Its generated claim texts (called titles by the Stage 2
-contract) are not re-scrubbed before the second model call in this pin. The required title-scrubbing
-posture is an open decision before any real Stage 2 run; do not describe those model-written outputs
-as independently verified scrub-clean. The public test fixtures contain synthetic text only.
+F1 reads scrubbed canonical transcripts. Stage 2 now checks its generated claim texts (called titles)
+with relayscrubber before the second model call. A title is withheld if the scrubber would change its
+full text or bounded excerpt, or refuses it; a redacted fragment is never sent. Withheld references
+cannot support a model group. `stage2.titlesWithheldByScrub` counts the omitted titles among kept
+sessions, and is zero in this synthetic golden. This is the only golden field added since the previous
+pin; the prompt projection and fake reply are unchanged. The public fixtures contain synthetic text only.
 
 Neither version supplies owner/team joins, project/team token/cost totals or parent/child/cross-source
 usage deduplication. The analysis owner has taken the spend-attribution slice design; the owner/team
 mapping source still needs an owner. This is required to answer whether a project merits more token budget.
 
-Active work confirmed by the analysis owner: finish v2 review, add model transport and default-off v2
-serving, then durable budget storage and the attribution design. F1 production enablement remains with
-the pipeline operations lanes. No verified real populated F1 or synthesis feed was reported. This is an
-owner-reported work queue, not a delivery receipt or authorization to enable production.
+The current source pin contains model transport and default-off v2 serving code. It does not supply
+runtime wiring, durable budget storage or a proof that real-run prerequisites are met. F1 production
+enablement remains with the pipeline operations lanes. This handoff does not verify a deployed or
+populated service and does not authorize production enablement.
 
 ## Smallest useful data delivery
 

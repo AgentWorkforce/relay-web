@@ -76,6 +76,7 @@ export function PipelineSample({ onDownload }: { onDownload: (value: unknown, na
         </div>)}
         {synthesisV2.stage2.hypotheses.map(item => <p key={item.id}>{item.statement} Impact: {item.impact}. Basis: {item.basis.join(", ")}.</p>)}
         <p><strong>{synthesisV2.stage2.truncatedSessions > 0 ? "Partial synthesis: the input cap excluded analyzed sessions." : "All analyzed sessions fit this simulated prompt; eligible workspace coverage remains incomplete."}</strong></p>
+        <p>Titles withheld by scrubbing: {synthesisV2.stage2.titlesWithheldByScrub}. Titles the scrubber would change are omitted, not redacted; their references cannot support a model group.</p>
         <p className="design-footnote">{synthesisV2.stage2.keptSessions} analyzed sessions included; {synthesisV2.stage2.truncatedSessions} omitted by the prompt cap. Rejected fake-reply items: {synthesisV2.stage2.dropped.initiatives} initiatives, {synthesisV2.stage2.dropped.themes} themes, {synthesisV2.stage2.dropped.hypotheses} hypotheses. A valid reference is not proof the interpretation is correct.</p>
       </section>
       {selected && <section aria-label="Pipeline analysis drill-down" className="design-notice">

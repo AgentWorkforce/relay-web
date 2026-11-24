@@ -39,7 +39,7 @@ use the source-owned decoder and existing workspace authorization, freshness and
 ## Provisional v2 producer preview
 
 `expected-synthesis-v2.json`, `expected-stage2-input.json` and `stage2-reply.json` are byte-identical
-copies from pipeline review commit `923778b559c6090565814e90cfaf3c49684da98d`.
+copies from pipeline review commit `1c0c0735bdabfbb4868a2efadcb17e0241b5a76c`.
 `provenance-v2.json` records their hashes. This is a **provisional, unlanded** contract under review.
 The synthetic cohort and v1 golden above are unchanged at the reviewed Stage 1 head `d75b6320`.
 The v1 JSON schema source is also unchanged from the original pin.
@@ -48,7 +48,9 @@ The v2 producer constructs its input from F1 claim texts, then validates a **han
 model reply**. No model was called. Removing `stage2` and `stage2Reason` and changing `contract`
 back to `/1` yields the v1 golden exactly. Independent source tests at the v2 pin:
 `bun test src/session-intel/__tests__/synthesis.test.ts src/session-intel/__tests__/synthesis-stage2.test.ts`
-passed 63 tests / 920 assertions. This proves contract and reference handling, not real-world model quality.
+passed 68 tests / 995 assertions, including title-withholding checks. This proves contract and reference handling,
+not real-world model quality. The input and fake reply are unchanged from the earlier pin; the golden adds only
+`stage2.titlesWithheldByScrub: 0`.
 
 `titleRef` identifies a per-session claim: `i` intent, `d` decision, `b` blocker, `o` outcome assessment,
 followed by its one-based position. Resolve that claim's `evidenceIds` to F1 references and then transcript
@@ -57,10 +59,12 @@ locators. It is neither a transcript event ID nor a v1 recurrence-candidate `eve
 The preview exposes its actual initiative/theme/hypothesis fields and rejected-item counts separately
 from the broader Northstar product proposal. `stage2.usage` is simulated synthesis-call telemetry,
 not team token consumption. Neither version provides project/team attribution or deduplicated spend.
-The source pin has no runtime model transport, durable budget ledger or v2 serving. No verified real
-populated F1/aggregate accompanies either pack.
+The source pin includes a model transport and default-off v2 serving code. Runtime wiring, durable budget storage
+and real-run prerequisites remain; no deployed or populated service is verified by this handoff.
 
-F1 reads scrubbed transcripts, but its generated claim texts are not re-scrubbed before Stage 2
-in the source pin. Title-scrubbing posture remains an open pre-run decision. A capped Stage 2 window
-is partial: consumers must show kept/truncated counts and preserve the kept session list, even when
-the inherited v1 document covers more analyzed sessions.
+Stage 2 checks each generated F1 title with relayscrubber before the model call. If it would change either
+the whole claim or its bounded excerpt, or refuses the text, the title is withheld and counted in
+`stage2.titlesWithheldByScrub`. A redacted fragment is never sent, the reference is not reused, and any
+reply citing that withheld reference is rejected. The fixture count is zero because its invented titles
+pass this check. A capped Stage 2 window is partial: consumers must show kept/truncated counts and preserve
+the kept session list, even when the inherited v1 document covers more analyzed sessions.
