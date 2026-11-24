@@ -1,0 +1,500 @@
+/*
+ * Prototype: affectUI's design system in Agent Relay's colors.
+ *
+ * Light: affectUI's white, neutral look; Agent Relay's blue as the accent.
+ * Dark:  the current Agent Relay blue (the dashboard's existing dark palette).
+ *
+ * Two layers are themed here:
+ *   1. the affectUI tokens (--aui-*), which every affectUI component reads;
+ *   2. the dashboard's own Tailwind tokens (--background, --foreground …) in light
+ *      mode, so the existing pages match the white look. Dark keeps globals.css.
+ *
+ * Unlayered and imported after globals.css, so it overrides both.
+ */
+
+:root {
+  /* Agent Relay brand */
+  --ar-blue: #4a90c2;
+  --ar-blue-strong: #2f7bb0;
+
+  /* affectUI tokens – light */
+  --aui-ink: rgba(0, 0, 0, 0.88);
+  --aui-muted: rgba(0, 0, 0, 0.5);
+  --aui-placeholder: rgba(0, 0, 0, 0.3);
+  --aui-surface: #ffffff;
+  --aui-subtle: rgba(0, 0, 0, 0.03);
+  --aui-overlay: #ffffff;
+  --aui-border: rgba(0, 0, 0, 0.08);
+  --aui-border-strong: rgba(0, 0, 0, 0.13);
+  --aui-primary: var(--ar-blue);
+  --aui-on-primary: #ffffff;
+  --aui-focus: rgba(74, 144, 194, 0.75);
+  --aui-info: var(--ar-blue-strong);
+  --aui-info-soft: rgba(74, 144, 194, 0.12);
+  --aui-blue: var(--ar-blue);
+
+  /* Dashboard tokens – light, on affectUI's neutral scale */
+  --background: #ffffff;
+  --background-deep: #f7f7f7;
+  --foreground: #0a0a0a;
+  --card: #ffffff;
+  --card-foreground: #0a0a0a;
+  --popover: #ffffff;
+  --popover-foreground: #0a0a0a;
+  --primary: var(--ar-blue);
+  --primary-foreground: #ffffff;
+  --muted: #f5f5f5;
+  --muted-foreground: #737373;
+  --accent: #f3f3f3;
+  --accent-foreground: #0a0a0a;
+  --secondary: #f3f3f3;
+  --border: #e8e8e8;
+  --input: #e5e5e5;
+  --ring: var(--ar-blue);
+}
+
+/* Dark: Agent Relay's blue palette (globals.css) behind every affectUI token */
+:root[data-theme="dark"] {
+  --ar-blue: #74b8e2;
+  --ar-blue-strong: #74b8e2;
+
+  --aui-ink: #edf4fb;
+  --aui-muted: #a8b8c8;
+  --aui-placeholder: rgba(168, 184, 200, 0.55);
+  --aui-surface: #0f1b29;
+  --aui-subtle: rgba(116, 184, 226, 0.06);
+  --aui-overlay: #132234;
+  --aui-border: rgba(116, 184, 226, 0.16);
+  --aui-border-strong: rgba(116, 184, 226, 0.28);
+  --aui-primary: var(--ar-blue);
+  --aui-on-primary: #08111a;
+  --aui-focus: var(--ring);
+  --aui-info: var(--ar-blue);
+  --aui-info-soft: rgba(116, 184, 226, 0.14);
+  --aui-blue: var(--ar-blue);
+  --aui-shadow-card: 0 0 0 0.5px rgba(116, 184, 226, 0.16), 0 1px 2px rgba(0, 0, 0, 0.45);
+  --aui-shadow-popover: 0 0 0 0.5px rgba(116, 184, 226, 0.2), 0 12px 28px -10px rgba(0, 0, 0, 0.6);
+}
+
+/* The App Shell's page and sidebar: affectUI's neutral gray in light, the blue palette in dark */
+.ui-as {
+  --page: #f7f7f7;
+  --side-tint: #f7f7f7;
+}
+:root[data-theme="dark"] .ui-as {
+  --page: #08111a;
+  --side-tint: #0b1622;
+  --panel: #08111a;
+  --tray: #132234;
+  --logo-bg: #132234;
+  --disabled: #24384d;
+  --toggle-off: #24384d;
+}
+
+/* affectUI components with their own fixed card color: use the theme's surface */
+.ui-mcc { --ui-mcc-card: var(--aui-surface); }
+.ui-agfc { --ui-agfc-card: var(--aui-surface); }
+.ui-rcp { --ui-rcp-card: var(--aui-surface); }
+.ui-aic { --ui-aic-card: var(--aui-surface); }
+
+/*
+ * styles.css gives every plain <button> an outline-button look (centered, padded,
+ * nowrap). affectUI's buttons bring their own styles, so undo that base for them.
+ * :where() keeps this at zero specificity: affectUI's own rules still win, and being
+ * unlayered it still beats the layered global rule.
+ */
+:where(button[class*="ui-"]:not([data-slot])) {
+  display: revert;
+  align-items: normal;
+  justify-content: normal;
+  gap: normal;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  white-space: normal;
+  transition: none;
+}
+
+/*
+ * The App Shell defines --accent, --card, --muted and --line for itself (e.g. --accent
+ * is its bright info blue). Those names are also the dashboard's tokens, so inside the
+ * shell every page picked up the shell's values – row hovers turned bright blue.
+ * Keep the dashboard's values under other names at the root, and give them back to
+ * everything the dashboard renders inside the shell (page, sidebar filters, toolbar).
+ */
+:root {
+  --rw-accent: var(--accent);
+  --rw-card: var(--card);
+  --rw-muted: var(--muted);
+  --rw-line: var(--line);
+}
+:is(.flat-shell__content, .flat-shell__sidebar, .flat-shell__toolbar, .flat-shell__heading-slot, .flat-shell__panel) {
+  --accent: var(--rw-accent);
+  --card: var(--rw-card);
+  --muted: var(--rw-muted);
+  --line: var(--rw-line);
+  /* The shell's main area sets its muted text color; pages start from the full one */
+  color: var(--foreground);
+}
+
+/*
+ * Text: three levels, the same everywhere (dashboard tokens and affectUI tokens).
+ *   ink    titles and content
+ *   muted  metadata, descriptions, secondary actions   (≥ 4.5:1 on the page)
+ *   faint  placeholders, axes, counts – never the only carrier of information
+ */
+:root {
+  --ar-ink: #1f1f1f;
+  --ar-muted: #6b6b6b;
+  --ar-faint: #a3a3a3;
+}
+:root[data-theme="dark"] {
+  --ar-ink: #edf4fb;
+  --ar-muted: #a8b8c8;
+  --ar-faint: #738394;
+}
+:root,
+:root[data-theme="dark"] {
+  --foreground: var(--ar-ink);
+  --card-foreground: var(--ar-ink);
+  --popover-foreground: var(--ar-ink);
+  --accent-foreground: var(--ar-ink);
+  --secondary-foreground: var(--ar-ink);
+  --fg: var(--ar-ink);
+  --nav-fg: var(--ar-ink);
+  --muted-foreground: var(--ar-muted);
+  --text-secondary: var(--ar-muted);
+  --text-muted: var(--ar-muted);
+  --fg-muted: var(--ar-muted);
+  --text-faint: var(--ar-faint);
+  --fg-faint: var(--ar-faint);
+  --aui-ink: var(--ar-ink);
+  --aui-muted: var(--ar-muted);
+  --aui-placeholder: var(--ar-faint);
+}
+/* affectUI parts that bring their own fixed grays */
+:root .ui-rcp {
+  --ui-rcp-strong: var(--ar-ink);
+  --ui-rcp-ink: var(--ar-ink);
+  --ui-rcp-text: var(--ar-muted);
+  --ui-rcp-muted: var(--ar-muted);
+  --ui-rcp-faint: var(--ar-faint);
+}
+:root .ui-aic { --ui-aic-faint: var(--ar-faint); }
+:root .ui-cmc { --ui-cmc-strong: var(--ar-ink); }
+
+/*
+ * Light mode: no neutral grays. Every gray is white with a little Agent Relay
+ * blue (#4a90c2) laid over it – a light blue-gray, the light counterpart of the
+ * blue dark mode. Solid steps for surfaces, the same blue as alpha for overlays.
+ *
+ *   surfaces   page/sidebar #f6f9fc (5%) · muted/hover #f2f7fb (7%) · selected #ebf3f8 (11%)
+ *   lines      #e2edf5 (16%) · strong #d0e2ef (26%)
+ *   text       ink #20282e · muted #606b73 (5.5:1) · faint #8d9ca7
+ */
+:root:not([data-theme="dark"]) {
+  --ar-tint-wash: rgba(74, 144, 194, 0.035);
+  --ar-tint-hover: rgba(74, 144, 194, 0.07);
+  --ar-tint-select: rgba(74, 144, 194, 0.11);
+  --ar-line: #e2edf5;
+  --ar-line-strong: #d0e2ef;
+
+  --ar-ink: #20282e;
+  --ar-muted: #606b73;
+  --ar-faint: #8d9ca7;
+
+  --background-deep: #f6f9fc;
+  --muted: #f2f7fb;
+  --accent: #f2f7fb;
+  --secondary: #f2f7fb;
+  --border: var(--ar-line);
+  --border-default: var(--ar-line);
+  --border-soft: var(--ar-line);
+  --border-strong: var(--ar-line-strong);
+  --input: var(--ar-line-strong);
+  --line: var(--ar-line);
+
+  --aui-subtle: var(--ar-tint-wash);
+  --aui-border: rgba(74, 144, 194, 0.18);
+  --aui-border-strong: rgba(74, 144, 194, 0.3);
+}
+/* The restored dashboard tokens inside the shell follow the new values */
+:root:not([data-theme="dark"]) {
+  --rw-accent: #f2f7fb;
+  --rw-muted: #f2f7fb;
+  --rw-line: var(--ar-line);
+}
+/* The App Shell's own grays */
+:root:not([data-theme="dark"]) .ui-as {
+  --page: #f6f9fc;
+  --side-tint: #f6f9fc;
+  --tray: #ebf3f8;
+  --hover: var(--ar-tint-hover);
+  --select: var(--ar-tint-select);
+  --chip: var(--ar-tint-hover);
+  --chip-hover: var(--ar-tint-select);
+  --frame: var(--ar-tint-wash);
+  --line: rgba(74, 144, 194, 0.16);
+  --line-soft: rgba(74, 144, 194, 0.1);
+  --line-strong: rgba(74, 144, 194, 0.26);
+  --edge-active: rgba(74, 144, 194, 0.32);
+  --disabled: #d0e2ef;
+  --toggle-off: #d0e2ef;
+}
+
+/* Focus: one look everywhere. Fields and bordered controls take the ring color on
+   their stroke plus this soft halo; borderless rows get a 2px ring outline. */
+:root {
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--ring) 22%, transparent);
+  --aui-focus: var(--ring);
+}
+
+/* styles.css also styles every plain field (36px min height, border, a 3px focus
+   halo). affectUI components draw their own fields – e.g. the command menu's search,
+   which must never show a ring – so undo that base inside them. Zero specificity, so
+   the components' own rules win; unlayered, so it beats the layered global rule. */
+:where([class^="ui-"]:not([class^="ui-as"]), [class*=" ui-"]:not([class^="ui-as"])) :where(input, textarea, select):not([data-slot]),
+:where([class^="ui-"]:not([class^="ui-as"]), [class*=" ui-"]:not([class^="ui-as"])) :where(input, textarea, select):not([data-slot]):focus-visible {
+  min-height: 0;
+  box-shadow: none;
+  outline: none;
+}
+
+/*
+ * Focus, one system (keyboard focus only):
+ *   anything you click   2px ring-color outline, 2px away from the element
+ *   fields                the field's own stroke turns ring-colored, plus the soft halo
+ * Zero specificity and unlayered: it replaces the mix of outlines, 3px rings and
+ * halos the pages had, while components' own (more specific) focus rules still win.
+ * affectUI components keep theirs (their fields never show one).
+ */
+:where(a[href], button, summary, [role="button"], [role="tab"], [role="option"], [tabindex]:not([tabindex="-1"]), input[type="checkbox"], input[type="radio"]):focus-visible:not(:where([class^="ui-"]:not([class^="ui-as"]), [class*=" ui-"]:not([class*=" ui-as"])) *):not(:where([class^="ui-"]:not([class^="ui-as"]))) {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+:where(input:not([type="checkbox"]):not([type="radio"]), select, textarea):focus-visible:not(:where([class^="ui-"]:not([class^="ui-as"]), [class*=" ui-"]:not([class*=" ui-as"])) *) {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: var(--focus-ring);
+}
+/* Rows in a list (sidebar filters, settings nav): the ring sits inside so the list doesn't clip it */
+:where(.flat-shell__sidebar, .flat-shell__content nav) :where(button, a[href]):focus-visible {
+  outline-offset: -2px;
+}
+
+/* Dark: the sidebar takes the color of the work area's top (#0b1825), a step above
+   the page. Light keeps its blue-gray sidebar (#f6f9fc, above). */
+:root[data-theme="dark"] .ui-as {
+  --page: #0b1825;
+  --side-tint: #0b1825;
+}
+
+/* Dark: search fields lift off whatever they sit on – the sidebar's and the session
+   list's – with the field color one step up and a slightly stronger edge */
+:root[data-theme="dark"] {
+  --ar-field: #132234;
+  --ar-field-edge: rgba(116, 184, 226, 0.24);
+}
+:root[data-theme="dark"] .ui-as .ui-as-side__search {
+  background: var(--ar-field);
+  box-shadow: 0 0 0 0.5px var(--ar-field-edge);
+}
+:root[data-theme="dark"] .flat-shell__content [class*="searchBar"] {
+  background: var(--ar-field);
+}
+/* Its edge, but not over the blue focus edge */
+:root[data-theme="dark"] .flat-shell__content [class*="searchBar"]:not(:has(:focus-visible)) {
+  border-color: var(--ar-field-edge);
+}
+
+/*
+ * Cards, panels and blocks on the page: their 1px edge plus one faint, short drop below
+ * (--card-drop) so each layer lifts just off the page. Fields, tabs and buttons stay flat.
+ * What floats above the page keeps its own larger shadow: menus, popovers, dialogs, the
+ * command menu (--aui-shadow-popover and the menu components' own shadows are untouched).
+ */
+:root {
+  --card-drop: 0 1px 2px rgba(23, 32, 42, 0.04), 0 2px 4px -2px rgba(23, 32, 42, 0.06);
+}
+:root[data-theme="dark"] {
+  --card-drop: 0 1px 2px rgba(0, 0, 0, 0.22), 0 2px 4px -2px rgba(0, 0, 0, 0.28);
+}
+:root,
+:root[data-theme="dark"] {
+  --aui-shadow-card: 0 0 0 1px var(--aui-border), var(--card-drop);
+}
+:root .ui-as,
+:root[data-theme="dark"] .ui-as {
+  --shadow: none;
+  --card-shadow: 0 0 0 1px var(--line);
+  --card-shadow-hover: 0 0 0 1px var(--line-strong);
+}
+:root .ui-agfc,
+:root[data-theme="dark"] .ui-agfc {
+  --ui-agfc-shadow: 0 0 0 1px var(--aui-border), var(--card-drop);
+  --ui-agfc-hover: 0 0 0 1px var(--aui-border-strong), var(--card-drop);
+}
+:root .ui-rcp,
+:root[data-theme="dark"] .ui-rcp {
+  --ui-rcp-shadow: 0 0 0 1px var(--aui-border), var(--card-drop);
+}
+:root .ui-mcc,
+:root[data-theme="dark"] .ui-mcc {
+  --ui-mcc-shadow: 0 0 0 1px var(--aui-border), var(--card-drop);
+  --ui-mcc-stroke: 0 0 0 1px var(--aui-border), var(--card-drop);
+}
+/* Mission Control (operator page) in light: a lighter card edge – it sits many cards deep, and the
+   shell's 18% blue line read heavy there. Every card inside (panels, fleet, inbox) follows. */
+:root:not([data-theme="dark"]) .ui-mcc {
+  --aui-border: rgba(74, 144, 194, 0.12);
+  --aui-border-strong: rgba(74, 144, 194, 0.22);
+  --aui-shadow-card: 0 0 0 1px var(--aui-border), var(--card-drop);
+}
+:root .ui-tfc,
+:root[data-theme="dark"] .ui-tfc {
+  --ui-tfc-shadow: 0 0 0 1px var(--aui-border), var(--card-drop);
+  --ui-tfc-shadow-hover: 0 0 0 1px var(--aui-border-strong), var(--card-drop);
+}
+:root .ui-icbc,
+:root[data-theme="dark"] .ui-icbc {
+  --ui-icbc-shadow: 0 0 0 1px var(--aui-border), var(--card-drop);
+  --ui-icbc-shadow-hover: 0 0 0 1px var(--aui-border-strong), var(--card-drop);
+}
+:root .ui-sgdc,
+:root[data-theme="dark"] .ui-sgdc {
+  --ui-sgdc-shadow: 0 0 0 1px var(--aui-border), var(--card-drop);
+}
+/* The app's own cards in the main area (Card, table surfaces, the spend panel) take the same drop */
+.flat-shell__content :is([data-slot="card"], [class*="tableSurface"], .outcomes-spend) {
+  box-shadow: var(--card-drop);
+}
+
+/* The work area (Details panel) in light: its header row has the sidebar's color,
+   its sheet a light blue tint, so it reads apart from the white main area.
+   Dark keeps the shell's own (#0b1825 header, #0f1b29 sheet). */
+:root:not([data-theme="dark"]) .ui-as-app > .ui-as-panel[data-ws] {
+  --asw-tray: #f6f9fc;
+}
+:root:not([data-theme="dark"]) .ui-as-app > .ui-as-panel[data-ws] > .ui-as-panel__body {
+  background: #f9fbfd;
+}
+/* Its sheet's top edge: the hairline only, no shadow */
+:root .ui-as-app > .ui-as-panel[data-ws] > .ui-as-panel__body {
+  box-shadow: 0 -0.5px 0 var(--line);
+}
+
+/*
+ * Dark: the frame is the darkest, the main area lighter, and what sits on it lighter
+ * again – one ramp of the Agent Relay blue (supersedes the dark surfaces above):
+ *   1  #08111a  frame: sidebar, work-area header
+ *   2  #0b1825  work-area sheet
+ *   3  #0f1b29  main area
+ *   4  #132234  cards and blocks on the main area
+ *   5  #182a3e  fields, hover, menus and popovers
+ */
+:root[data-theme="dark"] {
+  --ar-frame: #08111a;
+  --ar-sheet: #0b1825;
+  --ar-main: #0f1b29;
+  --ar-raised: #132234;
+  --ar-float: #182a3e;
+
+  /* Dashboard tokens */
+  --background: var(--ar-main);
+  --card: var(--ar-raised);
+  --surface-card: var(--ar-raised);
+  --surface-soft: var(--ar-raised);
+  --muted: var(--ar-raised);
+  --accent: var(--ar-float);
+  --popover: var(--ar-float);
+
+  /* affectUI tokens */
+  --aui-surface: var(--ar-raised);
+  --aui-overlay: var(--ar-float);
+  --ar-field: var(--ar-float);
+}
+/* The dashboard's own values restored inside the shell follow the ramp */
+:root[data-theme="dark"] {
+  --rw-accent: var(--ar-float);
+  --rw-card: var(--ar-raised);
+  --rw-muted: var(--ar-raised);
+}
+:root[data-theme="dark"] .ui-as {
+  --page: var(--ar-frame);
+  --side-tint: var(--ar-frame);
+  --panel: var(--ar-main);
+  --tray: var(--ar-raised);
+  --logo-bg: var(--ar-raised);
+}
+:root[data-theme="dark"] .ui-as-app > .ui-as-panel[data-ws] {
+  --asw-tray: var(--ar-frame);
+}
+:root[data-theme="dark"] .ui-as-app > .ui-as-panel[data-ws] > .ui-as-panel__body {
+  background: var(--ar-sheet);
+}
+
+/*
+ * Dark, aligned to light's ratios (perceived lightness L*, relative to the main area):
+ *   frame  #0a1520  −3.0   (light −2.2; a little more, small steps read weaker in the dark)
+ *   sheet  #0b1825  −1.6   (light −1.5)
+ *   main   #0f1b29   0
+ *   cards  = main     0    (as in light: same surface, set apart by their 1px edge)
+ *   fields, hover, fills #132234  +3.4  (light's hover is −3.0: same distance, toward the light)
+ *   menus and popovers stay a step higher (#182a3e): they float above the page
+ */
+:root[data-theme="dark"] {
+  --ar-frame: #0a1520;
+  --ar-raised: var(--ar-main);
+  --ar-step: #132234;
+
+  --card: var(--ar-main);
+  --surface-card: var(--ar-main);
+  --surface-soft: var(--ar-step);
+  --muted: var(--ar-step);
+  --accent: var(--ar-step);
+  --aui-surface: var(--ar-main);
+  --ar-field: var(--ar-step);
+
+  --rw-accent: var(--ar-step);
+  --rw-card: var(--ar-main);
+  --rw-muted: var(--ar-step);
+}
+:root[data-theme="dark"] .ui-as {
+  --tray: var(--ar-step);
+  --logo-bg: var(--ar-step);
+  --hover: rgba(116, 184, 226, 0.06);
+  --select: rgba(116, 184, 226, 0.1);
+}
+
+/* The sidebar's live marker uses the dashboard's own "running" green */
+.ui-as {
+  --live: var(--status-success);
+}
+
+/*
+ * Search fields: no focus ring from a click – only for keyboard users, who need to see where focus went.
+ * main.tsx sets data-keyboard on <html> after a Tab and clears it on any pointer press.
+ * The field inside never draws its own ring; the bordered container shows it.
+ */
+[data-search-field] :is(input, textarea):focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+:root[data-keyboard] [data-search-field]:focus-within {
+  border-color: var(--ring);
+  box-shadow: var(--focus-ring);
+}
+
+/* Dark mode, everywhere: Codex's mark brings its own white tile, which stands out as a white square on dark
+   surfaces (lists, tiles, cards, headers). It's turned around (white to black, hues kept) and the black blended
+   away, so only its mark shows. Light mode keeps the tile as it is. */
+:root[data-theme="dark"] img[src$="/codex.svg"] {
+  filter: invert(1) hue-rotate(180deg);
+  mix-blend-mode: screen;
+}

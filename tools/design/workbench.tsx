@@ -18,6 +18,7 @@ import {
 
 const views = [
   "Dashboard",
+  "Operator view",
   "Operator concept",
   "Pipeline sample",
   "Data catalog",
@@ -84,6 +85,7 @@ export function Workbench() {
     [],
   );
   const frame = useRef<HTMLIFrameElement>(null);
+  const operatorFrame = useRef<HTMLIFrameElement>(null);
   const pipelineView = view === "Pipeline sample" || (view === "Data catalog" && catalog.find(entry => entry.id === entryId)?.fixedCohort === true);
   const scenarioInfo = scenarios.find((item) => item.id === scenario)!;
   const data = dataset(scenario);
@@ -139,6 +141,17 @@ export function Workbench() {
     addEventListener("message", receive);
     return () => removeEventListener("message", receive);
   }, [scenario]);
+
+  // The operator view opens a session's transcript in the real dashboard
+  useEffect(() => {
+    const receive = (event: MessageEvent) => {
+      if (event.origin !== location.origin || event.source !== operatorFrame.current?.contentWindow) return;
+      const data = event.data as { type?: string; sessionId?: unknown };
+      if (data?.type === "design-open-session" && typeof data.sessionId === "string") showSession(data.sessionId);
+    };
+    addEventListener("message", receive);
+    return () => removeEventListener("message", receive);
+  });
 
   async function copyText(text: string) {
     try {
@@ -219,10 +232,11 @@ export function Workbench() {
               const next = theme === "light" ? "dark" : "light";
               setThemePreference(next);
               setTheme(next);
-              frame.current?.contentWindow?.postMessage(
-                { type: "design-theme", preference: next },
-                location.origin,
-              );
+              for (const target of [frame.current, operatorFrame.current])
+                target?.contentWindow?.postMessage(
+                  { type: "design-theme", preference: next },
+                  location.origin,
+                );
             }}
           >
             {theme === "light" ? <Moon size={15} /> : <Sun size={15} />}
@@ -235,6 +249,8 @@ export function Workbench() {
               <h1>
                 {view === "Dashboard"
                   ? "Build with the real thing."
+                  : view === "Operator view"
+                    ? "What the team is moving forward."
                   : view === "Operator concept"
                     ? "Start with the decisions."
                     : view === "Pipeline sample"
@@ -246,6 +262,8 @@ export function Workbench() {
               <p>
                 {view === "Dashboard"
                   ? "Edit the dashboard’s source. See your changes here, with a team already in place."
+                  : view === "Operator view"
+                    ? "First iteration of the operator overview, in the dashboard shell. Initiatives, blockers and suggestions are proposed fields."
                   : view === "Operator concept"
                     ? "A conversation starter for the operator view. All synthesis fields below are proposed."
                     : view === "Pipeline sample"
@@ -372,6 +390,26 @@ export function Workbench() {
               in <code>tools/design/</code>.
             </p>
           </section>
+
+          {view === "Operator view" && (
+            <section aria-label="Operator view">
+              <div className="design-preview-toolbar">
+                <span className="design-footnote">Click an initiative for detail; a session opens its transcript in Dashboard.</span>
+                <a href={`/operator/${scenario}/`} target="_blank" rel="noreferrer">
+                  Open full screen <ArrowUpRight size={13} />
+                </a>
+              </div>
+              <div className="design-preview-stage">
+                <iframe
+                  key={scenario}
+                  ref={operatorFrame}
+                  title="Operator view with synthetic data"
+                  src={`/operator/${scenario}/`}
+                  className={width === "mobile" ? "design-preview-mobile" : ""}
+                />
+              </div>
+            </section>
+          )}
 
           {view === "Operator concept" && (
             <OperatorConcept

@@ -1,0 +1,102 @@
+/*
+ * Prototype: one type, weight and radius scale for the whole dashboard.
+ * Colors live in agent-relay-theme.css; this file is shape and type only.
+ *
+ *   Font      Inter, letter spacing -0.15px
+ *   Sizes     by role, nothing smaller than 12 and nothing in between:
+ *               12  meta, labels, counts, axes
+ *               13  body, table rows, controls (the base)
+ *               14  section and card titles, the top bar
+ *               18  a page's title inside the content
+ *               24  big numbers (KPIs), sign-in
+ *             (16 from the cheatsheet is left out: no role needed it)
+ *   Weights   400 (regular, body) and 500 (medium, headings and emphasis) – nothing else
+ *   Radii     6 (small: chips, tags, keys, menu rows)
+ *             8 (controls: buttons, fields, selects)
+ *             12 (cards, panels, menus, dialogs)
+ *             plus full round for pills and avatars
+ *   Icons     Lucide
+ *   Spacing   6 between controls that sit side by side in a row (--gap-control):
+ *             search, filter buttons, tabs groups, action buttons
+ *
+ * It sets the Tailwind theme variables (text-*, font-*, rounded-*) and the
+ * affectUI tokens (--aui-*), so utilities and affectUI components follow it.
+ * Hard-coded values in page stylesheets were moved onto the same steps.
+ */
+
+:root {
+  /* Spacing: between side-by-side controls (search, filters, actions) */
+  --gap-control: 6px;
+
+  /* Type */
+  --font-inter: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-sans: var(--font-inter);
+  --font-geist-sans: var(--font-inter);
+  --tracking-ui: -0.15px;
+
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 13px;
+  --text-sm--line-height: 20px;
+  --text-base: 13px;
+  --text-base--line-height: 20px;
+  --text-lg: 14px;
+  --text-lg--line-height: 20px;
+  --text-xl: 18px;
+  --text-xl--line-height: 26px;
+  --text-2xl: 24px;
+  --text-2xl--line-height: 32px;
+  /* The scale ends at 24 */
+  --text-3xl: 24px;
+  --text-3xl--line-height: 32px;
+  --text-4xl: 24px;
+  --text-4xl--line-height: 32px;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 500;
+  --font-weight-bold: 500;
+
+  /* Radii */
+  --radius-xs: 6px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 12px;
+  --radius-2xl: 12px;
+  --radius-3xl: 12px;
+  --radius-bubble: 12px 12px 12px 6px;
+  --radius-bubble-lg: 12px 12px 12px 6px;
+
+  /* affectUI */
+  --aui-font: var(--font-inter);
+  --aui-radius-sm: 6px;
+  --aui-radius: 8px;
+  --aui-radius-lg: 12px;
+}
+
+body {
+  font-family: var(--font-inter);
+  letter-spacing: var(--tracking-ui);
+  font-optical-sizing: auto;
+}
+
+/* <small> shrinks to ~0.8em by default (≈10px), below the scale. In the base
+   layer, so any page stylesheet that sizes it still wins. */
+@layer base {
+  small {
+    font-size: var(--text-xs);
+  }
+  /* Browsers set these bold (700); the scale's emphasis is medium */
+  b,
+  strong,
+  th {
+    font-weight: var(--font-weight-medium);
+  }
+}
+
+/* One icon style everywhere: Lucide at its own stroke. Some affectUI components thin their glyphs
+   (stroke-width 1.2–1.4 in their styles); Lucide icons keep the family's line instead. */
+svg.lucide {
+  stroke-width: 2 !important;
+}

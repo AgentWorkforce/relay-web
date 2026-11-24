@@ -1,0 +1,3010 @@
+/* Operator view v2 (Briefing) and v3 (Status board), plus the shared frame: rail, panel tabs. Same scale as v1. */
+.o3,
+.o4 {
+  --o2-card: color-mix(in srgb, var(--ar-ink) 3%, var(--aui-surface));
+  --o2-hover: color-mix(in srgb, var(--ar-ink) 5%, var(--aui-surface));
+  --o2-line: color-mix(in srgb, var(--ar-ink) 8%, transparent);
+  --o-risk: #e8a200;
+  --o-ok: var(--status-success, #3fb950);
+  --o-move: var(--ar-blue);
+  color: var(--ar-ink);
+  font-size: 14px;
+  line-height: 20px;
+  letter-spacing: -0.15px;
+}
+.o3 :is(h2, h3, p),
+.o4 :is(h2, h3, p) {
+  margin: 0;
+}
+.o2-health__dot[data-risk] {
+  background: #e8a200;
+}
+
+/* ---------- v2: Briefing – a document, one narrow column ---------- */
+.o3 {
+  padding: 56px 32px 80px;
+}
+.o3-doc {
+  display: grid;
+  gap: 40px;
+  max-width: 640px;
+  margin: 0 auto;
+}
+.o3-head {
+  display: grid;
+  gap: 6px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--o2-line);
+}
+.o3-date {
+  color: var(--ar-muted);
+  font-size: 13px;
+}
+.o3-title {
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 32px;
+  letter-spacing: -0.4px;
+}
+.o3-byline {
+  color: var(--ar-muted);
+  font-size: 13px;
+}
+.o3-glance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.o3-glance li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--o2-card);
+  font-size: 13px;
+}
+.o3-sec {
+  display: grid;
+  gap: 12px;
+}
+.o3-sec h3 {
+  color: var(--ar-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+.o3-sec p,
+.o3-bullets li {
+  line-height: 24px;
+}
+.o3-lead {
+  font-size: 16px;
+  line-height: 26px !important;
+}
+.o3-init {
+  display: grid;
+  gap: 6px;
+  padding: 4px 0 12px;
+}
+.o3-init + .o3-init {
+  padding-top: 20px;
+  border-top: 1px solid var(--o2-line);
+}
+.o3-init__name {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 8px;
+  margin: 0 0 0 -8px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+  cursor: pointer;
+}
+.o3-init__name:hover,
+.o3-init__name[aria-pressed="true"] {
+  background: var(--o2-hover);
+}
+.o3-init__arrow {
+  color: var(--ar-faint);
+}
+.o3-bullets {
+  display: grid;
+  gap: 4px;
+  margin: 4px 0 0;
+  padding-left: 18px;
+  color: var(--ar-muted);
+}
+.o3-src {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  margin-left: 2px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ar-blue) 14%, transparent);
+  color: color-mix(in srgb, var(--ar-blue) 85%, var(--foreground));
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 18px;
+  vertical-align: 1px;
+  cursor: pointer;
+}
+.o3-src:hover {
+  background: color-mix(in srgb, var(--ar-blue) 24%, transparent);
+}
+.o3-spend {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+.o3-spend li {
+  display: grid;
+  grid-template-columns: 12em minmax(0, 1fr) 3.5em;
+  align-items: center;
+  gap: 12px;
+}
+.o3-spend__bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--o2-card);
+  overflow: hidden;
+}
+.o3-spend__bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--ar-blue);
+}
+.o3-suggest {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding-left: 18px;
+}
+.o3-suggest li {
+  display: grid;
+  gap: 2px;
+}
+.o3-suggest__title {
+  font-weight: 500;
+}
+
+/* ---------- v3: Status board ---------- */
+.o4 {
+  display: grid;
+  align-content: start;
+  gap: 32px;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 40px 32px 72px;
+}
+.o4-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.o4-total,
+.o4-tile {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: var(--o2-card);
+}
+.o4-total__label,
+.o4-tile__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ar-muted);
+  font-size: 13px;
+}
+.o4-total__value,
+.o4-tile__value {
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 32px;
+  font-variant-numeric: tabular-nums;
+}
+.o4-seg {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+  margin-top: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+}
+.o4-seg [data-tone],
+.o4-dot {
+  background: var(--o-move);
+}
+.o4-seg [data-tone="blocked"],
+.o4-dot[data-tone="blocked"] {
+  background: var(--o-risk);
+}
+.o4-seg [data-tone="review"],
+.o4-dot[data-tone="review"] {
+  background: var(--o-ok);
+}
+.o4-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex: none;
+}
+
+.o4-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.o4-col {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--o2-card);
+}
+.o4-col__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 4px 6px;
+}
+.o4-col__title {
+  font-weight: 500;
+}
+.o4-col__count {
+  color: var(--ar-faint);
+}
+.o4-col__empty {
+  padding: 20px 4px;
+  color: var(--ar-faint);
+  font-size: 13px;
+  text-align: center;
+}
+.o4-card {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 16px;
+  border: 1px solid var(--o2-line);
+  border-radius: 10px;
+  background: var(--aui-surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.o4-card:hover {
+  border-color: color-mix(in srgb, var(--ar-ink) 16%, transparent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+.o4-card[aria-pressed="true"] {
+  border-color: var(--ar-blue);
+  box-shadow: 0 0 0 1px var(--ar-blue);
+}
+.o4-card--static {
+  cursor: default;
+}
+.o4-card__name {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+}
+.o4-card__goal,
+.o4-card__update {
+  color: var(--ar-muted);
+  font-size: 13px;
+}
+.o4-card__blocker {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, #e8b000 12%, transparent);
+  font-size: 13px;
+}
+.o4-card__foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+.o4-card__ago {
+  margin-left: auto;
+}
+.o4 .o2-avatar {
+  border-color: var(--aui-surface);
+}
+
+.o4-below {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.o4-panel {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 20px;
+  border-radius: 12px;
+  background: var(--o2-card);
+}
+.o4-panel__title {
+  font-size: 14px;
+  font-weight: 500;
+}
+.o4-bars {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+.o4-bars li {
+  display: grid;
+  grid-template-columns: 12em minmax(0, 1fr) 3.5em;
+  align-items: center;
+  gap: 12px;
+}
+.o4-bars__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.o4-bars__track {
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ar-ink) 7%, transparent);
+  overflow: hidden;
+}
+.o4-bars__track span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--ar-blue);
+}
+.o4-tip {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--aui-surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.o4-tip:hover {
+  box-shadow: 0 0 0 1px var(--o2-line);
+}
+
+@media (max-width: 900px) {
+  .o4-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .o4-total {
+    grid-column: 1 / -1;
+  }
+  .o4-board,
+  .o4-below {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Variant switch (design review only) */
+.o-variants {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  z-index: 50;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ar-ink) 88%, transparent);
+  transform: translateX(-50%);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+.o-variants button {
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: color-mix(in srgb, var(--aui-surface) 70%, transparent);
+  font: 500 12px/16px var(--font-inter, sans-serif);
+  cursor: pointer;
+}
+.o-variants button[aria-pressed="true"] {
+  background: var(--aui-surface);
+  color: var(--ar-ink);
+}
+
+/* Workbench rail: a narrow column left of the unchanged App Shell (Codex-like). Icons sit in the middle
+   of the column – the same space left and right. */
+.o-frame {
+  display: flex;
+  height: 100dvh;
+  /* A step darker than the shell's page gray (#f6f9fc / #08111a), so the wide sidebar reads as lying on top */
+  background: #edf2f7;
+}
+:root[data-theme="dark"] .o-frame {
+  background: #050c13;
+}
+.o-frame > .o2-shell {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-width: 0;
+  /* Only a hairline between rail and wide sidebar – no shadow falling onto the rail */
+  box-shadow: -1px 0 0 rgba(0, 0, 0, 0.04);
+}
+:root[data-theme="dark"] .o-frame > .o2-shell {
+  box-shadow: -1px 0 0 rgba(0, 0, 0, 0.3);
+}
+.o-rail {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 52px;
+  /* The first icon's center lines up with the workspace dropdown's (24px from the top) */
+  padding: 6px 0 12px;
+}
+.o-rail__spacer {
+  flex: 1;
+}
+.o-rail__item {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ar-muted);
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.o-rail__item:hover {
+  background: color-mix(in srgb, var(--ar-ink) 6%, transparent);
+  color: var(--ar-ink);
+}
+.o-rail__item[aria-current="page"] {
+  background: color-mix(in srgb, var(--ar-ink) 8%, transparent);
+  color: var(--ar-ink);
+}
+
+/* The account lives in the rail now: the avatar at the bottom, the wide sidebar without its account row */
+.o2-shell .ui-as-side .ui-as-user-menu {
+  display: none;
+}
+.o-rail__account {
+  display: flex;
+  margin-top: 4px;
+}
+.o-avatar {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ar-blue) 22%, var(--aui-surface));
+  color: var(--ar-ink);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+}
+.o-avatar--lg {
+  width: 30px;
+  height: 30px;
+  font-size: 12px;
+}
+.o-account {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid color-mix(in srgb, var(--ar-ink) 8%, transparent);
+}
+.o-account__text {
+  display: grid;
+  min-width: 0;
+}
+.o-account__text b {
+  color: var(--ar-ink);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+}
+.o-account__text small {
+  color: var(--ar-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.o-rail__menu {
+  min-width: 220px;
+}
+
+/* Folded, the wide sidebar is exactly as wide as the rail beside it (52px, the shell's own is 48px) */
+.o2-shell .ui-as-app[data-collapsed] {
+  --side-col: 52px;
+}
+/* …and its 30px icons sit in the middle of those 52px: 11px on each side */
+.o2-shell .ui-as-app[data-collapsed] > :is(.ui-as-side, .ui-as-bar--side) {
+  padding-left: 11px;
+  padding-right: 11px;
+}
+.o2-shell .ui-as-app[data-collapsed] > .ui-as-bar--side > .ui-as-icon-btn {
+  left: 11px;
+}
+
+/* Details panel: the shell's own tab strip makes way for underlined tabs that sit on the app's header line
+   (48px, the same 1px line under it), spread across the panel's width */
+.o2-shell .ui-as-app > .ui-as-panel[data-ws] > .ui-as-panel__head {
+  display: none;
+}
+.o2-shell .ui-as-app > .ui-as-panel[data-ws] > .ui-as-panel__body {
+  padding: 0;
+  /* One flat surface from the header down: no card corners, no edge shadow */
+  border-radius: 0;
+  box-shadow: none;
+  /* Its color, resolved here – inside, the dashboard's own --card takes over */
+  --o-pane-bg: var(--card);
+}
+.o-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+.o-pane__head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: stretch;
+  height: 48px;
+  padding: 0 8px 0 12px;
+  /* The panel's own color, so header and content are one surface */
+  background: var(--o-pane-bg);
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+.o-pane__tabs {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+.o-pane__tab {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--ar-muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.15px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+.o-pane__tab:hover {
+  color: var(--ar-ink);
+}
+.o-pane__tab[aria-selected="true"] {
+  color: var(--ar-ink);
+}
+.o-pane__tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  right: 8px;
+  bottom: 0;
+  left: 8px;
+  height: 2px;
+  background: var(--ar-ink);
+}
+.o-pane__close {
+  display: grid;
+  place-items: center;
+  align-self: center;
+  width: 30px;
+  height: 30px;
+  margin-left: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ar-muted);
+  cursor: pointer;
+}
+.o-pane__close:hover {
+  background: color-mix(in srgb, var(--ar-ink) 6%, transparent);
+  color: var(--ar-ink);
+}
+.o-pane__body {
+  padding: 20px 20px 32px;
+}
+/* Light: the theme paints the panel #f9fbfd rather than --card – the header follows */
+:root:not([data-theme="dark"]) .o2-shell .ui-as-app > .ui-as-panel[data-ws] > .ui-as-panel__body {
+  --o-pane-bg: #f9fbfd;
+}
+:root[data-theme="dark"] .o2-shell .ui-as-app > .ui-as-panel[data-ws] > .ui-as-panel__body {
+  --o-pane-bg: #0b1825;
+}
+
+/* One tab only (nothing picked): it sits left at its own width, the underline only under the word */
+.o-pane__tabs[data-single] .o-pane__tab {
+  flex: none;
+}
+/* Nothing picked: a calm hint in the middle of the panel */
+.o-pane__body[data-empty] {
+  display: grid;
+  flex: 1;
+  place-items: center;
+}
+.o-pane__empty {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  max-width: 240px;
+  margin-top: -48px;
+  text-align: center;
+}
+.o-pane__empty-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ar-ink) 6%, transparent);
+  color: var(--ar-muted);
+}
+.o-pane__empty p {
+  margin: 0;
+  color: color-mix(in srgb, var(--ar-muted) 75%, transparent);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+/* ---------- v2: the week at a glance in the side panel (Linear-like cards) ---------- */
+.o-week {
+  /* Things that cut out of the background (dot rings, initials) use the panel's own color */
+  --o-card-bg: var(--o-pane-bg, #f9fbfd);
+  display: grid;
+  /* Cards close together and close to the panel's edges: 6px all round */
+  gap: 0;
+  /* body pads 20px (sides, top) and 32px (bottom): pull out to 6px all round */
+  margin: -14px -14px -26px;
+}
+/* Sections, not cards: no box – a hairline between them that stops short of the panel's edges */
+.o-card {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  padding: 16px 14px;
+}
+.o-card + .o-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 14px;
+  left: 14px;
+  height: 1px;
+  background: color-mix(in srgb, var(--ar-ink) 9%, transparent);
+}
+.o-card__title {
+  margin: 0;
+  /* Darker than the labels inside, so each card's title stands out */
+  color: var(--ar-ink);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+}
+.o-props {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: start;
+  /* Room between label and value, so the longer labels ("Initiatives") don't touch the icons */
+  column-gap: 16px;
+  row-gap: 12px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+}
+.o-props dt {
+  color: var(--ar-muted);
+}
+.o-props dd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.o-props dd > svg {
+  flex: none;
+  color: var(--ar-muted);
+}
+/* Several entries (people, health counts): one per line, like the reference's "Surface" */
+.o-props__stack {
+  flex-direction: column;
+  align-items: flex-start !important;
+  gap: 8px !important;
+}
+.o-props__stack > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.o-props__stack .o2-health__dot {
+  margin: 0 3px;
+}
+.o-props__muted {
+  color: var(--ar-faint);
+}
+/* A person: a round 18px initials badge before the name */
+.o-initials {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ar-blue) 20%, var(--o-card-bg, var(--aui-surface)));
+  color: var(--ar-ink);
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1;
+}
+.o-chart__wrap {
+  position: relative;
+  cursor: crosshair;
+}
+.o-chart {
+  display: block;
+  width: 100%;
+  height: 120px;
+  /* Lines that sit on the edge (the first point, the top) keep their full stroke */
+  overflow: visible;
+}
+/* Hover: guide line, a dot per line, and a small card with the totals at that moment */
+.o-hover {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.o-hover__guide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: color-mix(in srgb, var(--ar-ink) 22%, transparent);
+  transform: translateX(-0.5px);
+}
+.o-hover__dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--o-card-bg, var(--aui-surface));
+  border-radius: 50%;
+  box-sizing: content-box;
+  transform: translate(-6px, -6px);
+}
+.o-hover__card {
+  position: absolute;
+  top: 0;
+  z-index: 2;
+  display: grid;
+  gap: 4px;
+  box-sizing: border-box;
+  width: 176px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--ar-ink) 10%, transparent);
+  border-radius: 8px;
+  background: var(--aui-surface);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+.o-hover__time {
+  color: var(--ar-muted);
+}
+.o-hover__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.o-hover__swatch {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+.o-hover__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.o-hover__total {
+  margin-top: 2px;
+  padding-top: 4px;
+  border-top: 1px solid color-mix(in srgb, var(--ar-ink) 8%, transparent);
+  font-weight: 500;
+}
+.o-chart__axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  color: var(--ar-faint);
+  font-size: 12px;
+  line-height: 16px;
+}
+.o-chart__legend {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 12px;
+  overflow: hidden;
+  white-space: nowrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ar-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.o-chart__legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.o-chart__legend span {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+.o-seg {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  gap: 4px;
+  /* A little more air between the legend and the switch */
+  margin-top: 8px;
+}
+.o-seg button {
+  height: 28px;
+  border: 1px solid color-mix(in srgb, var(--ar-ink) 8%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ar-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.o-seg button[aria-selected="true"] {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--ar-ink) 7%, transparent);
+  color: var(--ar-ink);
+}
+.o-breakdown {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+.o-breakdown li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+  padding: 0 2px;
+}
+.o-lead-icon {
+  flex: none;
+  width: 18px;
+  color: var(--ar-muted);
+}
+.o-lead-dot {
+  margin: 0 5px;
+}
+.o-breakdown__label {
+  flex: 1;
+  min-width: 0;
+}
+.o-activity {
+  display: grid;
+  gap: 2px;
+  margin: 0 -6px;
+  padding: 0;
+  list-style: none;
+}
+.o-activity__row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  width: 100%;
+  padding: 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.o-activity__row:hover {
+  background: color-mix(in srgb, var(--ar-ink) 5%, transparent);
+}
+.o-activity__row .o-initials {
+  margin-top: 1px;
+}
+.o-activity__text {
+  display: grid;
+  min-width: 0;
+}
+.o-activity__title {
+  overflow: hidden;
+  color: var(--ar-ink);
+  font-size: 13px;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.o-activity__meta {
+  color: var(--ar-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.o-week__empty {
+  padding-top: 40vh;
+}
+:root[data-theme="dark"] .o-week {
+  --o-card-bg: var(--o-pane-bg, #0b1825);
+}
+
+/* ---------- v2 detail views: back link and the extra card parts ---------- */
+.o-back {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 4px;
+  height: 26px;
+  max-width: calc(100% + 28px);
+  margin: -14px -14px 6px;
+  padding: 0 8px 0 4px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ar-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.o-back:hover {
+  background: color-mix(in srgb, var(--ar-ink) 6%, transparent);
+  color: var(--ar-ink);
+}
+.o-week--detail {
+  margin-top: 0;
+}
+.o-card__head {
+  display: grid;
+  gap: 4px;
+}
+.o-card__name {
+  margin: 0;
+  color: var(--ar-ink);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 22px;
+}
+.o-card__sub {
+  margin: 0;
+  color: var(--ar-muted);
+  font-size: 13px;
+  line-height: 20px;
+}
+.o-card__text {
+  margin: 0;
+  color: var(--ar-ink);
+  font-size: 13px;
+  line-height: 20px;
+}
+.o-card__blocker {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, #e8b000 12%, transparent);
+  font-size: 13px;
+  line-height: 20px;
+}
+.o-card__blocker svg {
+  flex: none;
+  margin-top: 3px;
+  color: #c98a00;
+}
+.o-quotes {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.o-quotes li {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+}
+.o-quotes li > span:last-child {
+  display: grid;
+  gap: 2px;
+}
+.o-quotes__text {
+  color: var(--ar-ink);
+  font-size: 13px;
+  line-height: 20px;
+}
+.o-activity__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ar-blue);
+}
+.o-activity__dot[data-status="finished"] {
+  background: var(--status-success, #3fb950);
+}
+.o-open {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--ar-ink) 10%, transparent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ar-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.o-open:hover {
+  background: color-mix(in srgb, var(--ar-ink) 5%, transparent);
+}
+
+/* Source badges in the briefing: a dark tooltip on hover/focus saying which session opens */
+.o3-src {
+  position: relative;
+}
+.o3-src[data-tip]:hover::after,
+.o3-src[data-tip]:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  z-index: 5;
+  width: max-content;
+  max-width: 260px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--ar-ink);
+  color: var(--aui-surface);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  text-align: left;
+  white-space: normal;
+  pointer-events: none;
+  transform: translateX(-50%);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Header: how fresh the numbers are, and the period picker */
+.o-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.o-fresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--ar-faint);
+  font-size: 12px;
+}
+.o-fresh__btn,
+.o-period {
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--ar-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.o-fresh__btn {
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+}
+.o-fresh__btn:hover,
+.o-period:hover,
+.o-period[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--ar-ink) 6%, transparent);
+  color: var(--ar-ink);
+}
+.o-fresh__btn[data-spinning] svg {
+  animation: o-spin 700ms ease;
+}
+@keyframes o-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.o-period {
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--ar-ink) 10%, transparent);
+  border-radius: 6px;
+  color: var(--ar-ink);
+  font-size: 13px;
+}
+.o-period svg {
+  color: var(--ar-muted);
+}
+
+/* Rail: the logomark heads the column, a little apart from the areas below */
+.o-rail__logo {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 8px;
+}
+.o-rail__logo svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* ---------- Overlaps ---------- */
+/* Category: worth a look (amber), spent twice (rose), coordinated (green) */
+.o-cat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ar-ink);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+}
+.o-cat__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e8a200;
+}
+.o-cat[data-cat="waste"] .o-cat__dot,
+.o-cat__dot[data-cat="waste"] {
+  background: #d9738f;
+}
+.o-cat[data-cat="coordinated"] .o-cat__dot,
+.o-cat__dot[data-cat="coordinated"] {
+  background: var(--status-success, #3fb950);
+}
+.o-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.o-kind svg {
+  flex: none;
+  color: var(--ar-muted);
+}
+.o-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+.o-artifacts {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+.o-artifacts li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.o-artifacts svg {
+  flex: none;
+  color: var(--ar-muted);
+}
+.o-suggest {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.o-suggest svg {
+  flex: none;
+  margin-top: 3px;
+  color: #c98a00;
+}
+.o-note {
+  margin: 4px 14px 0;
+  color: var(--ar-faint);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+/* v1 List */
+.ov-head {
+  display: grid;
+  gap: 2px;
+}
+.ov-head p {
+  margin: 0;
+  font-size: 13px;
+}
+.ov-table {
+  --o2-cols: minmax(0, 1fr) 190px 72px 80px 72px;
+}
+.ov-kind-cell {
+  font-size: 13px;
+}
+
+/* v2 Pairs */
+.ov-pairs {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ov-pair {
+  display: grid;
+  gap: 14px;
+  width: 100%;
+  padding: 16px 18px;
+  /* A light gray fill instead of a frame; picked, a light blue fill – no outline either way */
+  border: 0;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ar-ink) 3.5%, transparent);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.ov-pair:hover {
+  background: color-mix(in srgb, var(--ar-ink) 5.5%, transparent);
+}
+.ov-pair[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--ar-blue) 11%, transparent);
+}
+.ov-pair__top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ov-pair__top .o-cat {
+  flex: none;
+  color: var(--ar-muted);
+  font-size: 12px;
+}
+.ov-pair__title {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+.ov-pair__lane {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 0.9fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+.ov-side {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--aui-surface);
+}
+.ov-side__who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ar-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+.ov-side__what {
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ov-pair__link {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+}
+/* The line from one side to the other runs behind the shared thing */
+.ov-pair__link::before {
+  content: "";
+  position: absolute;
+  top: 12px;
+  right: -12px;
+  left: -12px;
+  height: 0;
+  border-top: 1.5px dashed #e8a200;
+}
+.ov-pair__link[data-cat="waste"]::before {
+  border-top-color: #d9738f;
+}
+.ov-pair__link[data-cat="coordinated"]::before {
+  border-top-style: solid;
+  border-top-color: var(--status-success, #3fb950);
+}
+.ov-pair__shared {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--ar-ink) 10%, transparent);
+  border-radius: 6px;
+  background: var(--aui-surface);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+.ov-pair__shared span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ov-pair__shared svg {
+  flex: none;
+  color: var(--ar-muted);
+}
+.ov-pair__talk {
+  color: var(--ar-faint);
+  font-size: 11px;
+  line-height: 14px;
+}
+.ov-pair__cost {
+  color: var(--ar-muted);
+  font-size: 12px;
+}
+
+/* v3 Matrix */
+.ov-matrix {
+  display: grid;
+  gap: 6px;
+  align-items: center;
+}
+.ov-matrix__col,
+.ov-matrix__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--ar-muted);
+  font-size: 12px;
+}
+.ov-matrix__col {
+  justify-content: center;
+}
+.ov-cell {
+  height: 56px;
+  border: 0;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ar-ink) 3%, transparent);
+  color: var(--ar-ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.ov-cell:disabled {
+  cursor: default;
+}
+.ov-cell[data-cat="attention"] {
+  background: color-mix(in srgb, #e8a200 22%, transparent);
+}
+.ov-cell[data-cat="waste"] {
+  background: color-mix(in srgb, #d9738f 22%, transparent);
+}
+.ov-cell[data-cat="coordinated"] {
+  background: color-mix(in srgb, #3fb950 18%, transparent);
+}
+/* Picked: the same color, a step darker – no outline */
+.ov-cell[data-cat="attention"][aria-pressed="true"] {
+  background: color-mix(in srgb, #e8a200 42%, transparent);
+}
+.ov-cell[data-cat="waste"][aria-pressed="true"] {
+  background: color-mix(in srgb, #d9738f 40%, transparent);
+}
+.ov-cell[data-cat="coordinated"][aria-pressed="true"] {
+  background: color-mix(in srgb, #3fb950 36%, transparent);
+}
+.ov-cell:not(:disabled):hover {
+  filter: brightness(0.97);
+}
+.ov-legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 4px;
+}
+.ov-legend .o-cat {
+  color: var(--ar-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.ov-list {
+  margin: 0 -6px;
+}
+.ov-list__row {
+  grid-template-columns: 10px minmax(0, 1fr);
+  padding: 8px 6px;
+}
+.ov-list__row .o-cat__dot {
+  margin-top: 6px;
+}
+.ov-list__row[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--ar-blue) 10%, transparent);
+}
+
+/* Rail tooltips: to the right of the icon – its name, and in a second line what it is */
+.o-rail {
+  position: relative;
+  z-index: 3;
+}
+.o-rail [data-tip] {
+  position: relative;
+}
+.o-rail [data-tip]:hover::after,
+.o-rail [data-tip]:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 10px);
+  z-index: 10;
+  width: max-content;
+  max-width: 240px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--ar-ink);
+  color: var(--aui-surface);
+  font: 500 12px/17px var(--font-inter, sans-serif);
+  letter-spacing: -0.1px;
+  text-align: left;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateY(-50%);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+/* The account's menu opens upward; while it's open the tooltip stays away */
+.o-rail [data-tip][aria-expanded="true"]::after {
+  display: none;
+}
+
+/* ---------- Overview v3: the board (Linear / Ordinary style) ---------- */
+.ob {
+  --o-ob-card: var(--aui-surface);
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  /* The same column as v1: 880px wide, centred, white space on both sides */
+  max-width: 880px;
+  margin: 0 auto;
+  /* The board fills the rest of the page: its columns run to the bottom edge */
+  grid-template-rows: auto auto minmax(0, 1fr);
+  min-height: 100%;
+  padding: 48px 32px 0;
+  color: var(--ar-ink);
+  font-size: 13px;
+  line-height: 20px;
+  letter-spacing: -0.15px;
+}
+.ob p {
+  margin: 0;
+}
+.ob-summary {
+  color: var(--ar-muted);
+  font-size: 13px;
+}
+.ob-col__empty {
+  font-size: 12px !important;
+}
+.ob-notice {
+  max-width: 720px;
+}
+.ob-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  align-items: stretch;
+}
+/* Like Linear: gray columns down to the bottom, fading out towards it */
+.ob-col {
+  display: grid;
+  gap: 8px;
+  min-height: 160px;
+  align-content: start;
+  padding: 6px 6px 8px;
+  border-radius: 12px 12px 0 0;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--ar-ink) 3.5%, transparent) 0,
+    color-mix(in srgb, var(--ar-ink) 3.5%, transparent) 45%,
+    transparent 100%
+  );
+}
+.ob-col__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 8px;
+}
+.ob-col__title {
+  font-size: 13px;
+  font-weight: 500;
+}
+.ob-col__count {
+  color: var(--ar-muted);
+  font-size: 12px;
+}
+.ob-col__empty {
+  padding: 24px 8px;
+  color: var(--ar-faint);
+  font-size: 13px;
+  text-align: center;
+}
+.ob-status {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--ar-blue);
+}
+.ob-status[data-tone="blocked"] {
+  color: #e8a200;
+}
+.ob-status[data-tone="review"] {
+  color: var(--status-success, #3fb950);
+}
+.ob-card {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 12px 12px;
+  border: 1px solid color-mix(in srgb, var(--ar-ink) 7%, transparent);
+  border-radius: 10px;
+  background: var(--o-ob-card);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15, 30, 45, 0.04);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.ob-card:hover {
+  border-color: color-mix(in srgb, var(--ar-ink) 14%, transparent);
+  box-shadow: 0 2px 6px rgba(15, 30, 45, 0.07);
+}
+.ob-card[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--ar-blue) 55%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ar-blue) 55%, transparent);
+}
+.ob-card--static {
+  cursor: default;
+}
+.ob-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ob-card__meta {
+  color: var(--ar-muted);
+  font-size: 11px;
+  line-height: 16px;
+}
+.ob-card .o2-avatar {
+  width: 20px;
+  height: 20px;
+  border-color: var(--o-ob-card);
+  font-size: 8px;
+}
+.ob-card__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+}
+.ob-card__desc {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--ar-muted);
+  font-size: 12px;
+  line-height: 17px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.ob-card__blocker {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--ar-ink);
+  font-size: 12px;
+  line-height: 17px;
+}
+.ob-card__blocker svg {
+  flex: none;
+  margin-top: 2px;
+  color: #c98a00;
+}
+.ob-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+.ob-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 7px;
+  border: 1px solid color-mix(in srgb, var(--ar-ink) 9%, transparent);
+  border-radius: 6px;
+  color: var(--ar-muted);
+  font-size: 11px;
+}
+.ob-chip svg {
+  color: var(--ar-muted);
+}
+:root[data-theme="dark"] .ob {
+  --o-ob-card: color-mix(in srgb, var(--ar-ink) 5%, var(--aui-surface));
+}
+@media (max-width: 900px) {
+  .ob-board {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* v3: KPI tiles above the board */
+.ob-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.ob-kpi {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ar-ink) 3.5%, transparent);
+}
+.ob-kpi__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ar-muted);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ob-kpi__label svg {
+  flex: none;
+}
+.ob-kpi__value {
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 28px;
+  font-variant-numeric: tabular-nums;
+}
+.ob-kpi__bar {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+  margin-top: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+}
+.ob-kpi__bar span {
+  background: var(--ar-blue);
+}
+.ob-kpi__bar [data-tone="blocked"] {
+  background: #e8a200;
+}
+.ob-kpi__bar [data-tone="review"] {
+  background: var(--status-success, #3fb950);
+}
+@media (max-width: 900px) {
+  .ob-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ob-kpi--total {
+    grid-column: 1 / -1;
+  }
+}
+
+/* v3 with the right panel open: the main area is narrower, so less white space at its sides */
+.o2-shell .ui-as-app:not([data-panel="closed"]) .ob {
+  padding-right: 16px;
+  padding-left: 16px;
+}
+
+/* v3: the status line sits a little apart from the KPIs */
+.ob-hero {
+  margin-bottom: 8px;
+}
+.ob-hero p,
+.ob-hero h2 {
+  margin: 0;
+}
+.ov-recent {
+  grid-template-columns: 18px minmax(0, 1fr);
+}
+.ov-recent .o-cat__dot {
+  margin: 6px 5px 0;
+}
+
+/* Overlaps v1: each group starts with a tinted header strip on the rows' left edge, so the groups
+   read as separate blocks; the column labels sit just under it */
+.ov-group {
+  gap: 4px;
+}
+.ov-group__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 16px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ar-ink) 3.5%, transparent);
+}
+.ov-group__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+.ov-group__count {
+  color: var(--ar-muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+.ov-group__hint {
+  margin: 0;
+  color: var(--ar-muted);
+  font-size: 12px;
+}
+.ov-group .o2-table__head {
+  padding-top: 8px;
+}
+
+/* Tables (Overview v1, Overlaps v1): a light line between the column labels and the rows */
+.o2-table__head {
+  padding-bottom: 8px !important;
+  box-shadow: inset 0 -1px 0 var(--o2-line, color-mix(in srgb, var(--ar-ink) 8%, transparent));
+}
+.o2-table__head + .o2-row {
+  margin-top: 4px;
+}
+
+/* ---------- Spend ---------- */
+.sp-bought {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ar-ink) 3%, var(--aui-surface));
+}
+.sp-stack {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+}
+.sp-stack span,
+.sp-swatch {
+  background: var(--status-success, #3fb950);
+}
+.sp-stack [data-part="working"],
+.sp-swatch[data-part="working"] {
+  background: var(--ar-blue);
+}
+.sp-stack [data-part="paused"],
+.sp-swatch[data-part="paused"] {
+  background: color-mix(in srgb, var(--ar-ink) 22%, transparent);
+}
+.sp-legend {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+.sp-legend li {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) 64px 48px;
+  align-items: center;
+  gap: 12px;
+}
+.sp-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+.sp-twice {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ar-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.sp-twice:hover {
+  color: var(--ar-ink);
+  text-decoration: underline;
+}
+.sp-table {
+  --o2-cols: minmax(0, 1fr) minmax(140px, 1.2fr) 64px 64px 88px;
+}
+.sp-table .o2-row {
+  min-height: 52px;
+}
+.sp-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 10px;
+}
+.sp-bar__track {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ar-ink) 7%, transparent);
+}
+.sp-bar__track span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--ar-blue);
+}
+.sp-total {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 500;
+  line-height: 40px;
+  letter-spacing: -0.6px;
+  font-variant-numeric: tabular-nums;
+}
+.sp-total span {
+  color: var(--ar-muted);
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: -0.15px;
+}
+.sp-chart {
+  padding: 16px 20px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ar-ink) 3%, var(--aui-surface));
+}
+.sp-chart .o-chart {
+  height: 180px;
+}
+.sp-rows li {
+  padding: 2px 4px;
+}
+.sp-eff {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sp-eff__row {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  padding: 16px 18px;
+  border: 0;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ar-ink) 3.5%, transparent);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.sp-eff__row:hover {
+  background: color-mix(in srgb, var(--ar-ink) 5.5%, transparent);
+}
+.sp-eff__row[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--ar-blue) 11%, transparent);
+}
+.sp-eff__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.sp-eff__name {
+  font-weight: 500;
+}
+.sp-verdict {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ar-blue) 13%, transparent);
+  color: color-mix(in srgb, var(--ar-blue) 85%, var(--foreground));
+  font-size: 12px;
+  font-weight: 500;
+}
+.sp-verdict[data-tone="ok"] {
+  background: color-mix(in srgb, var(--status-success, #3fb950) 14%, transparent);
+  color: color-mix(in srgb, var(--status-success, #3fb950) 75%, var(--foreground));
+}
+.sp-verdict[data-tone="risk"] {
+  background: color-mix(in srgb, #e8a200 16%, transparent);
+  color: color-mix(in srgb, #b07c00 85%, var(--foreground));
+}
+.sp-eff__bar {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ar-ink) 6%, transparent);
+}
+.sp-eff__bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--ar-blue);
+}
+.sp-eff__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.sp-dots {
+  display: inline-flex;
+  gap: 4px;
+}
+.sp-dots span {
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--status-success, #3fb950);
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+.sp-dots span[data-done] {
+  background: var(--status-success, #3fb950);
+}
+/* Short pages don't spread their blocks over the full height */
+.o2.flat-shell__content {
+  align-content: start;
+}
+
+/* Harness logos: the product's own mark in a small round white tile */
+.o-logo {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid color-mix(in srgb, var(--ar-ink) 9%, transparent);
+  border-radius: 50%;
+  background: #fff;
+  vertical-align: middle;
+}
+.o-logo__img {
+  width: 12px;
+  height: 12px;
+  object-fit: contain;
+}
+.o-activity__meta--logo {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.o-activity__meta--logo .o-logo {
+  width: 14px;
+  height: 14px;
+}
+.o-activity__meta--logo .o-logo__img {
+  width: 9px;
+  height: 9px;
+}
+.sp-name {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.ov-side__who .o-logo {
+  margin-left: 2px;
+}
+/* Briefing: initials in place of the bullet */
+.o3-bullets {
+  padding-left: 0 !important;
+  list-style: none;
+}
+.o3-bullets li {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+.o3-bullets .o-initials {
+  margin-top: 3px;
+}
+
+/* Spend v1: "By ▸ Initiative ▾" – the table's grouping picked right in its heading */
+.sp-by {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sp-by__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  margin-left: 2px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ar-ink);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.sp-by__btn:hover,
+.sp-by__btn[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--ar-ink) 6%, transparent);
+}
+.sp-by__btn svg {
+  color: var(--ar-muted);
+}
+.sp-by__chev {
+  margin-left: -2px;
+}
+
+/* Spend v1: KPI strip and the chart card above "What the tokens bought" */
+/* Four separate tiles on a light gray fill */
+.sp-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.sp-kpi {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+  padding: 16px 18px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ar-ink) 3.5%, transparent);
+}
+.sp-kpi__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--ar-muted);
+  font-size: 13px;
+}
+.sp-kpi__head svg {
+  flex: none;
+  color: var(--ar-muted);
+}
+.sp-kpi__value {
+  overflow: hidden;
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 28px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.sp-kpi__note {
+  color: var(--ar-faint);
+  font-size: 12px;
+  line-height: 16px;
+}
+/* The chart sits openly on the page – no frame */
+.sp-card {
+  display: grid;
+  gap: 12px;
+}
+.sp-card__head {
+  display: grid;
+  gap: 2px;
+}
+.sp-card__title {
+  color: var(--ar-ink);
+  font-size: 14px;
+  font-weight: 500;
+}
+.sp-card__total {
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 32px;
+  font-variant-numeric: tabular-nums;
+}
+.sp-card__chart .o-chart {
+  height: 180px;
+}
+@media (max-width: 760px) {
+  .sp-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+/* A name instead of a number (e.g. the biggest initiative): a step smaller, allowed to wrap */
+.sp-kpi__value--text {
+  font-size: 15px;
+  line-height: 20px;
+  padding-top: 4px;
+  white-space: normal;
+}
+
+/* Spend chart: a little air for the lines at the edges, the legend clear of the axis */
+.sp-card__chart {
+  padding: 4px 2px 0;
+}
+.sp-card__chart .o-chart__legend {
+  margin-top: 8px;
+}
+
+/* Charts with axes: a y-axis column on the left, light gridlines across */
+.o-chart__frame {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+}
+.o-chart__yaxis {
+  position: relative;
+  height: var(--o-chart-h, 120px);
+}
+.o-chart__yaxis span {
+  position: absolute;
+  right: 10px;
+  color: var(--ar-faint);
+  font-size: 11px;
+  line-height: 14px;
+  font-variant-numeric: tabular-nums;
+  transform: translateY(-50%);
+}
+.o-chart__main {
+  min-width: 0;
+}
+.o-chart__frame .o-chart {
+  height: var(--o-chart-h, 120px);
+}
+.o-chart__grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.o-chart__grid span {
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: 0;
+  border-top: 1px solid color-mix(in srgb, var(--ar-ink) 7%, transparent);
+}
+.o-chart__grid span:last-child {
+  border-top-color: color-mix(in srgb, var(--ar-ink) 14%, transparent);
+}
+.sp-card__chart,
+.sp-chart {
+  --o-chart-h: 200px;
+}
+/* The hover card sizes to its content: names and numbers never run into each other or out of it */
+.o-hover__card {
+  width: max-content !important;
+  min-width: 168px;
+  max-width: 280px;
+}
+.o-hover__row .o2-num {
+  margin-left: 16px;
+}
+/* With a y-axis, the legend lines up with the chart, not with the axis labels */
+.o-chart__frame + .o-chart__legend {
+  padding-left: 40px;
+}
+
+/* Spend v1 chart: legend top right, beside the title; more room above the top gridline */
+.sp-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: -10px;
+}
+.sp-card__titles {
+  display: grid;
+  gap: 2px;
+}
+.sp-card__legend {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.sp-card__chart {
+  margin-top: 20px;
+}
+/* The chart's own legend under it gives way to the one at the top */
+.sp-card__chart .o-chart__legend {
+  display: none;
+}
+/* Spend v1 chart: title left, the group switch right on the same line */
+/* Title and switch share their top edge; the legend sits under the switch, on the total's line */
+.sp-card {
+  position: relative;
+}
+.sp-card__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+/* The switch hangs in the top right without making the title row taller – title and total keep their
+   2px distance – and the legend sits under it, on the total's baseline */
+.sp-card__top .o2-seg {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+.sp-card__top + .sp-card__head {
+  align-items: flex-end;
+  margin-top: -10px;
+}
+.sp-card__top + .sp-card__head .sp-card__legend {
+  padding-bottom: 2px;
+}
+
+/* Spend chart: the legend gets its own line under the total, well clear of the switch above it;
+   the title-to-total distance stays at 2px */
+.sp-card > .sp-card__keys {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 4px 16px;
+  margin: 8px 0 0;
+  padding: 0;
+}
+.sp-card > .sp-card__keys + .sp-card__chart {
+  margin-top: 8px;
+}
+/* Spend panel: the paused note with its icon, and the link to the Overlaps page */
+.sp-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sp-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ar-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.sp-link:hover {
+  color: var(--ar-ink);
+}
+
+/* ---------- Map page: people → agents → initiatives → outcome, overlaps as arcs ---------- */
+.mp {
+  --mp-attention: #e8a200;
+  --mp-waste: #d9738f;
+  --mp-coordinated: var(--status-success, #3fb950);
+  --mp-finished: var(--status-success, #3fb950);
+  --mp-active: var(--ar-blue);
+  --mp-paused: #e8a200;
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.mp__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+/* The column names line up over their columns */
+.mp__heads {
+  position: relative;
+  flex: 1;
+  height: 16px;
+}
+.mp__heads span {
+  position: absolute;
+  top: 0;
+  color: var(--ar-faint);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+}
+.mp__weight {
+  flex: none;
+}
+.mp__canvas {
+  position: relative;
+  min-width: 0;
+}
+.mp__links {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+/* Connectors as in the affectUI Agent Tree: a thin soft blue, a hollow dot where they leave a card */
+.mp {
+  --mp-link: #83c7fe;
+  --mp-link-muted: rgba(0, 0, 0, 0.12);
+}
+:root[data-theme="dark"] .mp {
+  --mp-link: #4fb0fe;
+  --mp-link-muted: rgba(255, 255, 255, 0.14);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .mp {
+    --mp-link: #4fb0fe;
+    --mp-link-muted: rgba(255, 255, 255, 0.14);
+  }
+}
+.mp__link {
+  fill: none;
+  stroke: var(--mp-link);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: stroke 200ms ease;
+}
+.mp__link[data-on] {
+  stroke: var(--ar-blue);
+}
+.mp__link[data-off] {
+  stroke: var(--mp-link-muted);
+}
+.mp__dot {
+  fill: var(--aui-surface);
+  stroke: var(--mp-link);
+  stroke-width: 1.5;
+  transition: stroke 200ms ease;
+}
+.mp__dot[data-on] {
+  stroke: var(--ar-blue);
+}
+.mp__dot[data-off] {
+  stroke: var(--mp-link-muted);
+}
+.mp__arc[data-off] {
+  opacity: 0.25;
+}
+.mp__arc-line {
+  fill: none;
+  stroke: var(--mp-attention);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+.mp__arc[data-cat="waste"] .mp__arc-line {
+  stroke: var(--mp-waste);
+}
+.mp__arc[data-cat="coordinated"] .mp__arc-line {
+  stroke: var(--mp-coordinated);
+}
+.mp__arc[data-picked] .mp__arc-line {
+  stroke-width: 2.5;
+}
+
+/* Nodes: a soft fill, no outline; held or opened ones turn light blue */
+.mp__node {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ar-ink) 5%, var(--aui-surface));
+  color: var(--ar-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease, opacity 140ms ease;
+  --o-card-bg: color-mix(in srgb, var(--ar-ink) 5%, var(--aui-surface));
+}
+.mp__node:hover {
+  background: color-mix(in srgb, var(--ar-ink) 9%, var(--aui-surface));
+}
+.mp__node[data-held],
+.mp__node[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--ar-blue) 14%, var(--aui-surface));
+}
+.mp__node[data-off] {
+  opacity: 0.35;
+}
+.mp__text {
+  display: grid;
+  min-width: 0;
+}
+.mp__label,
+.mp__meta {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.mp__label {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+}
+.mp__meta {
+  color: var(--ar-muted);
+  font-size: 12px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.mp-outcome-icon {
+  flex: none;
+  color: var(--mp-finished);
+}
+.mp-outcome-icon[data-outcome="active"] {
+  color: var(--mp-active);
+}
+.mp-outcome-icon[data-outcome="paused"] {
+  color: var(--mp-paused);
+}
+
+/* An overlap's marker on its arc: a filled round badge with the kind's icon */
+.mp__overlap {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--mp-attention);
+  color: #fff;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+  transition: opacity 140ms ease, transform 120ms ease;
+}
+.mp__overlap[data-cat="waste"] {
+  background: var(--mp-waste);
+}
+.mp__overlap[data-cat="coordinated"] {
+  background: var(--mp-coordinated);
+}
+.mp__overlap:hover,
+.mp__overlap[aria-pressed="true"] {
+  transform: translate(-50%, -50%) scale(1.15);
+}
+.mp__overlap[data-off] {
+  opacity: 0.3;
+}
+.mp__overlap[data-tip]:hover::after,
+.mp__overlap[data-tip]:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  width: max-content;
+  max-width: 240px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--ar-ink);
+  color: var(--aui-surface);
+  font-size: 12px;
+  line-height: 16px;
+  text-align: left;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+/* The key under the map */
+.mp__key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ar-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.mp__key li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mp__key-line {
+  width: 18px;
+  border-top: 1.5px solid var(--mp-link);
+}
+.mp__key-arc {
+  width: 18px;
+  border-top: 2px solid var(--mp-coordinated);
+}
+.mp__key-arc--blind {
+  border-top: 2px dashed var(--mp-waste);
+}
+/* The map needs the room: wider than the list pages */
+.o2.mp-page {
+  max-width: 1120px;
+}
+.mp__heads {
+  flex: none;
+  margin-bottom: -6px;
+}
+.mp__key-arc--unknown {
+  border-top: 2px dotted var(--ar-faint);
+}
+
+/* ---------- Map v2 Trees and v3 Pairs ---------- */
+/* An agent's face: initials with the harness logo tucked against them */
+.mx-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+.mx-mark .o-logo {
+  margin-left: -6px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--o-card-bg, var(--aui-surface));
+}
+.mx-outcomes {
+  display: inline-flex;
+  gap: 10px;
+  margin-top: 2px;
+  color: var(--ar-muted);
+  font-size: 12px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.mx-outcomes > span,
+.mx-key-outcomes > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.mx-key-outcomes {
+  gap: 14px !important;
+}
+.mx-outcomes__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--mp-finished);
+}
+.mx-outcomes__dot[data-outcome="active"] {
+  background: var(--mp-active);
+}
+.mx-outcomes__dot[data-outcome="paused"] {
+  background: var(--mp-paused);
+}
+
+/* v2: one tree per initiative, side by side as long as they fit */
+.mt-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  gap: 48px 40px;
+  align-items: start;
+}
+.mt {
+  position: relative;
+  min-width: 0;
+}
+.mt__agent {
+  align-items: center;
+}
+.mt__root .mp__label {
+  font-size: 14px;
+}
+.mt__risk {
+  flex: none;
+  margin-left: auto;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: color-mix(in srgb, #e8a200 18%, transparent);
+  color: #b27a00;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 18px;
+}
+:root[data-theme="dark"] .mt__risk {
+  color: #f0b429;
+}
+.mp__node:disabled {
+  cursor: default;
+}
+
+/* v3: pairs – two agent cards joined by a connector, the collision named on it */
+.mx-group {
+  display: grid;
+  gap: 12px;
+}
+.mx-group + .mx-group {
+  margin-top: 16px;
+}
+.mx-group__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  font-size: 13px;
+}
+.mx-pairs {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mx-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 1.15fr) minmax(0, 1fr);
+  align-items: center;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mx-pair:disabled {
+  cursor: default;
+}
+.mx-card {
+  --o-card-bg: color-mix(in srgb, var(--ar-ink) 5%, var(--aui-surface));
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  height: 52px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: var(--o-card-bg);
+  transition: background 120ms ease;
+}
+.mx-pair:hover:not(:disabled) .mx-card {
+  --o-card-bg: color-mix(in srgb, var(--ar-ink) 9%, var(--aui-surface));
+}
+.mx-pair[aria-pressed="true"] .mx-card {
+  --o-card-bg: color-mix(in srgb, var(--ar-blue) 14%, var(--aui-surface));
+}
+.mx-card--self {
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--o2-line);
+}
+.mx-link {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 52px;
+}
+.mx-link__line {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 10px;
+  overflow: visible;
+  transform: translateY(-50%);
+}
+.mx-link__line line {
+  stroke: var(--mp-link);
+  stroke-width: 1.5;
+}
+.mx-pair[data-status="blind"] .mx-link__line line {
+  stroke: var(--mp-waste);
+}
+.mx-pair[data-status="unknown"] .mx-link__line line {
+  stroke: var(--ar-faint);
+}
+.mx-pair[data-status="talked"] .mx-link__line line {
+  stroke: var(--mp-coordinated);
+}
+/* Hollow dots where the connector meets each card */
+.mx-link__dot {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--aui-surface);
+  box-shadow: inset 0 0 0 1.5px var(--mp-link);
+  transform: translateY(-50%);
+}
+.mx-link__dot--start {
+  left: -4px;
+}
+.mx-link__dot--end {
+  right: -4px;
+}
+.mx-link__label {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  max-width: calc(100% - 24px);
+  padding: 2px 8px;
+  background: var(--aui-surface);
+}
+.mx-link__on {
+  overflow: hidden;
+  max-width: 100%;
+  color: var(--ar-faint);
+  font-size: 11px;
+  line-height: 14px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.mx-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 0 7px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--ar-ink) 7%, transparent);
+  color: var(--ar-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+}
+.mx-tag[data-status="blind"] {
+  background: color-mix(in srgb, #d9738f 18%, transparent);
+  color: #c0506f;
+}
+.mx-tag[data-status="talked"] {
+  background: color-mix(in srgb, #3fb950 16%, transparent);
+  color: #1f8a3a;
+}
+:root[data-theme="dark"] .mx-tag[data-status="blind"] {
+  color: #ef9ab2;
+}
+:root[data-theme="dark"] .mx-tag[data-status="talked"] {
+  color: #6fd88a;
+}
+
+/* ---------- Map stage: the graphics sit on their own layer – a light gray with a dot grid ---------- */
+.mp {
+  gap: 24px;
+}
+.mp-stage {
+  --mp-stage-bg: color-mix(in srgb, var(--ar-ink) 2.5%, var(--aui-surface));
+  --mp-card: var(--aui-surface);
+  --mp-card-hover: color-mix(in srgb, var(--ar-ink) 3%, var(--aui-surface));
+  position: relative;
+  min-width: 0;
+  padding: 44px 40px;
+  border-radius: 12px;
+  background-color: var(--mp-stage-bg);
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--ar-ink) 13%, transparent) 1px, transparent 1.3px);
+  background-size: 16px 16px;
+  background-position: 8px 8px;
+}
+/* In dark mode the cards are a step lighter than the stage, not darker */
+:root[data-theme="dark"] .mp-stage {
+  --mp-stage-bg: color-mix(in srgb, var(--ar-ink) 3%, var(--aui-surface));
+  --mp-card: color-mix(in srgb, var(--ar-ink) 8%, var(--aui-surface));
+  --mp-card-hover: color-mix(in srgb, var(--ar-ink) 12%, var(--aui-surface));
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .mp-stage {
+    --mp-stage-bg: color-mix(in srgb, var(--ar-ink) 3%, var(--aui-surface));
+    --mp-card: color-mix(in srgb, var(--ar-ink) 8%, var(--aui-surface));
+    --mp-card-hover: color-mix(in srgb, var(--ar-ink) 12%, var(--aui-surface));
+  }
+}
+/* Cards on the stage: a solid card with a soft lift, no outline */
+.mp-stage .mp__node,
+.mp-stage .mx-card {
+  --o-card-bg: var(--mp-card);
+  background: var(--mp-card);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
+}
+.mp-stage .mp__node:hover,
+.mp-stage .mx-pair:hover:not(:disabled) .mx-card {
+  --o-card-bg: var(--mp-card-hover);
+  background: var(--mp-card-hover);
+}
+.mp-stage .mp__node[data-held],
+.mp-stage .mp__node[aria-pressed="true"],
+.mp-stage .mx-pair[aria-pressed="true"] .mx-card {
+  --o-card-bg: color-mix(in srgb, var(--ar-blue) 14%, var(--mp-card));
+  background: color-mix(in srgb, var(--ar-blue) 14%, var(--mp-card));
+}
+.mp-stage .mx-card--self {
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--o2-line);
+}
+/* Hollow dots and connector labels cut out of the stage, not out of white */
+.mp-stage .mp__dot {
+  fill: var(--mp-stage-bg);
+}
+.mp-stage .mx-link__dot {
+  background: var(--mp-stage-bg);
+}
+.mp-stage .mx-link__label {
+  border-radius: 6px;
+  background: var(--mp-stage-bg);
+}
+/* v1: the column names get room above the map */
+.mp-stage > .mp__heads {
+  margin-bottom: 20px;
+}
+/* v2: more air between the trees on the stage */
+.mp-stage.mt-list {
+  gap: 56px 48px;
+}
+/* v3: groups a little further apart on the stage */
+.mx-stage .mx-group + .mx-group {
+  margin-top: 28px;
+}
+/* The stage gets a light gray edge */
+.mp-stage {
+  box-shadow: inset 0 0 0 1px var(--o2-line, color-mix(in srgb, var(--ar-ink) 8%, transparent));
+}
+/* v2: the trees one under the other, each centred on the stage */
+.mp-stage.mt-list {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 56px;
+}
+
+/* Map panel: rows with something on the right (faces, logos), small flags, coordination line samples */
+.mpp-row {
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+}
+.mpp-row:disabled {
+  cursor: default;
+}
+.mpp-row:disabled:hover {
+  background: transparent;
+}
+.mpp-faces,
+.mpp-logos {
+  display: inline-flex;
+  align-self: center;
+  align-items: center;
+}
+.mpp-faces .o-initials + .o-initials,
+.mpp-logos .o-logo + .o-logo {
+  margin-left: -5px;
+  box-shadow: 0 0 0 2px var(--o-card-bg, var(--aui-surface));
+}
+.mpp-logos .o-logo {
+  border-radius: 50%;
+}
+.mpp-flag {
+  color: #b27a00;
+  font-weight: 500;
+}
+:root[data-theme="dark"] .mpp-flag {
+  color: #f0b429;
+}
+.mpp-line {
+  flex: none;
+  width: 14px;
+  border-top: 1.5px solid var(--status-success, #3fb950);
+}
+.mpp-line[data-kind="blind"] {
+  border-top: 1.5px dashed #d9738f;
+}
+.mpp-line[data-kind="unknown"] {
+  border-top: 1.5px dotted var(--ar-faint);
+}
+
+/* Harness logos sit on a white tile in both themes – there the Codex mark keeps its own black, instead
+   of the dark-mode invert meant for marks placed straight on dark surfaces (which left a blank circle) */
+:root[data-theme="dark"] .o-logo img[src$="/codex.svg"] {
+  filter: none;
+  mix-blend-mode: normal;
+}
+
+/* Person panel: a larger initials badge beside the name */
+.pp-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.pp-avatar .o-initials {
+  width: 36px;
+  height: 36px;
+  font-size: 12px;
+}

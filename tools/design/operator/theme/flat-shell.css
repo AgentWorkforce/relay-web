@@ -1,0 +1,345 @@
+/* Prototype frame: the App Shell fills the viewport; the page scrolls inside it. */
+.flat-shell {
+  height: 100dvh;
+}
+.flat-shell__content {
+  min-height: 100%;
+  outline: none;
+}
+/* A page's own heading replaces the default one */
+.flat-shell__heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+.flat-shell__heading-slot:not(:empty) + * {
+  display: none;
+}
+.flat-shell__toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-control, 6px);
+}
+.flat-shell__sidebar:empty {
+  display: none;
+}
+.flat-shell__sidebar {
+  margin-top: 12px;
+}
+.flat-shell__title {
+  margin: 0;
+  overflow: hidden;
+  color: var(--aui-ink);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+/* Collapsed to the icon rail: page filters have no icons, so they wait until it opens again */
+.ui-as-app[data-collapsed] .flat-shell__sidebar {
+  display: none;
+}
+
+/* Workspace switcher: with the sidebar open the logo is a small 20px tile inside the
+   button, so its hover fill wraps around it – centered on the same line as the menu
+   icons below. Folded to the rail it stays that size (see below). */
+.ui-as-app:not([data-collapsed]) .ui-as-side__workspace {
+  gap: 8px;
+  padding-left: 5px;
+}
+.ui-as-app:not([data-collapsed]) .ui-as-side__workspace .ui-as-side__logo {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+/* Folded to the rail the logo is the same small 20px tile, centered where the 30px one sat */
+.ui-as-app[data-collapsed] .ui-as-side__logo {
+  width: 20px;
+  height: 20px;
+  margin: 5px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+/* The first entry under the header line sits the same 10px below it, open or folded */
+.flat-shell .ui-as-app > .ui-as-side > .ui-as-side__nav {
+  margin-top: 8px;
+}
+/* Folded, the rail has no search – search lives in the open sidebar's bar – so every icon
+   keeps its place when the sidebar folds */
+.flat-shell .ui-as-app[data-collapsed] > .ui-as-side .ui-as-side__search {
+  display: none;
+}
+
+/* The sidebar's list fades out at the edges while there is more to scroll to:
+   under the search at the top, above the account at the bottom (see useSidebarFades) */
+@property --side-fade-top {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --side-fade-bottom {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+.flat-shell .ui-as-side__nav {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--side-fade-top), #000 calc(100% - var(--side-fade-bottom)), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--side-fade-top), #000 calc(100% - var(--side-fade-bottom)), transparent 100%);
+  transition: --side-fade-top 160ms ease, --side-fade-bottom 160ms ease;
+}
+.flat-shell .ui-as-side__nav[data-fade-top] {
+  --side-fade-top: 28px;
+}
+.flat-shell .ui-as-side__nav[data-fade-bottom] {
+  --side-fade-bottom: 36px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .flat-shell .ui-as-side__nav {
+    transition: none;
+  }
+}
+
+/* More air between the sidebar's sections (menu, Projects, Recent): 28px above each section label
+   instead of 16px, so the sections read as groups. The label alone carries the gap. */
+.flat-shell .ui-as-side__nav .ui-as-side__group + .ui-as-side__group {
+  margin-top: 0;
+}
+.flat-shell .ui-as-side__nav .ui-as-side__label,
+.flat-shell .ui-as-side__nav .ui-as-side__group + .ui-as-side__group > .ui-as-side__label:first-child {
+  margin-top: 28px;
+  margin-bottom: 6px;
+}
+
+/* Folded to the rail: only the menu stays – the project folders (like Recent) wait until it opens */
+.ui-as-app[data-collapsed] .ui-as-chat-folders {
+  display: none;
+}
+/*
+ * A page that runs up under the bar (the work graph): the main area takes the bar's row too and the
+ * page's part of the bar turns see-through, so the page's own columns and its canvas reach the top.
+ * The page reserves the bar's height itself (var(--bar-h)).
+ */
+.flat-shell .ui-as-app[data-header]:has(.flat-shell__content [data-under-bar]) > .ui-as-main {
+  grid-area: 1 / 2 / 3 / 3;
+}
+.flat-shell .ui-as-app[data-header]:has(.flat-shell__content [data-under-bar]) > .ui-as-bar--main {
+  position: relative;
+  z-index: 1;
+  background: transparent;
+  border-left-color: transparent;
+  border-right-color: transparent;
+  /* No line under the bar: the page's own columns run up to the top */
+  box-shadow: none;
+}
+/* There the details open and close from the page itself: no tab bar over them and no button to bring them back */
+.flat-shell .ui-as-app[data-header]:has(.flat-shell__content [data-under-bar]) > .ui-as-bar--panel,
+.flat-shell .ui-as-app:has(.flat-shell__content [data-under-bar]) > .ui-as-panel > .ui-as-panel__head {
+  display: none;
+}
+.flat-shell .ui-as-app[data-header]:has(.flat-shell__content [data-under-bar]) > .ui-as-panel {
+  grid-area: 1 / 3 / 3 / 4;
+}
+.flat-shell .ui-as-app:has(.flat-shell__content [data-under-bar]) > .ui-as-panel-open {
+  display: none;
+}
+
+/* "View all" under the last Recent session: small and quiet, like a footnote to the list */
+.ui-as-chats__all {
+  display: block;
+  margin: 2px 0 8px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--faint, var(--muted-foreground));
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.ui-as-chats__all:hover {
+  color: var(--ink, var(--foreground));
+}
+
+/* The bar lies over the page there: only its own controls take clicks, and it needs no room for the panel button */
+.flat-shell .ui-as-app[data-header]:has(.flat-shell__content [data-under-bar]) > .ui-as-bar--main {
+  padding-right: 12px;
+  pointer-events: none;
+}
+.flat-shell .ui-as-app[data-header]:has(.flat-shell__content [data-under-bar]) > .ui-as-bar--main > * {
+  pointer-events: auto;
+}
+.flat-shell .ui-as-app[data-header]:has(.flat-shell__content [data-under-bar]) > .ui-as-bar--main .ui-as-bar__actions {
+  margin-left: auto;
+}
+
+/* The closed workspace panel waits just past the right edge; clip it so the page never scrolls sideways */
+html:has(.flat-shell),
+html:has(.flat-shell) body {
+  overflow-x: clip;
+}
+
+/* One line under the header row, across the sidebar's bar and the main bar alike */
+.ui-as-app[data-header] > .ui-as-bar {
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+
+/* Under the menu: Needs you, Pinned, Projects – flat rows, no folders (see SidebarSections) */
+.flat-shell__sections {
+  display: flex;
+  flex-direction: column;
+}
+.flat-shell__section {
+  display: flex;
+  flex-direction: column;
+  margin-top: 16px;
+}
+.ui-as-app[data-collapsed] .flat-shell__sections {
+  display: none;
+}
+.flat-shell__dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--live, var(--status-success));
+}
+/* Needs you: Lucide's warning triangle in the Agent Inbox's amber,
+   flush with the row's right edge; on hover (or keyboard focus in the row) Archive takes its place */
+.flat-shell__alert {
+  --needs-amber: #e8b000;
+  display: grid;
+  flex: none;
+  place-items: center;
+  margin-left: auto;
+  padding-left: 6px;
+}
+:root[data-theme="dark"] .flat-shell__alert {
+  --needs-amber: #e6c24d;
+}
+.ui-as-app .flat-shell__alert {
+  color: var(--needs-amber);
+}
+.flat-shell__entry-wrap {
+  position: relative;
+}
+.flat-shell__entry-wrap > .flat-shell__entry {
+  width: 100%;
+}
+.flat-shell__archive {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+.flat-shell__entry-wrap:hover .flat-shell__archive,
+.flat-shell__entry-wrap:has(:focus-visible) .flat-shell__archive {
+  opacity: 1;
+  pointer-events: auto;
+}
+.flat-shell__entry-wrap:hover .flat-shell__alert,
+.flat-shell__entry-wrap:has(:focus-visible) .flat-shell__alert {
+  visibility: hidden;
+}
+/* The row keeps its hover fill while the pointer is on Archive */
+.flat-shell__entry-wrap:hover > .flat-shell__entry {
+  background: var(--hover);
+}
+.flat-shell__archive:hover {
+  background: color-mix(in srgb, var(--ink, var(--foreground)) 8%, transparent);
+  color: var(--ink, var(--foreground));
+}
+.flat-shell__archive:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .flat-shell__archive {
+    transition: none;
+  }
+}
+.flat-shell__dot[data-kind="waiting"] {
+  background: var(--status-warning);
+}
+.flat-shell__dot[data-kind="failed"] {
+  background: var(--status-danger);
+}
+/* The project the page is narrowed to reads like the open page */
+.flat-shell .ui-as-side__item[data-picked] {
+  background: var(--select);
+  color: var(--ink);
+  font-weight: 500;
+}
+.flat-shell .ui-as-side__item[data-picked] svg {
+  color: var(--ink);
+}
+
+/*
+ * The page scrolls up under its header: the main area takes the bar's row too and keeps the bar's
+ * height free at its top, and the bar lies over it at 80% fill with a blur, so the page's colors
+ * show through softly while scrolling. Pages that already run under the bar ([data-under-bar]) keep
+ * their own layout above.
+ */
+.flat-shell .ui-as-app[data-header]:not(:has(.flat-shell__content [data-under-bar])) > .ui-as-main {
+  grid-row: 1 / 3;
+  /* Its own stacking layer: nothing inside (checkboxes, sticky rows) can rise above the bar */
+  z-index: 0;
+  isolation: isolate;
+  padding-top: var(--bar-h);
+  scroll-padding-top: var(--bar-h);
+}
+.flat-shell .ui-as-app[data-header]:not(:has(.flat-shell__content [data-under-bar])) > :is(.ui-as-bar--main, .ui-as-bar--panel) {
+  position: relative;
+  z-index: 2;
+  background: color-mix(in srgb, var(--panel) 80%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  backdrop-filter: blur(16px) saturate(1.4);
+}
+
+/* The shell on the type scale: the workspace name and "‹ Settings" 14/20, section labels in the
+   sidebar 12/16 like every other label */
+.ui-as-app .ui-as-side__workspace,
+.ui-as-app .ui-as-side__back {
+  line-height: 20px;
+}
+.ui-as-app .ui-as-side__label,
+.ui-as-app .ui-as-side__label--toggle {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+/* A session's page: its details panel looks like the Work graph's – the full height on the right, its own head
+   instead of the tab bar, closed from inside. The page keeps the header; closed, the panel's icon waits top right. */
+.flat-shell .ui-as-app[data-header]:has(.flat-shell__content [data-full-panel]) > .ui-as-panel {
+  grid-area: 1 / 3 / 3 / 4;
+}
+.flat-shell .ui-as-app[data-header]:has(.flat-shell__content [data-full-panel]) > .ui-as-bar--panel,
+.flat-shell .ui-as-app:has(.flat-shell__content [data-full-panel]) > .ui-as-panel > .ui-as-panel__head {
+  display: none;
+}
+/* The panel's close icon sits exactly on the open icon (top right of the header): the same 28px square.
+   Unlayered, so the shell's own button sizes inside the panel don't stretch it; the right edge is the open
+   icon's (the shell's frame gap and 9px, measured at the app's level, where the panel can't redefine it). */
+.flat-shell .session-panel__close {
+  right: 12px;
+  height: 28px;
+  min-height: 28px;
+}

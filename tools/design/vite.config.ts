@@ -34,6 +34,12 @@ export default defineConfig(({ command }) => {
               response.end(JSON.stringify({ error: "design_transport_only" }));
               return;
             }
+            // Operator view (local iteration): /operator/<scenario>/ serves operator/index.html
+            // The dashboard redesign is served by the same app: /dashboard/<scenario>/
+            if (/^\/(operator|dashboard)\/[a-z-]+\/(\?.*)?$/.test(request.url ?? "")) {
+              request.url = "/operator/index.html";
+              return next();
+            }
             if (/^\/preview\/[a-z-]+\//.test(request.url ?? "")) {
               request.url = `/preview.html${(request.url ?? "").includes("?") ? `?${request.url!.split("?")[1]}` : ""}`;
             }

@@ -1,0 +1,430 @@
+/* Dashboard Home v3 – "Timeline". Styles scoped under .hm3 */
+.hm3 {
+  --h3-label: 200px;
+  --h3-running: color-mix(in srgb, var(--ar-blue) 24%, var(--aui-surface));
+  --h3-running-on: color-mix(in srgb, var(--ar-blue) 46%, var(--aui-surface));
+  --h3-finished: color-mix(in srgb, var(--status-success, #3fb950) 24%, var(--aui-surface));
+  --h3-finished-on: color-mix(in srgb, var(--status-success, #3fb950) 46%, var(--aui-surface));
+  --h3-idle: color-mix(in srgb, var(--ar-ink) 10%, var(--aui-surface));
+  --h3-idle-on: color-mix(in srgb, var(--ar-ink) 22%, var(--aui-surface));
+  --h3-now: #e5484d;
+  max-width: 1080px;
+  gap: 48px;
+}
+
+/* Dark surfaces need a little more color in the bars to read */
+:root[data-theme="dark"] .o2.hm3 {
+  --h3-running: color-mix(in srgb, var(--ar-blue) 34%, var(--aui-surface));
+  --h3-running-on: color-mix(in srgb, var(--ar-blue) 58%, var(--aui-surface));
+  --h3-finished: color-mix(in srgb, var(--status-success, #3fb950) 30%, var(--aui-surface));
+  --h3-finished-on: color-mix(in srgb, var(--status-success, #3fb950) 52%, var(--aui-surface));
+  --h3-idle: color-mix(in srgb, var(--ar-ink) 14%, var(--aui-surface));
+  --h3-idle-on: color-mix(in srgb, var(--ar-ink) 28%, var(--aui-surface));
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .o2.hm3 {
+    --h3-running: color-mix(in srgb, var(--ar-blue) 34%, var(--aui-surface));
+    --h3-running-on: color-mix(in srgb, var(--ar-blue) 58%, var(--aui-surface));
+    --h3-finished: color-mix(in srgb, var(--status-success, #3fb950) 30%, var(--aui-surface));
+    --h3-finished-on: color-mix(in srgb, var(--status-success, #3fb950) 52%, var(--aui-surface));
+    --h3-idle: color-mix(in srgb, var(--ar-ink) 14%, var(--aui-surface));
+    --h3-idle-on: color-mix(in srgb, var(--ar-ink) 28%, var(--aui-surface));
+  }
+}
+
+/* Status */
+.hm3 .h3-hero {
+  gap: 8px;
+}
+.hm3 .h3-hero__rest {
+  color: var(--ar-muted);
+  font-weight: 400;
+}
+.hm3 .h3-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+  margin: 8px 0 0;
+}
+.hm3 .h3-figures div {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.hm3 .h3-figures dt {
+  color: var(--ar-muted);
+  font-size: 13px;
+}
+.hm3 .h3-figures dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Timeline head */
+.hm3 .h3-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  min-width: 0;
+}
+.hm3 .h3-note {
+  font-size: 13px;
+}
+
+/* The stage: a plain light gray ground behind the timeline, no dots */
+.hm3 .h3-stage {
+  --h3-stage-bg: color-mix(in srgb, var(--ar-ink) 2.5%, var(--aui-surface));
+  display: grid;
+  gap: 20px;
+  padding: 24px 24px 20px;
+  border-radius: 12px;
+  background-color: var(--h3-stage-bg);
+}
+:root[data-theme="dark"] .hm3 .h3-stage {
+  --h3-stage-bg: color-mix(in srgb, var(--ar-ink) 3%, var(--aui-surface));
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .hm3 .h3-stage {
+    --h3-stage-bg: color-mix(in srgb, var(--ar-ink) 3%, var(--aui-surface));
+  }
+}
+
+.hm3 .h3-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--h3-label) minmax(0, 1fr);
+  column-gap: 16px;
+}
+
+/* Axis */
+.hm3 .h3-axis {
+  position: relative;
+  z-index: 1;
+  height: 28px;
+}
+.hm3 .h3-axis__tick,
+.hm3 .h3-axis__now {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  color: var(--ar-faint);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.hm3 .h3-axis__now {
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--h3-now);
+  color: #fff;
+  font-weight: 500;
+}
+
+/* Lanes: label left, track right; a hairline between people */
+.hm3 .h3-lane-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 7px;
+  border-top: 1px solid var(--o2-line);
+  font-size: 13px;
+  line-height: 20px;
+}
+.hm3 .h3-lane-label .o-initials {
+  margin-top: 1px;
+}
+.hm3 .h3-ico {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ar-ink) 8%, transparent);
+  color: var(--ar-muted);
+}
+.hm3 .h3-lane-label__name {
+  overflow: hidden;
+  flex: 1 1 auto;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hm3 .h3-lane-label__logos {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  margin-top: 1px;
+}
+.hm3 .h3-lane {
+  position: relative;
+  z-index: 1;
+  border-top: 1px solid var(--o2-line);
+}
+
+/* Gridlines and the now line sit under the bars, across all lanes */
+.hm3 .h3-overlay {
+  position: relative;
+  grid-column: 2;
+  pointer-events: none;
+}
+.hm3 .h3-gridline,
+.hm3 .h3-nowline {
+  position: absolute;
+  top: 22px;
+  bottom: 0;
+  width: 1px;
+  background: color-mix(in srgb, var(--ar-ink) 4%, transparent);
+}
+.hm3 .h3-gridline[data-major] {
+  background: var(--o2-line);
+}
+.hm3 .h3-nowline {
+  top: 16px;
+  background: var(--h3-now);
+  opacity: 0.7;
+}
+
+/* Bars */
+.hm3 .h3-bar {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  min-width: 6px;
+  padding: 0 4px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 6px;
+  background: var(--h3-idle);
+  color: var(--ar-ink);
+  font: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.hm3 .h3-bar[data-tone="running"] {
+  background: var(--h3-running);
+}
+.hm3 .h3-bar[data-tone="finished"] {
+  background: var(--h3-finished);
+}
+.hm3 .h3-bar:hover {
+  background-image: linear-gradient(color-mix(in srgb, var(--ar-ink) 5%, transparent), color-mix(in srgb, var(--ar-ink) 5%, transparent));
+}
+.hm3 .h3-bar[aria-pressed="true"] {
+  background: var(--h3-idle-on);
+}
+.hm3 .h3-bar[data-tone="running"][aria-pressed="true"] {
+  background: var(--h3-running-on);
+}
+.hm3 .h3-bar[data-tone="finished"][aria-pressed="true"] {
+  background: var(--h3-finished-on);
+}
+.hm3 .h3-bar:focus-visible {
+  outline: 2px solid var(--ar-blue);
+  outline-offset: 1px;
+}
+.hm3 .h3-bar .o-logo {
+  width: 16px;
+  height: 16px;
+  border: 0;
+}
+.hm3 .h3-bar .o-logo__img {
+  width: 10px;
+  height: 10px;
+}
+.hm3 .h3-bar__title {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Legend */
+.hm3 .h3-legend {
+  display: flex;
+  gap: 16px;
+  margin: 0;
+  padding: 0 0 0 calc(var(--h3-label) + 16px);
+  list-style: none;
+  color: var(--ar-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.hm3 .h3-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.hm3 .h3-swatch,
+.hm3 .h3-row__dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--h3-idle-on);
+}
+.hm3 [data-tone="running"].h3-swatch,
+.hm3 [data-tone="running"].h3-row__dot {
+  background: var(--ar-blue);
+}
+.hm3 [data-tone="finished"].h3-swatch,
+.hm3 [data-tone="finished"].h3-row__dot {
+  background: var(--status-success, #3fb950);
+}
+
+/* Running now / Latest */
+.hm3 .h3-lists {
+  /* Running now above Latest, one under the other */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 48px;
+  align-items: start;
+}
+.hm3 .h3-list {
+  gap: 8px;
+}
+.hm3 .h3-list .o2-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+}
+.hm3 .h3-count {
+  color: var(--ar-faint);
+  font-size: 14px;
+  font-weight: 400;
+}
+.hm3 .h3-empty {
+  padding: 0 12px;
+  font-size: 13px;
+}
+.hm3 .h3-rows {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.hm3 .h3-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ar-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.hm3 .h3-row:hover {
+  background: color-mix(in srgb, var(--ar-ink) 5%, transparent);
+}
+.hm3 .h3-row[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--ar-blue) 14%, var(--aui-surface));
+}
+.hm3 .h3-row:focus-visible {
+  outline: 2px solid var(--ar-blue);
+  outline-offset: -2px;
+}
+.hm3 .h3-row__dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+}
+.hm3 .h3-row__text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.hm3 .h3-row__title,
+.hm3 .h3-row__summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hm3 .h3-row__title {
+  font-size: 14px;
+  font-weight: 500;
+}
+.hm3 .h3-row__summary {
+  color: var(--ar-muted);
+  font-size: 13px;
+}
+.hm3 .h3-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: 4px;
+  color: var(--ar-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.hm3 .h3-row__who {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.hm3 .h3-row__meta .o-logo {
+  width: 16px;
+  height: 16px;
+}
+.hm3 .h3-row__meta .o-logo__img {
+  width: 10px;
+  height: 10px;
+}
+.hm3 .h3-row__meta .o-initials {
+  width: 16px;
+  height: 16px;
+}
+
+/* Narrow stage (the panel is open on a smaller screen): a slimmer label column */
+.hm3 .h3-stage {
+  container-type: inline-size;
+}
+@container (max-width: 720px) {
+  .hm3 .h3-grid,
+  .hm3 .h3-legend {
+    --h3-label: 140px;
+  }
+}
+
+/* Dark mode inverts Codex's mark to white, which vanishes on the logo's white tile – give that tile a fill */
+:root[data-theme="dark"] .hm3 .o-logo:has(img[src$="/codex.svg"]) {
+  background: color-mix(in srgb, var(--ar-ink) 14%, var(--aui-surface));
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .hm3 .o-logo:has(img[src$="/codex.svg"]) {
+    background: color-mix(in srgb, var(--ar-ink) 14%, var(--aui-surface));
+  }
+}
+
+/* The person's name opens them in the panel */
+.h3-person {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.h3-person:hover,
+.h3-person[aria-pressed="true"] {
+  color: var(--ar-blue);
+}

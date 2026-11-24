@@ -1,0 +1,421 @@
+/* Dashboard → Overview. Calm gray cards without strokes, generous rhythm between the rows.
+   Type 12/13/14/16/18/24, weights 400/500, radii 6/8/12. */
+.o2.do-page {
+  --do-card: color-mix(in srgb, var(--ar-ink) 3.5%, transparent);
+  --do-hover: color-mix(in srgb, var(--ar-ink) 5%, transparent);
+  --do-pick: color-mix(in srgb, var(--ar-blue) 14%, var(--aui-surface));
+  max-width: 1080px;
+  gap: 48px;
+  container-type: inline-size;
+  container-name: do;
+}
+
+/* Hero: one sentence – what runs now, then the period in a lighter tone */
+.do-hero {
+  gap: 6px;
+}
+.do-title {
+  margin: 0;
+  color: var(--ar-ink);
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 26px;
+}
+.do-title__rest {
+  color: var(--ar-muted);
+}
+
+/* Key figures: five tiles in one row */
+.do-kpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+/* Cards */
+.do-card {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-width: 0;
+  padding: 20px 22px 22px;
+  border-radius: 12px;
+  background: var(--do-card);
+}
+.do-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 28px;
+}
+.do-card__title {
+  margin: 0;
+  color: var(--ar-ink);
+  font-size: 14px;
+  font-weight: 500;
+}
+.do-count {
+  margin-left: 4px;
+  color: var(--ar-faint);
+  font-weight: 400;
+}
+
+/* Row 2: the activity chart, what runs now beside it */
+.do-row2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr);
+  /* Same gap as between the key-figure tiles */
+  gap: 8px;
+  align-items: stretch;
+}
+/* Row 3: three breakdowns */
+.do-row3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* Same gap as the key-figure tiles; all three cards as tall as the tallest */
+  gap: 8px;
+  align-items: stretch;
+}
+
+/* ---------- Activity chart ---------- */
+.do-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: -6px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ar-muted);
+  font-size: 12px;
+  line-height: 16px;
+}
+.do-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.do-legend span {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+.do-chart {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  grid-template-rows: 200px auto;
+  column-gap: 8px;
+  row-gap: 8px;
+}
+.do-chart__axis {
+  position: relative;
+}
+.do-chart__axis span {
+  position: absolute;
+  right: 0;
+  color: var(--ar-faint);
+  font-size: 12px;
+  line-height: 14px;
+  font-variant-numeric: tabular-nums;
+  transform: translateY(50%);
+}
+.do-chart__plot {
+  position: relative;
+  min-width: 0;
+}
+.do-chart__grid {
+  position: absolute;
+  right: 0;
+  left: 0;
+  border-top: 1px solid color-mix(in srgb, var(--ar-ink) 7%, transparent);
+}
+.do-chart__bars {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+}
+.do-bar {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  min-width: 0;
+  padding: 0 1px;
+  border-radius: 4px;
+  cursor: default;
+}
+.do-bar[data-hover] {
+  background: var(--do-hover);
+}
+.do-bar__stack {
+  display: flex;
+  flex-direction: column-reverse;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 3px 3px 1px 1px;
+}
+.do-bar__stack span {
+  min-height: 2px;
+}
+.do-bar[data-sample] .do-bar__stack {
+  opacity: 0.35;
+}
+.do-chart__labels {
+  grid-column: 2;
+  display: flex;
+  gap: 3px;
+}
+.do-chart__labels span {
+  flex: 1;
+  min-width: 0;
+  overflow: visible;
+  color: var(--ar-faint);
+  font-size: 12px;
+  line-height: 14px;
+  text-align: center;
+  white-space: nowrap;
+}
+/* Hover card beside the bar, vertically centred on the chart */
+.do-tip {
+  position: absolute;
+  top: 50%;
+  z-index: 3;
+  display: grid;
+  gap: 4px;
+  min-width: 168px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--aui-surface);
+  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--ar-ink) 10%, transparent), 0 8px 24px -8px rgba(0, 0, 0, 0.2);
+  color: var(--ar-ink);
+  font-size: 12px;
+  line-height: 16px;
+  pointer-events: none;
+  transform: translate(8px, -50%);
+}
+.do-tip[data-side="left"] {
+  transform: translate(calc(-100% - 8px), -50%);
+}
+.do-tip b {
+  font-weight: 500;
+}
+.do-tip__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ar-muted);
+}
+.do-tip__row i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+.do-tip__row .o2-num {
+  margin-left: auto;
+  color: var(--ar-ink);
+}
+.do-tip__note,
+.do-note {
+  color: var(--ar-faint);
+  font-size: 12px;
+  line-height: 16px;
+}
+.do-note {
+  margin: -4px 0 0;
+}
+
+/* ---------- Running now ---------- */
+.do-rows {
+  display: grid;
+  gap: 2px;
+  margin: 0 -8px;
+  padding: 0;
+  list-style: none;
+}
+.do-row {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.do-row:hover {
+  background: var(--do-hover);
+}
+.do-row[aria-pressed="true"] {
+  background: var(--do-pick);
+}
+.do-dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ar-ink) 20%, transparent);
+}
+.do-dot[data-live] {
+  background: var(--ar-blue);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ar-blue) 20%, transparent);
+}
+.do-row__text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.do-row__title {
+  overflow: hidden;
+  color: var(--ar-ink);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.do-row__meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  color: var(--ar-muted);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+.do-row__time {
+  color: var(--ar-faint);
+  font-size: 12px;
+  line-height: 20px;
+  white-space: nowrap;
+}
+.do-sub {
+  margin: 4px 0 -8px;
+  color: var(--ar-faint);
+  font-size: 12px;
+  font-weight: 500;
+}
+.do-empty {
+  padding: 8px;
+  color: var(--ar-muted);
+  font-size: 13px;
+}
+.do-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: start;
+  margin-top: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ar-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.do-link:hover {
+  color: var(--ar-ink);
+}
+
+/* ---------- Breakdowns ---------- */
+.do-bars {
+  display: grid;
+  gap: 2px;
+  margin: 0 -8px;
+  padding: 0;
+  list-style: none;
+}
+.do-bars__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  grid-template-areas:
+    "who n"
+    "track track"
+    "note note";
+  align-items: center;
+  row-gap: 6px;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+button.do-bars__row {
+  cursor: pointer;
+}
+button.do-bars__row:hover {
+  background: var(--do-hover);
+}
+button.do-bars__row[aria-pressed="true"] {
+  background: var(--do-pick);
+}
+.do-bars__who {
+  grid-area: who;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.do-bars__label {
+  overflow: hidden;
+  color: var(--ar-ink);
+  font-size: 13px;
+  line-height: 20px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.do-bars__n {
+  grid-area: n;
+  color: var(--ar-ink);
+  font-size: 13px;
+  text-align: right;
+}
+.do-bars__track {
+  grid-area: track;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--ar-ink) 6%, transparent);
+}
+.do-bars__track span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--ar-blue);
+}
+.do-bars__note {
+  grid-area: note;
+  color: var(--ar-faint);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+/* Narrower (e.g. with the panel open): the chart takes the full row, breakdowns go two-up then one */
+@container do (max-width: 860px) {
+  .do-row2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .do-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .do-row3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container do (max-width: 560px) {
+  .do-kpis,
+  .do-row3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

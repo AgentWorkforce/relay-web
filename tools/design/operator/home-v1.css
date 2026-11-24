@@ -1,0 +1,586 @@
+/* Dashboard Home v1 – "List" (Linear's issue list). Everything scoped under .hm1, classes h1-.
+   Type 12/13/14/16/18/24, weights 400/500, radii 6/8/12. Fills, no outlines. */
+.hm1 {
+  --h1-hover: color-mix(in srgb, var(--ar-ink) 5%, transparent);
+  --h1-pick: color-mix(in srgb, var(--ar-blue) 14%, var(--aui-surface));
+  --h1-fill: color-mix(in srgb, var(--ar-ink) 5%, var(--aui-surface));
+  --h1-green: var(--status-success, #3fb950);
+  --h1-amber: #e8a200;
+  max-width: 1000px;
+  gap: 32px;
+  container-type: inline-size;
+  container-name: h1;
+}
+
+/* ---------- Header: one line, then the usage strip ---------- */
+.hm1 .h1-head {
+  display: grid;
+  gap: 20px;
+}
+.hm1 .h1-title {
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 26px;
+  letter-spacing: -0.3px;
+}
+.hm1 .h1-usage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+  margin: 0;
+}
+.hm1 .h1-usage__item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.hm1 .h1-usage dt {
+  display: flex;
+  align-items: center;
+  align-self: center;
+  gap: 6px;
+  color: var(--ar-muted);
+  font-size: 13px;
+}
+.hm1 .h1-usage dt svg {
+  color: var(--ar-faint);
+}
+.hm1 .h1-usage dd {
+  margin: 0;
+  color: var(--ar-ink);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* ---------- Toolbar ---------- */
+.hm1 .h1-body {
+  display: grid;
+  gap: 16px;
+}
+.hm1 .h1-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.hm1 .h1-toolbar__gap {
+  flex: 1 1 0;
+}
+.hm1 .h1-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 240px;
+  height: 32px;
+  margin-right: 4px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--h1-fill);
+  color: var(--ar-faint);
+  transition: background-color 120ms ease;
+}
+.hm1 .h1-search:focus-within {
+  background: color-mix(in srgb, var(--ar-ink) 7%, var(--aui-surface));
+  color: var(--ar-muted);
+}
+.hm1 .h1-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ar-ink);
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: inherit;
+}
+.hm1 .h1-search input[type="search"],
+.hm1 .h1-search input[type="search"]:focus,
+.hm1 .h1-search input[type="search"]:focus-visible {
+  height: 32px;
+  min-height: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.hm1 .h1-search input::placeholder {
+  color: var(--ar-faint);
+}
+.hm1 .h1-search input::-webkit-search-cancel-button {
+  display: none;
+}
+.hm1 .h1-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--h1-fill);
+  color: var(--ar-ink);
+  font: inherit;
+  font-size: 13px;
+  letter-spacing: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.hm1 .h1-btn svg {
+  flex: none;
+  color: var(--ar-muted);
+}
+.hm1 .h1-btn:hover,
+.hm1 .h1-btn[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--ar-ink) 9%, var(--aui-surface));
+}
+.hm1 .h1-btn[data-on] {
+  background: color-mix(in srgb, var(--ar-blue) 14%, var(--aui-surface));
+}
+.hm1 .h1-btn[data-on]:hover {
+  background: color-mix(in srgb, var(--ar-blue) 20%, var(--aui-surface));
+}
+.hm1 .h1-btn--quiet {
+  background: transparent;
+}
+.hm1 .h1-btn--quiet:hover,
+.hm1 .h1-btn--quiet[aria-expanded="true"] {
+  background: var(--h1-hover);
+}
+.hm1 .h1-btn__muted {
+  color: var(--ar-muted);
+}
+.hm1 .h1-btn__chev {
+  margin-left: -2px;
+  color: var(--ar-faint) !important;
+}
+.hm1 .h1-btn:focus-visible,
+.hm1 .h1-row:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ar-blue) 60%, transparent);
+  outline-offset: 1px;
+}
+
+/* ---------- Groups ---------- */
+.hm1 .h1-groups {
+  display: grid;
+  gap: 24px;
+}
+.hm1 .h1-group {
+  display: grid;
+  gap: 2px;
+}
+.hm1 .h1-group__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ar-ink) 3%, var(--aui-surface));
+  color: var(--ar-ink);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+}
+.hm1 .h1-group__head > svg {
+  color: var(--ar-muted);
+}
+.hm1 .h1-group__count {
+  color: var(--ar-faint);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.hm1 .h1-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.hm1 .h1-list > li {
+  position: relative;
+}
+/* Hairlines between rows that step aside around a hovered or picked row */
+.hm1 .h1-list > li + li::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 12px;
+  left: 56px;
+  height: 1px;
+  background: var(--o2-line);
+  pointer-events: none;
+}
+.hm1 .h1-list > li:hover::before,
+.hm1 .h1-list > li:hover + li::before,
+.hm1 .h1-list > li:has(.h1-row[aria-pressed="true"])::before,
+.hm1 .h1-list > li:has(.h1-row[aria-pressed="true"]) + li::before {
+  opacity: 0;
+}
+
+/* ---------- A row: two lines ---------- */
+.hm1 .h1-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "who title end"
+    "who summary where";
+  align-items: center;
+  column-gap: 12px;
+  row-gap: 2px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.hm1 .h1-row:hover {
+  background: var(--h1-hover);
+}
+.hm1 .h1-row[aria-pressed="true"] {
+  background: var(--h1-pick);
+}
+/* The person, with the harness's logo on the corner */
+.hm1 .h1-who {
+  grid-area: who;
+  position: relative;
+  align-self: center;
+  width: 28px;
+  height: 28px;
+}
+.hm1 .h1-who .o-initials {
+  width: 28px;
+  height: 28px;
+  font-size: 12px;
+}
+.hm1 .h1-who__harness {
+  position: absolute;
+  right: -5px;
+  bottom: -3px;
+}
+.hm1 .h1-who__harness .o-logo {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  box-shadow: 0 0 0 2px var(--aui-surface);
+}
+.hm1 .h1-row:hover .h1-who__harness .o-logo {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ar-ink) 5%, var(--aui-surface));
+}
+.hm1 .h1-row[aria-pressed="true"] .h1-who__harness .o-logo {
+  box-shadow: 0 0 0 2px var(--h1-pick);
+}
+.hm1 .h1-who__harness .o-logo__img {
+  width: 10px;
+  height: 10px;
+}
+.hm1 .h1-row__title {
+  grid-area: title;
+  overflow: hidden;
+  color: var(--ar-ink);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.hm1 .h1-row__summary {
+  grid-area: summary;
+  overflow: hidden;
+  color: var(--ar-muted);
+  font-size: 13px;
+  line-height: 18px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.hm1 .h1-row__summary--none {
+  color: var(--ar-faint);
+}
+.hm1 .h1-row__end {
+  grid-area: end;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+.hm1 .h1-row__time {
+  min-width: 56px;
+  color: var(--ar-faint);
+  font-size: 12px;
+  line-height: 16px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.hm1 .h1-row__where {
+  grid-area: where;
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  max-width: 280px;
+  overflow: hidden;
+  color: var(--ar-faint);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+.hm1 .h1-row__machine {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Status: a filled tag, never a stroke */
+.hm1 .h1-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--h1-fill);
+  color: var(--ar-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+  white-space: nowrap;
+}
+.hm1 .h1-tag[data-status="active"] {
+  background: color-mix(in srgb, var(--h1-green) 16%, transparent);
+  color: color-mix(in srgb, var(--h1-green) 70%, var(--ar-ink));
+}
+.hm1 .h1-tag[data-status="paused"] {
+  background: color-mix(in srgb, var(--h1-amber) 18%, transparent);
+  color: color-mix(in srgb, var(--h1-amber) 62%, var(--ar-ink));
+}
+.hm1 .h1-dot {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ar-faint);
+}
+.hm1 .h1-dot[data-status="active"] {
+  background: var(--h1-green);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--h1-green) 20%, transparent);
+}
+.hm1 .h1-dot[data-status="paused"] {
+  background: var(--h1-amber);
+}
+/* The Status menu sits in the top layer, outside .hm1 – its dots need their own rule */
+[data-status].h1-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ar-faint, #999);
+}
+[data-status="active"].h1-dot {
+  background: var(--status-success, #3fb950);
+}
+[data-status="paused"].h1-dot {
+  background: #e8a200;
+}
+
+/* Tooltips: the name only */
+.hm1 .h1-tip {
+  position: relative;
+  display: inline-grid;
+}
+.hm1 .h1-tip:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  z-index: 5;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--ar-ink);
+  color: var(--aui-surface);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.hm1 .h1-who__harness.h1-tip {
+  position: absolute;
+}
+
+/* ---------- Nothing matches ---------- */
+.hm1 .h1-empty {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 56px 24px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ar-ink) 3%, var(--aui-surface));
+  text-align: center;
+}
+.hm1 .h1-empty > svg {
+  margin-bottom: 4px;
+  color: var(--ar-faint);
+}
+.hm1 .h1-empty__title {
+  font-weight: 500;
+}
+.hm1 .h1-empty .h1-btn {
+  margin-top: 8px;
+}
+
+/* ---------- Narrow (panel open): the machine column steps back ---------- */
+@container h1 (max-width: 720px) {
+  .hm1 .h1-search {
+    width: 180px;
+  }
+  .hm1 .h1-row__machine {
+    display: none;
+  }
+  .hm1 .h1-usage {
+    gap: 8px 24px;
+  }
+}
+@container h1 (max-width: 560px) {
+  .hm1 .h1-row {
+    grid-template-areas:
+      "who title end"
+      "who summary summary";
+  }
+  .hm1 .h1-row__where {
+    display: none;
+  }
+  .hm1 .h1-btn__muted {
+    display: none;
+  }
+}
+
+/* ---------- The idle panel: people this period ---------- */
+.h1-people {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0 14px;
+  list-style: none;
+}
+.h1-people > li {
+  display: block;
+}
+/* Each person is a button: it opens them in the panel (usage → person → session) */
+.hm1 .h1-people__row,
+.h1-people__row {
+  display: grid;
+  width: calc(100% + 12px);
+  margin: 0 -6px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  grid-template-columns: 18px minmax(0, 1fr) auto auto 44px;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  font-size: 13px;
+}
+.h1-people__name {
+  overflow: hidden;
+  color: var(--ar-ink);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.h1-people__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ar-muted);
+  font-size: 12px;
+}
+.h1-people__live .h1-dot {
+  margin: 0;
+  width: 6px;
+  height: 6px;
+}
+.h1-people__n {
+  color: var(--ar-muted);
+}
+.h1-people__t {
+  color: var(--ar-faint);
+  font-size: 12px;
+}
+
+.h1-people__row:hover {
+  background: color-mix(in srgb, var(--ar-ink) 5%, transparent);
+}
+
+/* ---------- Sessions page (List / Timeline) – the page frame around both views ---------- */
+.o2.ss-page {
+  max-width: 1080px;
+  gap: 32px;
+}
+.ss-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+.ss-head .o2-hero {
+  gap: 6px;
+}
+.ss-title {
+  margin: 0;
+  color: var(--ar-ink);
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 26px;
+}
+.ss-views {
+  flex: none;
+}
+.ss-views button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* Each view keeps its own styles; the wrapper lays its parts out with the page's rhythm */
+.ss-view {
+  display: grid;
+  gap: 32px;
+  min-width: 0;
+  max-width: none;
+}
+
+/* ---------- Sessions page: more air between the sections, so the page is easier to read ---------- */
+.o2.ss-page {
+  gap: 48px;
+}
+.ss-page .ss-view {
+  gap: 48px;
+}
+/* Toolbar → list */
+.ss-page .hm1 .h1-body {
+  gap: 32px;
+}
+/* Running now, Today, Yesterday … each its own block */
+.ss-page .hm1 .h1-groups {
+  gap: 48px;
+}
+/* A group's header and its rows */
+.ss-page .hm1 .h1-group {
+  gap: 8px;
+}
+/* A little more room inside each row */
+.ss-page .hm1 .h1-row {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
