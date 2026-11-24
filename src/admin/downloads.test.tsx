@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import {
   DesktopDownloads,
@@ -8,7 +8,9 @@ import {
   installers,
   isDownloadsPath,
   isGithubDownloadUrl,
+  probes,
   recommend,
+  scriptOs,
   type DetectedPlatform,
 } from "./downloads";
 import { WorkspaceChrome } from "../shell/workspace-chrome";
@@ -86,8 +88,9 @@ it("lists the workspace's installers with version, size and sha256, without prob
   expect(await screen.findByText(/Version 2026\.11\.9/)).toBeInTheDocument();
   expect(screen.getByText("Desktop-2026.11.9-Linux-x64.deb")).toBeInTheDocument();
   expect(screen.getAllByText(/64\.0 MB/).length).toBeGreaterThan(0);
-  expect(screen.getByText(sha)).toBeInTheDocument();
-  expect(screen.queryByText("Desktop-2026.11.9-Linux-x64-probe.tar.gz")).toBeNull();
+  const all = screen.getByRole("region", { name: "All downloads" });
+  expect(within(all).getByText(sha)).toBeInTheDocument();
+  expect(within(all).queryByText("Desktop-2026.11.9-Linux-x64-probe.tar.gz")).toBeNull();
   // The topbar owns the page heading.
   expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
   const manifest = seen.find((call) => call.path.endsWith("channel=stable"));
@@ -113,8 +116,8 @@ it("recommends the visitor's build first, with the other format beside it", asyn
   expect(within(all).queryByText("install.sh")).toBeNull();
   expect(within(all).queryByText(/probe/)).toBeNull();
   const cli = screen.getByRole("complementary", { name: "Command-line install" });
-  expect(within(cli).getByRole("button", { name: "install.sh (Linux)" })).toBeInTheDocument();
-  expect(within(cli).getByRole("button", { name: "install.ps1 (Windows)" })).toBeInTheDocument();
+  expect(within(cli).getByRole("button", { name: "Download install.sh" })).toBeInTheDocument();
+  expect(within(cli).getByRole("button", { name: "Download install.ps1" })).toBeInTheDocument();
 });
 
 it("offers both Mac builds when the chip is unknown", async () => {
@@ -187,6 +190,125 @@ it("groups installers by OS and keeps probes and scripts out", () => {
     ["Windows", ["a_exe00001", "a_zip00001"]],
     ["Linux", ["a_deb00001", "a_debarm01", "a_tgz00001"]],
   ]);
+});
+
+describe("command-line install scripts and client archives", () => {
+  const HEADLESS = [
+    ...RELEASE.filter((a) => a.kind !== "install-script" && !a.name.includes("probe")),
+    asset("a_inmac001", "install-macos.sh", "install-script", { platform: "macOS", size: 4096 }),
+    asset("a_insh0001", "install.sh", "install-script", { size: 4096 }),
+    asset("a_inps0001", "install.ps1", "install-script", { platform: "Windows", size: 4096 }),
+    asset("a_prlx6401", "Desktop-2026.11.9-Linux-x64-probe.tar.gz", "probe", { size: 20 * 1024 * 1024 }),
+    asset("a_prwx6401", "Desktop-2026.11.9-Windows-x64-probe.zip", "probe", { platform: "Windows", size: 20 * 1024 * 1024 }),
+    asset("a_prmx6401", "Desktop-2026.11.9-macOS-x64-probe.tar.gz", "probe", { platform: "macOS", size: 20 * 1024 * 1024 }),
+    {
+      ...asset("a_prma6401", "Desktop-2026.11.9-macOS-arm64-probe.tar.gz", "probe", {
+        platform: "macOS", arch: "arm64", size: 20 * 1024 * 1024,
+      }),
+      sha256: "ef".repeat(32),
+    },
+  ];
+  const scriptSha = "12".repeat(32);
+
+  it("names each script's OS from its platform, else from its name", () => {
+    expect(scriptOs({ name: "install-macos.sh", platform: "macOS" })).toBe("macOS");
+    expect(scriptOs({ name: "install.ps1", platform: "Windows" })).toBe("Windows");
+    expect(scriptOs({ name: "install.sh", platform: "Linux" })).toBe("Linux");
+    expect(scriptOs({ name: "install-macos.sh", platform: "any" })).toBe("macOS");
+    expect(scriptOs({ name: "INSTALL.PS1", platform: "any" })).toBe("Windows");
+    expect(scriptOs({ name: "install.sh", platform: "any" })).toBe("Linux");
+    expect(scriptOs({ name: "install.sh", platform: "macOS" })).toBe("macOS");
+  });
+
+  it("recognises the three script names without a kind", () => {
+    const named = ["install.sh", "INSTALL.ps1", "install-macos.sh", "install-linux.sh"].map((name, i) =>
+      asset(`a_named00${i}`, name, "other"),
+    );
+    expect(installScripts(named).map((a) => a.name)).toEqual(["install.sh", "INSTALL.ps1", "install-macos.sh"]);
+    expect(installers(named).map((a) => a.name)).toEqual(["install-linux.sh"]);
+  });
+
+  it("selects probe archives by OS, then CPU, and keeps them out of installers", () => {
+    expect(probes(HEADLESS).map((a) => a.id)).toEqual(["a_prma6401", "a_prmx6401", "a_prwx6401", "a_prlx6401"]);
+    expect(probes(RELEASE).map((a) => a.id)).toEqual(["a_probe002", "a_probe001"]);
+    expect(installers(HEADLESS).map((a) => a.id)).toEqual(installers(RELEASE).map((a) => a.id));
+    expect(probes(installScripts(HEADLESS))).toEqual([]);
+  });
+
+  it("lists scripts and client archives with OS, checksums and downloads", async () => {
+    const withScriptSha = HEADLESS.map((a) => (a.id === "a_inmac001" ? { ...a, sha256: scriptSha } : a));
+    replies[`${FEED}/manifest?channel=stable`] = { status: 200, body: envelope("2026.11.9", "stable", withScriptSha) };
+    const url = "https://feed-bucket.s3.eu-west-2.amazonaws.com/p?X-Amz-Expires=300";
+    replies[`${FEED}/assets/a_prma6401/download-url`] = {
+      status: 200,
+      body: { url, expires_at: "2026-11-08T10:05:00.000Z" },
+    };
+    const navigate = vi.fn();
+    render(<DesktopDownloads navigate={navigate} platform={LINUX} />);
+    const cli = await screen.findByRole("complementary", { name: "Command-line install" });
+
+    // Scripts: macOS, Windows, Linux, each with its OS and checksum.
+    const scriptRows = within(cli)
+      .getAllByRole("button", { name: /^Download install/ })
+      .map((button) => button.getAttribute("aria-label"));
+    expect(scriptRows).toEqual(["Download install-macos.sh", "Download install.ps1", "Download install.sh"]);
+    const macRow = within(cli).getByText("install-macos.sh").closest("li")!;
+    expect(within(macRow).getByText("macOS")).toBeInTheDocument();
+    expect(within(macRow).queryByText(/Linux/)).toBeNull();
+    expect(within(macRow).queryByText(/x64/)).toBeNull();
+    expect(within(macRow).getByText("SHA-256")).toBeInTheDocument();
+    expect(within(macRow).getByText(scriptSha)).toBeInTheDocument();
+    expect(within(within(cli).getByText("install.ps1").closest("li")!).getByText("Windows")).toBeInTheDocument();
+    expect(within(within(cli).getByText("install.sh").closest("li")!).getByText("Linux")).toBeInTheDocument();
+
+    // Client archives, with OS and CPU, checksum and a download per archive.
+    expect(within(cli).getByRole("heading", { name: "Client archives for the install scripts" })).toBeInTheDocument();
+    expect(within(cli).getByText(/compare checksums or fetch one by hand/)).toBeInTheDocument();
+    const archiveButtons = within(cli)
+      .getAllByRole("button", { name: /probe/ })
+      .map((button) => button.getAttribute("aria-label"));
+    expect(archiveButtons).toEqual([
+      "Download Desktop-2026.11.9-macOS-arm64-probe.tar.gz",
+      "Download Desktop-2026.11.9-macOS-x64-probe.tar.gz",
+      "Download Desktop-2026.11.9-Windows-x64-probe.zip",
+      "Download Desktop-2026.11.9-Linux-x64-probe.tar.gz",
+    ]);
+    const armRow = within(cli).getByText("Desktop-2026.11.9-macOS-arm64-probe.tar.gz").closest("li")!;
+    expect(within(armRow).getByText("macOS · Apple Silicon")).toBeInTheDocument();
+    expect(within(armRow).getByText("ef".repeat(32))).toBeInTheDocument();
+    expect(within(armRow).getByText("20.0 MB")).toBeInTheDocument();
+
+    fireEvent.click(within(cli).getByRole("button", { name: "Download Desktop-2026.11.9-macOS-arm64-probe.tar.gz" }));
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith(url));
+    const call = seen.find((entry) => entry.path.endsWith("/download-url"));
+    expect(call?.path).toBe(`${FEED}/assets/a_prma6401/download-url`);
+    expect(call?.method).toBe("POST");
+
+    // The installer lists are unchanged.
+    const all = screen.getByRole("region", { name: "All downloads" });
+    expect(within(all).queryByText(/probe/)).toBeNull();
+    expect(within(all).queryByText(/^install/)).toBeNull();
+    expect(screen.getByRole("button", { name: "Download for Linux" })).toBeInTheDocument();
+  });
+
+  it("shows client archives alone when a release has no scripts", async () => {
+    render(<DesktopDownloads navigate={() => undefined} platform={LINUX} />);
+    const cli = await screen.findByRole("complementary", { name: "Command-line install" });
+    expect(within(cli).queryByRole("heading", { name: "Install scripts" })).toBeNull();
+    expect(
+      within(cli).getByRole("button", { name: "Download Desktop-2026.11.9-Linux-x64-probe.tar.gz" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows no command-line section without scripts or archives", async () => {
+    replies[`${FEED}/manifest?channel=stable`] = {
+      status: 200,
+      body: envelope("2026.11.9", "stable", [asset("a_deb00001", "Desktop-2026.11.9-Linux-x64.deb", "deb")]),
+    };
+    render(<DesktopDownloads navigate={() => undefined} platform={LINUX} />);
+    expect(await screen.findByText(/Version 2026\.11\.9/)).toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: "Command-line install" })).toBeNull();
+  });
 });
 
 it("has no Downloads item in the workspace nav (it lives under Settings > Workspace)", () => {
@@ -384,6 +506,7 @@ it("offers a GitHub release with the recommended build, checksums and its source
     `https://github.com/${REPO}/releases`,
   );
   expect(screen.queryByRole("complementary", { name: "Command-line install" })).toBeNull();
+  expect(screen.queryByText(/probe/)).toBeNull();
   expect(screen.queryByRole("radiogroup")).toBeNull();
 });
 

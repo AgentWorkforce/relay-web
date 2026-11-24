@@ -291,13 +291,12 @@
 }
 .noteTitle {
   color: var(--foreground);
+  font-size: inherit;
+  line-height: inherit;
   font-weight: 500;
 }
-.noteActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
+.noteSection {
+  margin-top: 8px;
 }
 
 .page :is(a, button, summary):focus-visible {
