@@ -14,6 +14,12 @@ export default defineConfig(({ command }) => {
     );
   return {
     root,
+    // Keep production, designer and test optimizers from replacing one
+    // another's dependency metadata while their servers are running.
+    cacheDir: fileURLToPath(
+      new URL("../../node_modules/.vite/design-workbench", import.meta.url),
+    ),
+    optimizeDeps: { include: ["react-markdown", "remark-gfm"] },
     publicDir: fileURLToPath(new URL("../../public", import.meta.url)),
     plugins: [
       react(),

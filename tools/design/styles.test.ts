@@ -1,15 +1,21 @@
 // @vitest-environment node
 import { fileURLToPath } from "node:url";
-import { createServer } from "vite";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createServer, type ViteDevServer } from "vite";
 import { expect, it } from "vitest";
 
 it("generates the production dashboard’s icon and layout utilities from the design root", async () => {
-  const server = await createServer({
-    configFile: fileURLToPath(new URL("./vite.config.ts", import.meta.url)),
-    logLevel: "silent",
-    server: { port: 0, strictPort: false },
-  });
+  const cacheDir = await mkdtemp(join(tmpdir(), "relay-design-css-"));
+  let server: ViteDevServer | undefined;
   try {
+    server = await createServer({
+      configFile: fileURLToPath(new URL("./vite.config.ts", import.meta.url)),
+      cacheDir,
+      logLevel: "silent",
+      server: { port: 0, strictPort: false },
+    });
     await server.listen();
     const transformed = await server.transformRequest("/styles.css");
     const css = transformed?.code ?? "";
@@ -21,6 +27,10 @@ it("generates the production dashboard’s icon and layout utilities from the de
     expect(css).toContain(".items-center");
     expect(css).toContain("svg:not");
   } finally {
-    await server.close();
+    try {
+      await server?.close();
+    } finally {
+      await rm(cacheDir, { recursive: true, force: true });
+    }
   }
 });
