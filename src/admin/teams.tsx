@@ -51,22 +51,32 @@ export function TeamsSection(props: {
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(
     null,
   );
+  // A write's refresh must land before the next action: until then the lists
+  // (and each person's current team) are out of date.
+  const locked = busy || teams.pending || members.pending;
 
   function reloadAll() {
     teams.reload();
     members.reload();
   }
 
-  /** Runs one write; a refusal is shown in the card the action came from. */
+  /**
+   * Runs one write; its outcome (a status text, or a notice of its own kind)
+   * and any refusal are shown in the card the action came from.
+   */
   async function run(
     card: Notice["card"],
-    action: () => Promise<string>,
+    action: () => Promise<string | Omit<Notice, "card">>,
   ): Promise<boolean> {
     setBusy(true);
     setNotice(null);
     try {
-      const text = await action();
-      setNotice({ card, kind: "status", text });
+      const outcome = await action();
+      setNotice(
+        typeof outcome === "string"
+          ? { card, kind: "status", text: outcome }
+          : { card, ...outcome },
+      );
       reloadAll();
       return true;
     } catch (error) {
@@ -81,7 +91,7 @@ export function TeamsSection(props: {
   async function create(event: FormEvent) {
     event.preventDefault();
     const wanted = name.trim();
-    if (!wanted) return;
+    if (locked || !wanted) return;
     const created = await run("teams", async () => {
       const team = await adminApi.createTeam(props.organizationId, wanted);
       return `Created the team ${team.name}.`;
@@ -92,7 +102,7 @@ export function TeamsSection(props: {
   async function rename(event: FormEvent, team: Team) {
     event.preventDefault();
     const wanted = renaming?.name.trim() ?? "";
-    if (!wanted) return;
+    if (locked || !wanted) return;
     const renamed = await run("teams", async () => {
       const next = await adminApi.renameTeam(props.organizationId, team.id, wanted);
       return `Renamed ${team.name} to ${next.name}.`;
@@ -102,6 +112,7 @@ export function TeamsSection(props: {
 
   function archive(team: Team) {
     if (
+      locked ||
       !window.confirm(
         `Archive the team ${team.name}? Its ${people(team.memberCount)} will have no team. Past reports keep the team.`,
       )
@@ -122,10 +133,21 @@ export function TeamsSection(props: {
       list.find((team) => team.id === id)?.name ?? "another team";
     const current = member.teamId ?? null;
     const who = personName(member);
-    if (teamId === (current ?? "")) return;
+    if (locked || teamId === (current ?? "")) return;
     void run("people", async () => {
       if (!teamId && current) {
-        await adminApi.unassignTeamMember(props.organizationId, current, member.userId);
+        const result = await adminApi.unassignTeamMember(
+          props.organizationId,
+          current,
+          member.userId,
+        );
+        // Not in that team any more (another admin moved them): the reload
+        // that follows shows where they are.
+        if (!result.unassigned)
+          return {
+            kind: "alert",
+            text: `${who} was no longer in ${label(current)}. The list has been refreshed.`,
+          };
         return `Removed ${who} from ${label(current)}. ${who} has no team now.`;
       }
       const result = await adminApi.assignTeamMember(
@@ -142,6 +164,7 @@ export function TeamsSection(props: {
 
   const list = teams.data;
   const loadError = teams.error ?? members.error;
+  const peopleCard = !!list && list.length > 0;
   const shown = (card: Notice["card"]) =>
     notice?.card === card ? <p role={notice.kind}>{notice.text}</p> : null;
 
@@ -156,7 +179,7 @@ export function TeamsSection(props: {
         {loadError && (
           <p role="alert">
             {teamErrorText(loadError)}{" "}
-            <button type="button" onClick={reloadAll}>
+            <button type="button" disabled={locked} onClick={reloadAll}>
               Try again
             </button>
           </p>
@@ -167,15 +190,17 @@ export function TeamsSection(props: {
             <input
               value={name}
               maxLength={MAX_TEAM_NAME_LENGTH}
-              disabled={busy}
+              disabled={locked}
               onChange={(event) => setName(event.target.value)}
             />
           </label>
-          <button className="primary" type="submit" disabled={busy || !name.trim()}>
+          <button className="primary" type="submit" disabled={locked || !name.trim()}>
             Create team
           </button>
         </form>
         {shown("teams")}
+        {/* Without the People card its notice (say, a team archived meanwhile) shows here. */}
+        {!peopleCard && shown("people")}
         {!list && !teams.error && <p role="status">Loading teams…</p>}
         {list && list.length === 0 && (
           <p className="note">No teams yet. Create the first one above.</p>
@@ -206,7 +231,7 @@ export function TeamsSection(props: {
                             autoFocus
                             value={renaming.name}
                             maxLength={MAX_TEAM_NAME_LENGTH}
-                            disabled={busy}
+                            disabled={locked}
                             onChange={(event) =>
                               setRenaming({ id: team.id, name: event.target.value })
                             }
@@ -222,7 +247,7 @@ export function TeamsSection(props: {
                           className="primary"
                           type="submit"
                           disabled={
-                            busy ||
+                            locked ||
                             !renaming.name.trim() ||
                             renaming.name.trim() === team.name
                           }
@@ -231,7 +256,7 @@ export function TeamsSection(props: {
                         </button>
                         <button
                           type="button"
-                          disabled={busy}
+                          disabled={locked}
                           onClick={() => setRenaming(null)}
                         >
                           Cancel
@@ -246,7 +271,7 @@ export function TeamsSection(props: {
                         <button
                           type="button"
                           aria-label={`Rename ${team.name}`}
-                          disabled={busy}
+                          disabled={locked}
                           onClick={() => {
                             setNotice(null);
                             setRenaming({ id: team.id, name: team.name });
@@ -258,7 +283,7 @@ export function TeamsSection(props: {
                           type="button"
                           className="danger"
                           aria-label={`Archive ${team.name}`}
-                          disabled={busy}
+                          disabled={locked}
                           onClick={() => archive(team)}
                         >
                           Archive
@@ -272,7 +297,7 @@ export function TeamsSection(props: {
           </table>
         )}
       </section>
-      {list && list.length > 0 && (
+      {list && peopleCard && (
         <section aria-labelledby="team-members-title" className="card">
           <h2 id="team-members-title">People</h2>
           <p id="team-members-help">
@@ -314,7 +339,7 @@ export function TeamsSection(props: {
                           aria-label={`Team for ${personName(member)}`}
                           aria-describedby="team-members-help"
                           value={current}
-                          disabled={busy}
+                          disabled={locked}
                           onChange={(event) => choose(member, event.target.value)}
                         >
                           <option value="">No team</option>

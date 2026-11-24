@@ -23,6 +23,8 @@ let members: MemberRow[] = [];
 let requests: Request[] = [];
 /** Replaces the next write's answer (an error, typically). */
 let refuse: ((request: Request) => Reply | null) | null = null;
+/** While set, team and membership list reads wait for it before answering. */
+let gate: Promise<void> | null = null;
 
 function team(row: TeamRow) {
   return {
@@ -124,6 +126,7 @@ beforeEach(() => {
   teamsFlag = true;
   requests = [];
   refuse = null;
+  gate = null;
   teams = [
     { id: "t1", name: "Platform", memberCount: 0 },
     { id: "t2", name: "Support", memberCount: 0 },
@@ -143,6 +146,8 @@ beforeEach(() => {
         body: typeof init.body === "string" ? JSON.parse(init.body) : undefined,
       };
       requests.push(request);
+      if (gate && request.method === "GET" && [`${ORG}/teams`, `${ORG}/memberships`].includes(input))
+        await gate;
       const reply = answer(request);
       return new Response(JSON.stringify(reply.body ?? {}), {
         status: reply.status ?? 200,
@@ -377,6 +382,74 @@ it.each([
   await waitFor(() => expect(teamRequests().length).toBeGreaterThan(loads + 1));
 });
 
+it("keeps every control disabled until a move's refreshed lists arrive", async () => {
+  await openTeams();
+  let release!: () => void;
+  gate = new Promise((resolve) => (release = resolve));
+  fireEvent.change(memberSelect("Member Two"), { target: { value: "t2" } });
+  expect(
+    await screen.findByText("Moved Member Two from Platform to Support."),
+  ).toBeInTheDocument();
+  // The lists are not back yet: the select still shows the old team.
+  expect(memberSelect("Member Two")).toHaveValue("t1");
+  expect(memberSelect("Member Two")).toBeDisabled();
+  expect(memberSelect("Member One")).toBeDisabled();
+  expect(screen.getByLabelText("New team name")).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Rename Support" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Archive Platform" })).toBeDisabled();
+
+  gate = null;
+  release();
+  await waitFor(() => expect(memberSelect("Member Two")).toBeEnabled());
+  expect(memberSelect("Member Two")).toHaveValue("t2");
+  expect(screen.getByLabelText("New team name")).toBeEnabled();
+  fireEvent.change(memberSelect("Member Two"), { target: { value: "" } });
+  expect(
+    await screen.findByText("Removed Member Two from Support. Member Two has no team now."),
+  ).toBeInTheDocument();
+  expect(writes()).toEqual([
+    { method: "PUT", path: `${ORG}/teams/t2/members/u2`, body: {} },
+    { method: "DELETE", path: `${ORG}/teams/t2/members/u2`, body: {} },
+  ]);
+});
+
+it("does not claim a removal the server skipped and reloads", async () => {
+  // Another admin moved the person to Support before this removal arrived.
+  refuse = (request) => {
+    if (request.method !== "DELETE") return null;
+    members[0]!.teamId = "t2";
+    return { body: { unassigned: false } };
+  };
+  await openTeams();
+  const loads = teamRequests().length;
+  fireEvent.change(memberSelect("Member One"), { target: { value: "" } });
+  expect(
+    await screen.findByText(
+      "Member One was no longer in Platform. The list has been refreshed.",
+    ),
+  ).toHaveAttribute("role", "alert");
+  expect(screen.queryByText(/has no team now/)).not.toBeInTheDocument();
+  await waitFor(() => expect(teamRequests().length).toBeGreaterThan(loads + 1));
+  await waitFor(() => expect(memberSelect("Member One")).toHaveValue("t2"));
+});
+
+it("keeps an assignment error when the reload finds no teams left", async () => {
+  // Another admin archived every team before this assignment arrived.
+  refuse = () => {
+    teams = [];
+    for (const member of members) member.teamId = null;
+    return { status: 409, body: { error: "team_archived", message: "raw server text" } };
+  };
+  await openTeams();
+  fireEvent.change(memberSelect("three@example.test"), { target: { value: "t2" } });
+  expect(await screen.findByText("That team was archived.")).toHaveAttribute("role", "alert");
+  expect(
+    await screen.findByText("No teams yet. Create the first one above."),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole("table", { name: "Team members" })).not.toBeInTheDocument();
+  expect(screen.getByText("That team was archived.")).toHaveAttribute("role", "alert");
+});
+
 it("shows an unknown error with the generic display", async () => {
   refuse = () => ({
     status: 500,
@@ -413,6 +486,8 @@ it("a failed teams load can be retried", async () => {
   renderSettings();
   expect(await screen.findByText(/Teams are unavailable\./)).toHaveAttribute("role", "alert");
   failing = false;
+  // Controls stay disabled until both lists have answered.
+  await waitFor(() => expect(screen.getByRole("button", { name: "Try again" })).toBeEnabled());
   fireEvent.click(screen.getByRole("button", { name: "Try again" }));
   expect(await screen.findByRole("table", { name: "Teams" })).toBeInTheDocument();
 });
