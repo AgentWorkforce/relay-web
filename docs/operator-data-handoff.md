@@ -118,6 +118,14 @@ have a goal and supporting sessions; themes have a kind (`topic`, `workflow`, `r
 Hypotheses cite retained initiatives/themes and always carry `impact: "unmeasured"`. References use
 `{source, sessionId, titleRef}` to identify a local F1 claim, then its evidence IDs; these differ from
 v1's recurrence references. The broader Northstar pack is a product proposal, **not** this wire shape.
+When the model input cap trims a window to the newest sessions that fit, v2 is partial: show
+`keptSessions`, `truncatedSessions` and the kept `sessions` list. Inclusion of all analyzed sessions
+still does not establish coverage of the eligible workspace population.
+
+F1 reads scrubbed canonical transcripts. Its generated claim texts (called titles by the Stage 2
+contract) are not re-scrubbed before the second model call in this pin. The required title-scrubbing
+posture is an open decision before any real Stage 2 run; do not describe those model-written outputs
+as independently verified scrub-clean. The public test fixtures contain synthetic text only.
 
 Neither version supplies owner/team joins, project/team token/cost totals or parent/child/cross-source
 usage deduplication. The analysis owner has taken the spend-attribution slice design; the owner/team

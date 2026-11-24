@@ -59,3 +59,8 @@ from the broader Northstar product proposal. `stage2.usage` is simulated synthes
 not team token consumption. Neither version provides project/team attribution or deduplicated spend.
 The source pin has no runtime model transport, durable budget ledger or v2 serving. No verified real
 populated F1/aggregate accompanies either pack.
+
+F1 reads scrubbed transcripts, but its generated claim texts are not re-scrubbed before Stage 2
+in the source pin. Title-scrubbing posture remains an open pre-run decision. A capped Stage 2 window
+is partial: consumers must show kept/truncated counts and preserve the kept session list, even when
+the inherited v1 document covers more analyzed sessions.
