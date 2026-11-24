@@ -1,12 +1,12 @@
 {
   "repository": "https://github.com/AgentWorkforce/relayhistory-pipeline",
-  "commit": "1c0c0735bdabfbb4868a2efadcb17e0241b5a76c",
+  "commit": "8b9ab4696cf702ba70182d01ea5ef38126b8fe0f",
   "status": "Provisional review commit; synthetic cohort and hand-written fake model reply; no real model call",
   "contract": "workspace-synthesis/2",
   "files": {
     "expected-synthesis-v2.json": {
       "path": "src/session-intel/__tests__/fixtures/synthesis/expected-synthesis-v2.json",
-      "sha256": "4fae4b136e6c9e1ea5a3a658159040883c4742e23c3c6aa82152ac0890a82a38",
+      "sha256": "05f806690bfffd3ce6d771fe7dcd6641826ecf48c0551ddca8c2a28396ce0760",
       "bytes": 21326
     },
     "stage2-reply.json": {
@@ -16,7 +16,7 @@
     },
     "expected-stage2-input.json": {
       "path": "src/session-intel/__tests__/fixtures/synthesis/expected-stage2-input.json",
-      "sha256": "85c2a92e20632a82000c9b8631902f7f2ab12e822d82ac855747d946d2f250da",
+      "sha256": "1e165cc58486a5747647f5211da461f8c0545fbe6ad62fab81b0b10e44def449",
       "bytes": 15142
     }
   },
@@ -28,10 +28,10 @@
     "stage2.usage is the synthesis call telemetry, not the team usage."
   ],
   "validation": {
-    "sourceCommand": "bun test src/session-intel/__tests__/synthesis.test.ts src/session-intel/__tests__/synthesis-stage2.test.ts",
-    "passed": 68,
+    "sourceCommand": "bun test src/session-intel/__tests__/synthesis.test.ts src/session-intel/__tests__/synthesis-stage2.test.ts src/session-analysis/__tests__/workspace-synthesis-stage2-job.test.ts",
+    "passed": 81,
     "failed": 0,
-    "assertions": 995,
-    "note": "Independent exact-pin tests; all calls use a fake transport. This does not measure real model quality."
+    "assertions": 1111,
+    "note": "Independent exact-pin synthetic tests, including distinct /1 and /2 job generations; all model calls use a fake transport. This does not measure real model quality."
   }
 }
