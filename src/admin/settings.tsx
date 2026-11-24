@@ -3,6 +3,7 @@ import { adminApi, canManage, SignedOut } from "./api";
 import { CodingAgentsSection } from "./coding-agents";
 import { RemoteAgentsSection } from "./remote-agents";
 import { DesktopDownloads } from "./downloads";
+import { DelegationSection } from "./delegation";
 import { DesktopSection } from "./desktop";
 import { EnvironmentSection } from "./environment";
 import { MembersSection } from "./members";
@@ -341,14 +342,22 @@ export function Settings(props: {
                 </>
               )}
               {active === "members" && (
-                <MembersSection
-                  organizationId={context.currentOrganization.id}
-                  organizationName={context.currentOrganization.name}
-                  viewerRole={context.currentOrganization.role}
-                  currentUserId={context.user.id}
-                  canManage={manage}
-                  onChanged={reload}
-                />
+                // Hosted's members tab: the Trusted delegates card, then the roster.
+                <div className="flex flex-col gap-6">
+                  <DelegationSection
+                    key={`delegation-${context.currentWorkspace.id}`}
+                    workspaceId={context.currentWorkspace.id}
+                    canManage={manage}
+                  />
+                  <MembersSection
+                    organizationId={context.currentOrganization.id}
+                    organizationName={context.currentOrganization.name}
+                    viewerRole={context.currentOrganization.role}
+                    currentUserId={context.user.id}
+                    canManage={manage}
+                    onChanged={reload}
+                  />
+                </div>
               )}
             </div>
           )}

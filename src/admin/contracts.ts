@@ -474,3 +474,14 @@ export const workspaceLeadersSchema = z.object({
   patterns: z.array(z.string()),
 });
 export type WorkspaceLeaders = z.infer<typeof workspaceLeadersSchema>;
+
+/**
+ * relay-control GET|PUT /workspaces/{id}/delegates/policy
+ * (getDelegationPolicy, putDelegationPolicy): the workspace's owner-delegation
+ * switch. Any member reads; owners and admins write. Only the switch is read
+ * here; the PUT keeps every field it is not sent at its stored value.
+ */
+export const delegationPolicySchema = z.object({
+  delegation_enabled: z.boolean(),
+});
+export type DelegationPolicy = z.infer<typeof delegationPolicySchema>;
