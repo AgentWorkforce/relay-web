@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { InstallTokens } from "./install-tokens";
 
 const TOKENS = "/cloud/api/v1/desktop/feed/install-tokens";
@@ -29,6 +29,9 @@ let replies: Record<string, Reply>;
 let seen: Seen[];
 
 beforeEach(() => {
+  // Only the clock is faked: the fixtures expire at 11:00.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-11-24T10:05:00Z"));
   seen = [];
   replies = {
     [`GET ${TOKENS}`]: { status: 200, body: { tokens: [] } },
@@ -50,6 +53,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -202,4 +206,29 @@ it("renders nothing when the feed is not available", async () => {
   await waitFor(() => expect(seen).toHaveLength(1));
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(container).toBeEmptyDOMElement();
+});
+
+it("shows a token as expired once its expiry passes while the page is open", async () => {
+  vi.setSystemTime(new Date("2026-11-24T10:59:59.950Z"));
+  replies[`GET ${TOKENS}`] = { status: 200, body: { tokens: [summary()] } };
+  render(<InstallTokens profileId="x7k2q" />);
+  const list = await screen.findByRole("list", { name: "Your install tokens" });
+  expect(list).toHaveTextContent("Active");
+  vi.setSystemTime(new Date("2026-11-24T11:00:00Z"));
+  await waitFor(() => expect(list).toHaveTextContent("Expired"));
+  expect(list).not.toHaveTextContent("Active");
+  expect(screen.queryByRole("button", { name: /^Revoke install token/ })).toBeNull();
+});
+
+it("checks expiry again when the tab becomes visible", async () => {
+  replies[`GET ${TOKENS}`] = { status: 200, body: { tokens: [summary()] } };
+  render(<InstallTokens profileId="x7k2q" />);
+  const list = await screen.findByRole("list", { name: "Your install tokens" });
+  expect(list).toHaveTextContent("Active");
+  vi.setSystemTime(new Date("2026-11-24T11:30:00Z"));
+  act(() => {
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  expect(list).toHaveTextContent("Expired");
+  expect(screen.queryByRole("button", { name: /^Revoke install token/ })).toBeNull();
 });

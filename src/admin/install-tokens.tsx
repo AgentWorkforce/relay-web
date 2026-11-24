@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import { Badge, Button, Input } from "../shell/ui";
 import { ApiError, desktopFeedApi } from "./api";
 import type { InstallTokenSummary } from "./contracts";
@@ -7,6 +7,8 @@ import { message, useLoad } from "./use-load";
 import s from "./install-tokens.module.css";
 
 const LABEL_MAX = 128;
+// The longest delay a browser timer honours.
+const TIMER_MAX_MS = 2_147_483_647;
 
 const STATUS: Record<InstallTokenSummary["status"], { text: string; variant: "success" | "default" }> = {
   active: { text: "Active", variant: "success" },
@@ -24,6 +26,18 @@ function failureText(error: unknown): string {
     return "Too many install tokens were created in the last hour. Try again later.";
   }
   return message(error);
+}
+
+// The list is loaded once, so a token the server called active can pass its
+// expiry while the page stays open.
+function expiresAt(token: InstallTokenSummary): number | null {
+  const at = Date.parse(token.expires_at);
+  return token.status === "active" && Number.isFinite(at) ? at : null;
+}
+
+function statusAt(token: InstallTokenSummary, now: number): InstallTokenSummary["status"] {
+  const at = expiresAt(token);
+  return at !== null && at <= now ? "expired" : token.status;
 }
 
 function newestFirst(tokens: readonly InstallTokenSummary[]): InstallTokenSummary[] {
@@ -48,8 +62,28 @@ export function InstallTokens(props: { profileId: string }) {
   const [revoking, setRevoking] = useState<string | null>(null);
   // Revoked rows, shown at once while the list reloads.
   const [revoked, setRevoked] = useState<Record<string, InstallTokenSummary>>({});
+  const [now, setNow] = useState(() => Date.now());
   const titleId = useId();
   const labelId = useId();
+
+  const nextExpiry = (data?.tokens ?? []).reduce<number | null>((next, token) => {
+    const at = expiresAt(token);
+    return at !== null && at > now && (next === null || at < next) ? at : next;
+  }, null);
+  useEffect(() => {
+    if (nextExpiry === null) return;
+    const delay = Math.min(Math.max(nextExpiry - Date.now(), 0), TIMER_MAX_MS);
+    const timer = setTimeout(() => setNow(Date.now()), delay);
+    return () => clearTimeout(timer);
+  }, [nextExpiry, now]);
+  // Timers are held back in a background tab, so check again on return.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") setNow(Date.now());
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
 
   if (!error && (!data || data.tokens === null)) return null;
 
@@ -174,7 +208,8 @@ export function InstallTokens(props: { profileId: string }) {
       {tokens && tokens.length > 0 && (
         <ul className={s.rows} aria-label="Your install tokens">
           {tokens.map((token) => {
-            const status = STATUS[token.status];
+            const current = statusAt(token, now);
+            const status = STATUS[current];
             const name = token.label ?? "No label";
             return (
               <li key={token.id} className={s.row}>
@@ -191,7 +226,7 @@ export function InstallTokens(props: { profileId: string }) {
                     {token.last_used_at && ` · Last used ${formatTime(token.last_used_at)}`}
                   </p>
                 </div>
-                {token.status === "active" && (
+                {current === "active" && (
                   <Button
                     variant="outline"
                     size="sm"
