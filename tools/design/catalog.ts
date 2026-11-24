@@ -1,3 +1,4 @@
+import { synthesis, pipelineSource, pipelineDownloads } from "./pipeline-sample-data";
 import { operatorData } from "./operator-data";
 import {
   dataset,
@@ -19,6 +20,7 @@ export type CatalogEntry = {
   owner: string;
   endpoint: string;
   source?: string;
+  rawExport?: { text: string; name: string };
   limitation: string;
   fields: Field[];
   example: (scenario: ScenarioId) => unknown;
@@ -280,6 +282,24 @@ export const catalog: CatalogEntry[] = [
     example: () => ({
       note: "See the existing test-only fixture in src/sessions/overlaps-fixture.ts. No backend availability is asserted.",
     }),
+  },
+  {
+    id: "pipeline-synthesis",
+    rawExport: pipelineDownloads.synthesis,
+    title: "Pipeline synthesis v1",
+    availability: "Experimental",
+    owner: "Session analysis pipeline",
+    endpoint: "Offline computed artifact; no read route in this source commit",
+    source: `${pipelineSource}docs/session-intel-workspace-synthesis.md`,
+    description: "The source-owned workspace-synthesis/1 example: deterministic categories, usage coverage, freshness, skipped reasons and exact-key failure candidates, with session/evidence drill-downs in Pipeline sample.",
+    limitation: "Pinned unlanded review commit, synthetic only. Frozen separate workspace/window; the Northstar scenario selector does not apply. The cohort deliberately includes malformed results and skipped entries. Outcome categories reflect per-session assessments; roots are repository/project/source scope groups. No initiative, semantic theme, hypothesis, token total or dollar total is present in v1.",
+    fields: [
+      {name: "inputs.eligible / considered / analyzed / skipped / caps", meaning: "60 eligible, 53 considered, 40 analyzed and 13 skipped in this sample. Seven eligible sessions were not supplied. No cap hit does not imply workspace completeness."},
+      {name: "freshness / usageCoverage", meaning: "Frozen generation time; stale analyzed sessions still contribute to this retrospective aggregate. Usage observation and cost availability are independent axes; missing indexing watermarks remain explicit."},
+      {name: "categories[].sessions", meaning: "Work-type/outcome partition of analyzed sessions. Preserve source plus sessionId and truncation flags. Inspect locally in Pipeline sample."},
+      {name: "issues[].evidence", meaning: "Recurrence candidates with source/session/F1-reference identities. eventId is an F1 reference ID, not a guessed transcript event UID."},
+    ],
+    example: () => synthesis,
   },
   {
     id: "analysis-inputs",

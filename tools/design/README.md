@@ -13,6 +13,16 @@ Operator concept now includes work-category drill-downs to human prompts, work t
 an evidence-backed improvement hypothesis. Data catalog can export the linked proposed pack.
 All interpretations are hand-authored synthetic examples, with stale/unavailable analysis states.
 
+## Pipeline sample
+
+**Pipeline sample** is a frozen, source-owned synthetic `workspace-synthesis/1` artifact from
+unlanded pipeline commit `1e6d6e46e`. It has category → F1 analysis → evidence drill-downs,
+coverage, independent usage/cost axes, and downloads for the computed output, input cohort,
+source-exported JSON schema and provenance. The Northstar scenario selector is disabled there.
+See [fixture provenance and proof](fixtures/synthesis/README.md). The current source slice has
+no live read route and no semantic initiatives/themes/hypotheses. Those stay separate design
+proposals in Operator concept. This sample does not claim real production analysis is available.
+
 ## Architecture
 
 - `vite.config.ts`: a separate, loopback-only development server and HTML roots.

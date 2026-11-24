@@ -9,6 +9,7 @@ const markers = [
   "synthetic_service_unavailable",
   "design-session-1",
   "tools/design/",
+  "fx-ws-synthesis",
 ];
 const entries = await readdir(dist, { recursive: true, withFileTypes: true });
 await readFile(join(dist, "index.html"));

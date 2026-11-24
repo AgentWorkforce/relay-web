@@ -1,3 +1,4 @@
+import { PipelineSample } from "./pipeline-sample";
 import { useEffect, useRef, useState } from "react";
 import { ArrowUpRight, Code2, Copy, Layers, Moon, Sun } from "lucide-react";
 import { Button } from "../../src/shell/ui";
@@ -18,6 +19,7 @@ import {
 const views = [
   "Dashboard",
   "Operator concept",
+  "Pipeline sample",
   "Data catalog",
   "Start here",
 ] as const;
@@ -34,9 +36,9 @@ const previewPath = (
 ) =>
   `/preview/${scenario}/${session ? `?${new URLSearchParams({ session: session.sessionId, source: session.source })}` : surface === "usage" ? "#/settings/usage" : surface === "person" ? "#/settings/usage/people/design-ana" : ""}`;
 
-function download(value: unknown, name: string) {
+function download(value: unknown, name: string, raw = false) {
   const url = URL.createObjectURL(
-    new Blob([JSON.stringify(value, null, 2)], { type: "application/json" }),
+    new Blob([raw && typeof value === "string" ? value : JSON.stringify(value, null, 2)], { type: "application/json" }),
   );
   const link = document.createElement("a");
   link.href = url;
@@ -82,6 +84,7 @@ export function Workbench() {
     [],
   );
   const frame = useRef<HTMLIFrameElement>(null);
+  const pipelineView = view === "Pipeline sample" || (view === "Data catalog" && entryId === "pipeline-synthesis");
   const scenarioInfo = scenarios.find((item) => item.id === scenario)!;
   const data = dataset(scenario);
   const requestedPreview =
@@ -189,12 +192,8 @@ export function Workbench() {
         </nav>
         <div className="design-rail-note">
           <Layers size={18} />
-          <strong>
-            Real components.
-            <br />
-            Invented organization.
-          </strong>
-          <p>Everything here belongs to the fictional Northstar Studio.</p>
+          <strong>{pipelineView ? "Source-owned fixture. Invented data." : <>Real components.<br />Invented organization.</>}</strong>
+          <p>{pipelineView ? "A separate frozen synthetic pipeline cohort; no real workspace data." : "Everything here belongs to the fictional Northstar Studio."}</p>
         </div>
         <a
           className="design-source-link"
@@ -238,6 +237,8 @@ export function Workbench() {
                   ? "Build with the real thing."
                   : view === "Operator concept"
                     ? "Start with the decisions."
+                    : view === "Pipeline sample"
+                      ? "Build against the source contract."
                     : view === "Data catalog"
                       ? "Know what’s behind the UI."
                       : "A smaller loop, a clearer signal."}
@@ -247,6 +248,8 @@ export function Workbench() {
                   ? "Edit the dashboard’s source. See your changes here, with a team already in place."
                   : view === "Operator concept"
                     ? "A conversation starter for the operator view. All synthesis fields below are proposed."
+                    : view === "Pipeline sample"
+                      ? "A computed synthetic artifact, with coverage and evidence you can inspect."
                     : view === "Data catalog"
                       ? "Response examples, field meanings and honest limits, next to each other."
                       : "Your first iteration is one operator overview and one project drill-down."}
@@ -258,6 +261,7 @@ export function Workbench() {
             <label>
               Scenario
               <select
+                disabled={pipelineView}
                 value={scenario}
                 onChange={(e) => {
                   setScenario(scenarioId(e.target.value));
@@ -277,7 +281,7 @@ export function Workbench() {
                 ))}
               </select>
             </label>
-            <p>{scenarioInfo.description}</p>
+            <p>{pipelineView ? "Frozen source cohort; the scenario selector does not apply." : scenarioInfo.description}</p>
             <Button variant="outline" size="sm" onClick={copyViewLink}>
               <Copy size={14} /> Copy view link
             </Button>
@@ -378,6 +382,8 @@ export function Workbench() {
               onSession={showSession}
             />
           )}
+
+          {view === "Pipeline sample" && <PipelineSample onDownload={download} />}
 
           {view === "Data catalog" && (
             <CatalogPanel

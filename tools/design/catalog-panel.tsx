@@ -16,11 +16,11 @@ export function CatalogPanel({
   copy: string;
   onSelect: (id: string) => void;
   onCopy: (text: string) => Promise<void>;
-  onDownload: (value: unknown, name: string) => void;
+  onDownload: (value: unknown, name: string, raw?: boolean) => void;
 }) {
   const entry = catalog.find((item) => item.id === entryId)!;
   const sample = entry.example(scenario);
-  const json = JSON.stringify(sample, null, 2);
+  const json = entry.rawExport?.text ?? JSON.stringify(sample, null, 2);
   return (
     <section className="design-catalog" aria-label="Data catalog">
       <nav aria-label="Data domains">
@@ -90,7 +90,9 @@ export function CatalogPanel({
               variant="outline"
               size="sm"
               onClick={() =>
-                download(sample, `relay-${scenario}-${entry.id}.json`)
+                entry.rawExport
+                  ? download(entry.rawExport.text, entry.rawExport.name, true)
+                  : download(sample, `relay-${scenario}-${entry.id}.json`)
               }
             >
               <Download size={14} /> JSON
