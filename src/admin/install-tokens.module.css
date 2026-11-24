@@ -1,0 +1,131 @@
+/* Install tokens: sits under "Command-line install" in the Desktop downloads card. */
+@layer legacy {
+.section {
+  padding: 16px 18px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.title {
+  font-size: 14px;
+  font-weight: 600;
+}
+.text {
+  margin-top: 6px;
+  color: var(--text-muted);
+}
+.text code {
+  font-size: 12px;
+}
+.form {
+  margin-top: 12px;
+}
+.label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.formRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.input {
+  flex: 1 1 220px;
+  max-width: 360px;
+}
+.failure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  color: var(--status-danger);
+  font-size: 12px;
+}
+.created {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+.createdTitle {
+  font-weight: 500;
+}
+.created code {
+  overflow-wrap: anywhere;
+}
+.usage {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+.usage dt {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.usage dd {
+  margin: 0 0 6px;
+}
+.quiet {
+  margin-top: 14px;
+  color: var(--text-muted);
+}
+.rows {
+  margin-top: 14px;
+  list-style: none;
+  padding: 0;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border-soft);
+}
+.rowMain {
+  flex: 1;
+  min-width: 0;
+}
+.rowTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+.prefix {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+.badge {
+  letter-spacing: 0.1em;
+}
+.rowMeta {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+@container (max-width: 560px) {
+  .row {
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 560px) {
+  .row {
+    flex-wrap: wrap;
+  }
+}
+}

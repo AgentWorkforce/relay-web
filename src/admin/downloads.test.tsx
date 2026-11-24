@@ -68,6 +68,7 @@ beforeEach(() => {
       ]),
     },
     [`${FEED}/manifest?channel=beta`]: { status: 404, body: { error: "no_release", message: "No release" } },
+    [`${FEED}/install-tokens`]: { status: 200, body: { tokens: [] } },
   };
   vi.stubGlobal(
     "fetch",
@@ -557,4 +558,20 @@ it("accepts only https GitHub download hosts", () => {
   expect(isGithubDownloadUrl("https://github.com:8443/a.dmg")).toBe(false);
   expect(isGithubDownloadUrl("javascript:alert(1)")).toBe(false);
   expect(isGithubDownloadUrl("not a url")).toBe(false);
+});
+
+it("offers install tokens for a signed-feed release with an install script, not for a GitHub release", async () => {
+  replies[`${FEED}/manifest?channel=stable`] = { status: 200, body: envelope("2026.11.9", "stable", RELEASE) };
+  const first = render(<DesktopDownloads navigate={() => undefined} platform={LINUX} />);
+  expect(await screen.findByRole("region", { name: "Install token" })).toBeInTheDocument();
+  expect(seen.find((call) => call.path === `${FEED}/install-tokens`)?.headers["X-Agent-Relay-Profile"]).toBe("x7k2q");
+  first.unmount();
+
+  seen = [];
+  withoutFeed();
+  replies[RELEASES] = { status: 200, body: ghRelease([...GH_ASSETS, ghAsset("install.sh", "install-script")]) };
+  render(<DesktopDownloads navigate={() => undefined} platform={LINUX} />);
+  expect(await screen.findByRole("button", { name: "Download for Linux" })).toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "Install token" })).toBeNull();
+  expect(seen.some((call) => call.path.includes("/install-tokens"))).toBe(false);
 });

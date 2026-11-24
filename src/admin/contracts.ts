@@ -310,6 +310,37 @@ export type GithubReleases = z.infer<typeof githubReleasesSchema>;
 
 export const feedDownloadUrlSchema = z.object({ url: z.string(), expires_at: z.string() });
 
+/**
+ * relay-control /desktop/feed/install-tokens: short-lived tokens for a first
+ * headless install, read-only on one profile's release feed. The secret
+ * `token` comes back once, from the create call; summaries carry only its
+ * first characters. The create answer's `command` is not used.
+ */
+export const installTokenSummarySchema = z.object({
+  id: z.string(),
+  label: z.string().nullable(),
+  token_prefix: z.string(),
+  profile: z.string(),
+  workspace_id: z.string(),
+  created_at: z.string(),
+  expires_at: z.string(),
+  revoked_at: z.string().nullable(),
+  last_used_at: z.string().nullable(),
+  status: z.enum(["active", "expired", "revoked"]),
+});
+export type InstallTokenSummary = z.infer<typeof installTokenSummarySchema>;
+export const installTokensSchema = z.object({ tokens: z.array(installTokenSummarySchema) });
+export const createdInstallTokenSchema = z.object({
+  id: z.string(),
+  token: z.string(),
+  label: z.string().nullable(),
+  profile: z.string(),
+  workspace_id: z.string(),
+  created_at: z.string(),
+  expires_at: z.string(),
+});
+export type CreatedInstallToken = z.infer<typeof createdInstallTokenSchema>;
+
 /** relay-control GET /organizations/{id}/usage: counts only, never identities. */
 const usageCount = z.number().int().nonnegative();
 export const usageMetricSchema = z.enum([

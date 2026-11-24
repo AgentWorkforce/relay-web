@@ -11,6 +11,7 @@ import type {
   FeedProfile,
   GithubReleases,
 } from "./contracts";
+import { InstallTokens } from "./install-tokens";
 import { formatDate, message, useLoad } from "./use-load";
 import s from "./downloads.module.css";
 
@@ -685,6 +686,8 @@ type Release = {
   resolve: Resolve;
   /** Set for a GitHub release; the signed feed's releases have no source line. */
   source: GithubSource | null;
+  /** The signed feed's profile id; null for a GitHub release. */
+  profileId: string | null;
 };
 
 function feedReleases(feed: ProfileReleases[]): Release[] {
@@ -698,6 +701,7 @@ function feedReleases(feed: ProfileReleases[]): Release[] {
       resolve: async (asset: FeedAsset) =>
         (await desktopFeedApi.downloadUrl(profile.id, asset.id)).url,
       source: null,
+      profileId: profile.id,
     })),
   );
 }
@@ -717,6 +721,7 @@ function githubReleaseEntry(github: NonNullable<Loaded["github"]>): Release {
       return url;
     },
     source,
+    profileId: null,
   };
 }
 
@@ -855,6 +860,11 @@ export function DesktopDownloads(props: {
                 navigate={navigate}
               />
             )}
+            {current.profileId &&
+              !current.source &&
+              installScripts(current.manifest.assets).length > 0 && (
+                <InstallTokens key={`itok:${current.profileId}`} profileId={current.profileId} />
+              )}
           </div>
         )}
       </div>
