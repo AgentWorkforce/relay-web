@@ -8,6 +8,7 @@ import { EnvironmentSection } from "./environment";
 import { MembersSection } from "./members";
 import { OrganizationSection, WorkspaceSection } from "./organization";
 import { PoliciesSection, WorkspaceLeadersSection } from "./policies";
+import { TeamsSection } from "./teams";
 import { TokensSection } from "./tokens";
 import { UsageRefused, UsageSection, type UsageRange } from "./usage";
 import { UsagePersonPage } from "./usage-people";
@@ -24,6 +25,7 @@ import {
   ShieldCheck,
   SunMoon,
   Users2,
+  UsersRound,
 } from "lucide-react";
 import { ThemeSelector } from "../shell/theme-selector";
 import { Button, Skeleton } from "../shell/ui";
@@ -82,6 +84,14 @@ export const SETTINGS_SECTIONS = [
     icon: Users2,
   },
   {
+    // Owners and admins, and only while the install reports the teams capability.
+    id: "teams",
+    label: "Teams",
+    group: "Organization",
+    adminOnly: true,
+    icon: UsersRound,
+  },
+  {
     // Owner-only, and only while the install reports the usage capability.
     id: "usage",
     label: "Usage",
@@ -107,6 +117,7 @@ const DESCRIPTIONS: Record<SettingsSectionId, string> = {
   environment: "Encrypted variables and API keys available to your workspace.",
   organization: "Your organization’s identity and shared settings.",
   members: "The people who share this workspace.",
+  teams: "Group the people in your organization into teams.",
   usage: "How your organization uses Relay. Counts only.",
   policies:
     "What Agent Relay Desktop uploads for everyone in your organization, and which agents lead your workspace.",
@@ -151,9 +162,12 @@ export function Settings(props: {
   // independently; either one opens the owner-only Usage page.
   const peopleAllowed = capabilities.usage_people && owner;
   const usageAllowed = (capabilities.usage || capabilities.usage_people) && owner;
+  const teamsAllowed = capabilities.teams && manage;
   const visible = SETTINGS_SECTIONS.filter(
     (item) =>
-      (manage || !item.adminOnly) && (item.id !== "usage" || usageAllowed),
+      (manage || !item.adminOnly) &&
+      (item.id !== "usage" || usageAllowed) &&
+      (item.id !== "teams" || teamsAllowed),
   );
   // A direct #/settings/usage link stays on Usage so a refusal is explicit.
   const active: SettingsSectionId =
@@ -165,7 +179,11 @@ export function Settings(props: {
   );
   const groups = ["Preferences", "Workspace", "Organization"];
   // While the context loads, head the page with the requested section.
-  const requested = SETTINGS_SECTIONS.find((item) => item.id === props.section);
+  // Teams is not named before the install reports the capability.
+  const requested = SETTINGS_SECTIONS.find(
+    (item) =>
+      item.id === props.section && (item.id !== "teams" || capabilities.teams),
+  );
   const heading = context ? active : (requested?.id ?? active);
   const activeLabel = SETTINGS_SECTIONS.find(
     (item) => item.id === heading,
@@ -339,6 +357,13 @@ export function Settings(props: {
                     workspaceId={context.currentWorkspace.id}
                   />
                 </>
+              )}
+              {active === "teams" && teamsAllowed && (
+                <TeamsSection
+                  key={context.currentOrganization.id}
+                  organizationId={context.currentOrganization.id}
+                  organizationName={context.currentOrganization.name}
+                />
               )}
               {active === "members" && (
                 <MembersSection

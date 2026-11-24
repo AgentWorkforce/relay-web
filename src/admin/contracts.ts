@@ -98,9 +98,41 @@ export const memberSchema = z.object({
   name: z.string(),
   role: roleSchema,
   joinedAt: nullableText,
+  /** The member's team; sent only while the `teams` capability is on. */
+  teamId: z.string().nullable().optional(),
 });
 export type Member = z.infer<typeof memberSchema>;
 export const membersSchema = z.object({ memberships: z.array(memberSchema) });
+
+/**
+ * relay-control /organizations/{id}/teams (owners and admins, behind the
+ * `teams` capability). One team per person; archiving a team leaves its
+ * members with no team.
+ */
+export const MAX_TEAM_NAME_LENGTH = 80;
+export const teamSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  memberCount: z.number().int().nonnegative(),
+  archivedAt: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type Team = z.infer<typeof teamSchema>;
+export const teamsSchema = z.object({ teams: z.array(teamSchema) });
+export const teamArchiveSchema = z.object({
+  team: teamSchema,
+  unassigned: z.number().int().nonnegative(),
+});
+export const teamAssignmentSchema = z.object({
+  assignment: z.object({
+    userId: z.string(),
+    teamId: z.string(),
+    startsAt: z.string(),
+  }),
+  previousTeamId: z.string().nullable(),
+});
+export const teamUnassignSchema = z.object({ unassigned: z.boolean() });
 
 /** Self-host invites (relaycontrol /organizations/{id}/invitations). */
 export const invitationSchema = z.object({

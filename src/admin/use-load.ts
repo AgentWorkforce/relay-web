@@ -13,12 +13,15 @@ export function redirectIfSignedOut(error: unknown): boolean {
  * Loads data with abort-on-unmount and an explicit reload. A reload does not
  * abort the request in flight (a slow response would otherwise never land
  * while something keeps reloading); the newest response to arrive wins and
- * older ones that arrive later are dropped.
+ * older ones that arrive later are dropped. `pending` is true from the
+ * render that requests a load until the newest request has settled.
  */
 export function useLoad<T>(load: (signal: AbortSignal) => Promise<T>) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [version, setVersion] = useState(0);
+  // Version of the request whose result is shown; -1 until the first lands.
+  const [appliedVersion, setAppliedVersion] = useState(-1);
   const reload = useCallback(() => setVersion((value) => value + 1), []);
   const issued = useRef(0);
   const applied = useRef(0);
@@ -38,6 +41,7 @@ export function useLoad<T>(load: (signal: AbortSignal) => Promise<T>) {
       controllers.current.delete(controller);
       if (controller.signal.aborted || id < applied.current) return;
       applied.current = id;
+      setAppliedVersion(version);
       apply();
     };
     load(controller.signal).then(
@@ -55,7 +59,7 @@ export function useLoad<T>(load: (signal: AbortSignal) => Promise<T>) {
     // `load` is recreated each render by callers; reload is explicit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version]);
-  return { data, error, reload };
+  return { data, error, reload, pending: appliedVersion !== version };
 }
 
 export function formatDate(value?: string | null) {
