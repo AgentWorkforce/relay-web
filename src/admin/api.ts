@@ -40,6 +40,7 @@ import {
   usagePeopleSchema,
   usagePersonSessionsSchema,
   workspaceLeadersSchema,
+  delegationPolicySchema,
   type TokenPurpose,
   type Role,
 } from "./contracts";
@@ -444,6 +445,18 @@ export const adminApi = {
     call(`${ws(workspace)}/leaders`, workspaceLeadersSchema, {
       method: "PUT",
       body: { patterns },
+    }),
+  /** Any member reads: the stored policy, or the defaults when none is stored. */
+  delegationPolicy: (workspace: string, signal?: AbortSignal) =>
+    call(`${ws(workspace)}/delegates/policy`, delegationPolicySchema, { signal }),
+  /**
+   * Owner/admin only. Sends only `delegation_enabled`, so every other policy
+   * field keeps its stored value; 403 `forbidden` for anyone else.
+   */
+  setDelegationEnabled: (workspace: string, enabled: boolean) =>
+    call(`${ws(workspace)}/delegates/policy`, delegationPolicySchema, {
+      method: "PUT",
+      body: { delegation_enabled: enabled },
     }),
   hardDeleteSession: (
     organization: string,

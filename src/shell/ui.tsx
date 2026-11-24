@@ -162,6 +162,48 @@ export function CardContent({
   );
 }
 
+/**
+ * Hosted ui/switch.tsx (radix Switch) as a native `role="switch"` button, with
+ * the same classes and data attributes. `onCheckedChange` gets the next value.
+ */
+export function Switch({
+  checked,
+  onCheckedChange,
+  className,
+  onClick,
+  ...props
+}: Omit<ComponentProps<"button">, "type" | "role"> & {
+  checked: boolean;
+  onCheckedChange?: (checked: boolean) => void;
+}) {
+  const state = checked ? "checked" : "unchecked";
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      data-slot="switch"
+      data-size="default"
+      data-state={state}
+      className={cn(
+        "peer group/switch inline-flex shrink-0 items-center rounded-full border border-transparent shadow-xs transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 data-[size=default]:h-[1.15rem] data-[size=default]:w-8 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input dark:data-[state=unchecked]:bg-input/80",
+        className,
+      )}
+      onClick={(event) => {
+        onClick?.(event);
+        if (!event.defaultPrevented) onCheckedChange?.(!checked);
+      }}
+      {...props}
+    >
+      <span
+        data-slot="switch-thumb"
+        data-state={state}
+        className="pointer-events-none block rounded-full bg-background ring-0 transition-transform group-data-[size=default]/switch:size-4 data-[state=checked]:translate-x-[calc(100%-2px)] data-[state=unchecked]:translate-x-0 dark:data-[state=checked]:bg-primary-foreground dark:data-[state=unchecked]:bg-foreground"
+      />
+    </button>
+  );
+}
+
 export function Skeleton({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
