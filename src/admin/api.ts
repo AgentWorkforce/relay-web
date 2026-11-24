@@ -28,6 +28,11 @@ import {
   type FeedManifest,
   type FeedProfile,
   membersSchema,
+  teamArchiveSchema,
+  teamAssignmentSchema,
+  teamSchema,
+  teamsSchema,
+  teamUnassignSchema,
   invitationLinkSchema,
   invitationsSchema,
   signInMethodsSchema,
@@ -302,6 +307,56 @@ export const adminApi = {
     call(
       `/v1/organizations/${enc(organization)}/memberships/${enc(userId)}`,
       null,
+      { method: "DELETE" },
+    ),
+  /**
+   * Owner/admin only; 403 `feature_not_enabled` while `teams` is off. Live
+   * teams only, ordered by name.
+   */
+  teams: async (organization: string, signal?: AbortSignal) =>
+    (
+      await call(
+        `/v1/organizations/${enc(organization)}/teams`,
+        teamsSchema,
+        { signal },
+      )
+    ).teams,
+  /** 409 `team_name_taken` when a live team has the name, ignoring case. */
+  createTeam: (organization: string, name: string) =>
+    call(`/v1/organizations/${enc(organization)}/teams`, teamSchema, {
+      method: "POST",
+      body: { name },
+    }),
+  /** 409 `team_name_taken` or `team_archived`; 404 `team_not_found`. */
+  renameTeam: (organization: string, teamId: string, name: string) =>
+    call(
+      `/v1/organizations/${enc(organization)}/teams/${enc(teamId)}`,
+      teamSchema,
+      { method: "PATCH", body: { name } },
+    ),
+  /** Archives the team; its members are left with no team. */
+  archiveTeam: (organization: string, teamId: string) =>
+    call(
+      `/v1/organizations/${enc(organization)}/teams/${enc(teamId)}`,
+      teamArchiveSchema,
+      { method: "DELETE" },
+    ),
+  /**
+   * Puts the member in the team, moving them out of any other team.
+   * `previousTeamId` is the team they left (or this team when unchanged).
+   * 404 `membership_not_found` or `team_not_found`; 409 `team_archived`.
+   */
+  assignTeamMember: (organization: string, teamId: string, userId: string) =>
+    call(
+      `/v1/organizations/${enc(organization)}/teams/${enc(teamId)}/members/${enc(userId)}`,
+      teamAssignmentSchema,
+      { method: "PUT" },
+    ),
+  /** Idempotent: `unassigned` is false when the member was not in this team. */
+  unassignTeamMember: (organization: string, teamId: string, userId: string) =>
+    call(
+      `/v1/organizations/${enc(organization)}/teams/${enc(teamId)}/members/${enc(userId)}`,
+      teamUnassignSchema,
       { method: "DELETE" },
     ),
   invitations: async (organization: string, signal?: AbortSignal) =>
