@@ -194,7 +194,7 @@ function isProbe(asset: FeedAsset): boolean {
 }
 
 function isInstallScript(asset: FeedAsset): boolean {
-  return asset.kind === "install-script" || /^install\.(sh|ps1)$/i.test(asset.name);
+  return asset.kind === "install-script" || /^install(\.(sh|ps1)|-macos\.sh)$/i.test(asset.name);
 }
 
 /** What a person installs: no bare cores (probes) and no install scripts. */
@@ -204,6 +204,38 @@ export function installers(assets: readonly FeedAsset[]): FeedAsset[] {
 
 export function installScripts(assets: readonly FeedAsset[]): FeedAsset[] {
   return assets.filter((asset) => !isProbe(asset) && isInstallScript(asset));
+}
+
+/** The OS an install script is for; its arch is a placeholder and never shown. */
+export function scriptOs(asset: Pick<FeedAsset, "name" | "platform">): Os {
+  if (isOs(asset.platform)) return asset.platform;
+  const name = asset.name.toLowerCase();
+  if (name.endsWith(".ps1")) return "Windows";
+  if (name === "install-macos.sh") return "macOS";
+  return "Linux";
+}
+
+function osRank(os: string): number {
+  const index = (OS_ORDER as string[]).indexOf(os);
+  return index === -1 ? OS_ORDER.length : index;
+}
+
+/** Client archives without the desktop app, by OS (macOS, Windows, Linux) then CPU. */
+export function probes(assets: readonly FeedAsset[]): FeedAsset[] {
+  const archRank = (asset: FeedAsset) => {
+    const arches = archOrder(asset.platform);
+    const index = arches.indexOf(asset.arch);
+    return index === -1 ? arches.length : index;
+  };
+  return assets
+    .filter(isProbe)
+    .sort(
+      (a, b) =>
+        osRank(a.platform) - osRank(b.platform) ||
+        a.platform.localeCompare(b.platform) ||
+        archRank(a) - archRank(b) ||
+        a.name.localeCompare(b.name),
+    );
 }
 
 function archOrder(os: string): string[] {
@@ -554,34 +586,94 @@ function CommandLine(props: {
   manifest: FeedManifest;
   navigate: (url: string) => void;
 }) {
-  const scripts = installScripts(props.manifest.assets);
-  if (!scripts.length) return null;
+  const scripts = installScripts(props.manifest.assets).sort(
+    (a, b) => osRank(scriptOs(a)) - osRank(scriptOs(b)) || a.name.localeCompare(b.name),
+  );
+  const archives = probes(props.manifest.assets);
+  if (!scripts.length && !archives.length) return null;
   return (
     <aside className={s.note} aria-label="Command-line install">
       <Terminal aria-hidden="true" className={s.noteIcon} />
       <div className={s.noteBody}>
-        <p className={s.noteTitle}>Command-line install</p>
-        <p>
-          For a server without a desktop, download the install script and run it there. It
-          checks each download against this site&rsquo;s signed release feed.
-        </p>
-        <div className={s.noteActions}>
-          {scripts.map((script) => (
-            <DownloadButton
-              key={script.id}
-              resolve={props.resolve}
-              asset={script}
-              navigate={props.navigate}
-              variant="outline"
-              size="sm"
-            >
-              {script.name}
-              {` (${script.name.endsWith(".ps1") || script.platform === "Windows" ? "Windows" : "Linux"})`}
-            </DownloadButton>
-          ))}
-        </div>
+        <h2 className={s.noteTitle}>Command-line install</h2>
+        {scripts.length > 0 && (
+          <div className={s.noteSection}>
+            <h3 className={s.groupTitle}>Install scripts</h3>
+            <p>
+              For a server without a desktop, download the install script and run it there. It
+              checks each download against this site&rsquo;s signed release feed.
+            </p>
+            <ul className={s.rows}>
+              {scripts.map((script) => (
+                <AssetRow
+                  key={script.id}
+                  resolve={props.resolve}
+                  asset={script}
+                  navigate={props.navigate}
+                  chip={scriptOs(script)}
+                />
+              ))}
+            </ul>
+          </div>
+        )}
+        {archives.length > 0 && (
+          <div className={s.noteSection}>
+            <h3 className={s.groupTitle}>Client archives for the install scripts</h3>
+            <p>
+              The install script downloads the right archive itself and checks it against the
+              signed release feed. They are listed here so you can compare checksums or fetch one
+              by hand.
+            </p>
+            <ul className={s.rows}>
+              {archives.map((archive) => (
+                <AssetRow
+                  key={archive.id}
+                  resolve={props.resolve}
+                  asset={archive}
+                  navigate={props.navigate}
+                  chip={`${archive.platform} · ${archLabel(archive.platform, archive.arch)}`}
+                />
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </aside>
+  );
+}
+
+/** One command-line asset: file name, a chip, size, SHA-256 and its download button. */
+function AssetRow(props: {
+  resolve: Resolve;
+  asset: FeedAsset;
+  navigate: (url: string) => void;
+  chip: string;
+}) {
+  const { asset } = props;
+  return (
+    <li className={s.row}>
+      <div className={s.rowMain}>
+        <p className={s.rowTitle}>
+          <span className={s.fileName}>{asset.name}</span>
+          <span className={s.chip}>{props.chip}</span>
+        </p>
+        <p className={s.rowMeta}>{formatSize(asset.size)}</p>
+        <details className={s.checksum}>
+          <summary>SHA-256</summary>
+          <code>{asset.sha256}</code>
+        </details>
+      </div>
+      <DownloadButton
+        resolve={props.resolve}
+        asset={asset}
+        navigate={props.navigate}
+        variant="outline"
+        size="sm"
+        ariaLabel={`Download ${asset.name}`}
+      >
+        Download
+      </DownloadButton>
+    </li>
   );
 }
 
