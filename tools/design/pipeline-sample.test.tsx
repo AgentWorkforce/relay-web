@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { PipelineSample } from "./pipeline-sample";
-import { cohort, synthesis, provenance, pipelineDownloads, pipelineAnalysis, pipelineReference } from "./pipeline-sample-data";
+import { cohort, synthesis, provenance, pipelineDownloads, pipelineAnalysis, pipelineReference, synthesisV2, provenanceV2, pipelineV2Downloads, pipelineTitleClaim } from "./pipeline-sample-data";
 import { Workbench } from "./workbench";
 
 it("keeps the exact source fixture bytes and exported schema pinned to their provenance", () => {
@@ -74,7 +74,7 @@ it("keeps the frozen pipeline cohort independent of the Northstar scenario selec
   history.replaceState(null, "", "/?view=Pipeline+sample&scenario=empty");
   render(<Workbench />);
   expect(screen.getByRole("combobox", {name: "Scenario"})).toBeDisabled();
-  expect(screen.getByText(/40 analyzed/)).toBeInTheDocument();
+  expect(screen.getByText("40 analyzed", {exact: true})).toBeInTheDocument();
   expect(screen.getByRole("region", {name: "Source-owned pipeline sample"})).toBeInTheDocument();
   expect(screen.getByText(/separate frozen synthetic pipeline cohort/)).toBeInTheDocument();
   expect(screen.queryByText("Everything here belongs to the fictional Northstar Studio.")).not.toBeInTheDocument();
@@ -88,4 +88,59 @@ it("preserves source bytes through the catalog copy and download actions", () =>
   expect(copy).toHaveBeenCalledWith(pipelineDownloads.synthesis.text);
   fireEvent.click(screen.getByRole("button", {name: "JSON"}));
   expect(download).toHaveBeenCalledWith(pipelineDownloads.synthesis.text, "expected-synthesis.json", true);
+});
+
+it("pins the provisional v2 producer input, fake reply and computed output without changing v1", () => {
+  for (const [name, receipt] of Object.entries(provenanceV2.files)) {
+    const bytes = readFileSync(join(process.cwd(), "tools/design/fixtures/synthesis", name));
+    expect(createHash("sha256").update(bytes).digest("hex")).toBe(receipt.sha256);
+    expect(bytes.length).toBe(receipt.bytes);
+    expect(Object.values(pipelineV2Downloads).find(item => item.name === name)?.text).toBe(bytes.toString("utf8"));
+  }
+  const { stage2, stage2Reason, ...base } = synthesisV2;
+  expect(stage2Reason).toBeNull();
+  expect({...base, contract: "workspace-synthesis/1"}).toEqual(synthesis);
+  for (const item of [...stage2.initiatives, ...stage2.themes]) {
+    for (const ref of item.evidence) {
+      expect(item.sessions).toContainEqual({source: ref.source, sessionId: ref.sessionId});
+      const claim = pipelineTitleClaim(ref, ref.titleRef);
+      expect(claim).not.toBeNull();
+      for (const id of claim!.evidenceIds) expect(pipelineReference(ref, id)).not.toBeNull();
+    }
+  }
+  for (const hypothesis of stage2.hypotheses) {
+    expect(hypothesis.impact).toBe("unmeasured");
+    for (const id of hypothesis.basis) expect([...stage2.initiatives, ...stage2.themes].some(item => item.id === id)).toBe(true);
+  }
+  const ref = stage2.initiatives[0]!.evidence[0]!;
+  for (const invalid of ["b0", "b999", "e1", "b1/trailing"]) expect(pipelineTitleClaim(ref, invalid)).toBeNull();
+  expect(pipelineTitleClaim({...ref, source: "wrong-source"}, ref.titleRef)).toBeNull();
+});
+
+it("labels v2 as a simulated reply and resolves its claim citation through F1 evidence", () => {
+  const download = vi.fn();
+  render(<PipelineSample onDownload={download} />);
+  const preview = screen.getByLabelText("Pipeline v2 producer preview");
+  expect(within(preview).getByText(/reply is hand-written/)).toBeInTheDocument();
+  expect(within(preview).getByText(/synthesis-call telemetry/)).toBeInTheDocument();
+  const ref = synthesisV2.stage2.initiatives[0]!.evidence[0]!;
+  fireEvent.click(within(preview).getByRole("button", {name: `Inspect ${ref.titleRef} · ${ref.source} / ${ref.sessionId}`}));
+  const claim = pipelineTitleClaim(ref, ref.titleRef)!;
+  const detail = screen.getByLabelText("Pipeline v2 claim reference");
+  expect(within(detail).getByText(`${claim.text} (${claim.basis}, ${claim.confidence})`)).toBeInTheDocument();
+  fireEvent.click(within(detail).getByRole("button", {name: `Inspect cited evidence ${claim.evidenceIds[0]}`}));
+  expect(within(screen.getByLabelText("Pipeline evidence reference")).getByText(pipelineReference(ref, claim.evidenceIds[0]!)!.summary)).toBeInTheDocument();
+  fireEvent.click(within(preview).getByRole("button", {name: "Download expected-synthesis-v2.json"}));
+  expect(download).toHaveBeenCalledWith(pipelineV2Downloads.synthesis.text, "expected-synthesis-v2.json", true);
+});
+
+it("exports the producer v2 contract rather than the Northstar product proposal", () => {
+  const copy = vi.fn().mockResolvedValue(undefined);
+  const download = vi.fn();
+  render(<CatalogPanel scenario="empty" entryId="pipeline-synthesis-v2" copy="" onSelect={vi.fn()} onCopy={copy} onDownload={download} />);
+  fireEvent.click(screen.getByRole("button", {name: "Copy JSON"}));
+  expect(copy).toHaveBeenCalledWith(pipelineV2Downloads.synthesis.text);
+  fireEvent.click(screen.getByRole("button", {name: "JSON"}));
+  expect(download).toHaveBeenCalledWith(pipelineV2Downloads.synthesis.text, "expected-synthesis-v2.json", true);
+  expect(screen.getByText(/hand-written/)).toBeInTheDocument();
 });

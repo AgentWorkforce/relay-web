@@ -1,0 +1,37 @@
+{
+  "repository": "https://github.com/AgentWorkforce/relayhistory-pipeline",
+  "commit": "923778b559c6090565814e90cfaf3c49684da98d",
+  "status": "Provisional review commit; synthetic cohort and hand-written fake model reply; no real model call",
+  "contract": "workspace-synthesis/2",
+  "files": {
+    "expected-synthesis-v2.json": {
+      "path": "src/session-intel/__tests__/fixtures/synthesis/expected-synthesis-v2.json",
+      "sha256": "c0138cd4f1f83d4d31682f63f5cccb0f07c06959b6dc97465672fd12869d0ce9",
+      "bytes": 21294
+    },
+    "stage2-reply.json": {
+      "path": "src/session-intel/__tests__/fixtures/synthesis/stage2-reply.json",
+      "sha256": "65e738fb1d7794e0db03c4bab5a3a30780f709e28bedaf5f2d71a236ed305dbb",
+      "bytes": 2259
+    },
+    "expected-stage2-input.json": {
+      "path": "src/session-intel/__tests__/fixtures/synthesis/expected-stage2-input.json",
+      "sha256": "85c2a92e20632a82000c9b8631902f7f2ab12e822d82ac855747d946d2f250da",
+      "bytes": 15142
+    }
+  },
+  "v1Compatibility": "Removing stage2 and stage2Reason and setting contract to workspace-synthesis/1 yields the pinned v1 document.",
+  "limitations": [
+    "No verified real populated F1 or aggregate.",
+    "No runtime model transport, durable budget ledger or v2 serving in this pin.",
+    "No project/team spend attribution or deduplicated token/cost sums.",
+    "stage2.usage is the synthesis call telemetry, not the team usage."
+  ],
+  "validation": {
+    "sourceCommand": "bun test src/session-intel/__tests__/synthesis.test.ts src/session-intel/__tests__/synthesis-stage2.test.ts",
+    "passed": 63,
+    "failed": 0,
+    "assertions": 920,
+    "note": "Independent exact-pin tests; all calls use a fake transport. This does not measure real model quality."
+  }
+}
