@@ -14,14 +14,21 @@ import { Button, Card, CardContent, CardHeader, CardTitle, Switch } from "../she
  * card, and a save still in flight for the old workspace is dropped.
  */
 export function DelegationSection(props: { workspaceId: string; canManage: boolean }) {
-  const { data, reload } = useLoad((signal) => adminApi.delegationPolicy(props.workspaceId, signal));
+  // Each completed read is a new observation, numbered, even when its value
+  // equals the previous read's: the card compares reads, not booleans.
+  const reads = useRef(0);
+  const { data, reload } = useLoad(async (signal) => ({
+    policy: await adminApi.delegationPolicy(props.workspaceId, signal),
+    read: ++reads.current,
+  }));
   // A failed first read hides the card rather than show a state relay-control
   // did not confirm. A failed re-read keeps the last confirmed state.
   if (!data) return null;
   return (
     <DelegationEnabledCard
       workspaceId={props.workspaceId}
-      initialEnabled={data.delegation_enabled}
+      serverEnabled={data.policy.delegation_enabled}
+      readId={data.read}
       canManage={props.canManage}
       onSaveFailed={reload}
     />
@@ -49,12 +56,16 @@ function saveError(failure: unknown): string {
  */
 export function DelegationEnabledCard({
   workspaceId,
-  initialEnabled,
+  serverEnabled,
+  readId,
   canManage,
   onSaveFailed,
 }: {
   workspaceId: string;
-  initialEnabled: boolean;
+  /** The value of the latest completed read. */
+  serverEnabled: boolean;
+  /** Identifies that read: a new id is a fresh read, whatever its value. */
+  readId: number;
   canManage: boolean;
   /** Asks for a fresh read, so a failed save shows the server's latest value. */
   onSaveFailed?: () => void;
@@ -68,33 +79,35 @@ export function DelegationEnabledCard({
       mounted.current = false;
     };
   }, []);
-  const [enabled, setEnabled] = useState(initialEnabled);
+  const [enabled, setEnabled] = useState(serverEnabled);
   const [confirming, setConfirming] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Follow a new server value (a re-read after another admin changed it). A
-  // value that arrives while a save is in flight may predate it, so it is
-  // consumed without being applied: if the save succeeds its confirmed answer
-  // stands; if it fails, that latest server value is applied (or the pre-save
-  // state stays when none arrived). Later server values are followed.
-  const latestServerValue = useRef(initialEnabled);
+  // Follow every fresh read (a re-read after a failed save, or after another
+  // admin changed it), tracked by read id rather than by value: a fresh read
+  // whose value equals an older read is still applied. A read that completes
+  // while a save is in flight may predate it, so it is consumed without being
+  // applied: if the save succeeds its confirmed answer stands; if it fails,
+  // that latest read is applied (or the pre-save state stays when none
+  // arrived). Later reads are followed.
+  const latestRead = useRef({ id: readId, enabled: serverEnabled });
   useEffect(() => {
-    latestServerValue.current = initialEnabled;
-  }, [initialEnabled]);
-  const [seen, setSeen] = useState(initialEnabled);
-  if (seen !== initialEnabled) {
-    setSeen(initialEnabled);
+    latestRead.current = { id: readId, enabled: serverEnabled };
+  }, [readId, serverEnabled]);
+  const [seenRead, setSeenRead] = useState(readId);
+  if (seenRead !== readId) {
+    setSeenRead(readId);
     if (!pending) {
-      setEnabled(initialEnabled);
+      setEnabled(serverEnabled);
       setConfirming(false);
     }
   }
 
   const save = async (next: boolean) => {
-    const serverValueAtStart = latestServerValue.current;
-    // A failed save shows the latest server value if one arrived while it ran.
+    const readAtStart = latestRead.current.id;
+    // A failed save shows the latest read if one completed while it ran.
     const failed = (failure: unknown) => {
-      if (latestServerValue.current !== serverValueAtStart) setEnabled(latestServerValue.current);
+      if (latestRead.current.id !== readAtStart) setEnabled(latestRead.current.enabled);
       setError(saveError(failure));
       onSaveFailed?.();
     };
@@ -106,6 +119,8 @@ export function DelegationEnabledCard({
     try {
       const policy = await adminApi.setDelegationEnabled(workspaceId, next);
       if (!mounted.current) return;
+      // The saved value is now the baseline; only a later read replaces it.
+      latestRead.current = { ...latestRead.current, enabled: policy.delegation_enabled };
       setEnabled(policy.delegation_enabled);
     } catch (failure) {
       if (!mounted.current) return;

@@ -38,8 +38,17 @@ function respond(call: Call): Reply {
 const puts = () => calls.filter((call) => call.method === "PUT");
 const toggle = () => screen.getByRole("switch");
 const prompt = () => screen.queryByText(/Turn on delegation for this workspace\?/);
-const card = (props: Partial<Parameters<typeof DelegationEnabledCard>[0]> = {}) => (
-  <DelegationEnabledCard workspaceId="w1" initialEnabled={false} canManage {...props} />
+type CardProps = Parameters<typeof DelegationEnabledCard>[0];
+let readCounter = 0;
+/**
+ * The card as rendered after a completed read of `initialEnabled`. Each call
+ * is a fresh read with a new read id unless `readId` is given (a plain
+ * re-render of the same read).
+ */
+const card = ({ initialEnabled = false, readId, ...props }:
+  Partial<Omit<CardProps, "serverEnabled">> & { initialEnabled?: boolean } = {}) => (
+  <DelegationEnabledCard workspaceId="w1" serverEnabled={initialEnabled} readId={readId ?? ++readCounter}
+    canManage {...props} />
 );
 /** A PUT that answers only when the test says so. */
 function heldPut() {
@@ -57,6 +66,7 @@ beforeEach(() => {
   role = "owner";
   stored = false;
   reply = null;
+  readCounter = 0;
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: string, init: RequestInit = {}) => {
@@ -154,10 +164,9 @@ it("a stale server value that arrives during a save never overwrites the confirm
   rerender(card({ initialEnabled: false }));
   await act(async () => held.resolve(json({ delegation_enabled: true })));
   expect(await screen.findByText("Delegation is on")).toBeInTheDocument();
-  // Re-rendering with the same stale value changes nothing; a newer server value is followed.
-  rerender(card({ initialEnabled: false }));
+  // Re-rendering the same stale read changes nothing; a newer read is followed.
+  rerender(card({ initialEnabled: false, readId: readCounter }));
   expect(screen.getByText("Delegation is on")).toBeInTheDocument();
-  rerender(card({ initialEnabled: true }));
   rerender(card({ initialEnabled: false }));
   expect(screen.getByText("Delegation is off")).toBeInTheDocument();
 });
@@ -264,4 +273,43 @@ it("ignores a save answer that arrives after a workspace switch", async () => {
   expect(toggle()).toBeEnabled();
   // The new card wrote nothing, and the switch never targeted w2.
   expect(puts().map((call) => call.path)).toEqual([POLICY]);
+});
+
+/** The next PUT commits on the server but its response never reaches the browser. */
+function loseNextPutResponse() {
+  reply = (call) => {
+    if (call.method !== "PUT") return undefined;
+    reply = null;
+    stored = (call.body as { delegation_enabled: boolean }).delegation_enabled;
+    return Promise.reject(new TypeError("Failed to fetch"));
+  };
+}
+
+it("on, then off: a committed off whose response is lost shows the recovery read's off (review)", async () => {
+  render(<DelegationSection workspaceId="w1" canManage />);
+  fireEvent.click(await screen.findByRole("switch"));
+  fireEvent.click(screen.getByRole("button", { name: "Turn on delegation" }));
+  expect(await screen.findByText("Delegation is on")).toBeInTheDocument();
+  // The recovery read returns `false`, the same value as the first read.
+  loseNextPutResponse();
+  fireEvent.click(toggle());
+  expect(await screen.findByRole("alert")).toHaveTextContent("Could not reach the server");
+  expect(await screen.findByText("Delegation is off")).toBeInTheDocument();
+  expect(toggle()).toHaveAttribute("aria-checked", "false");
+  expect(calls.filter((call) => call.method === "GET" && call.path === POLICY)).toHaveLength(2);
+});
+
+it("off, then on: a committed on whose response is lost shows the recovery read's on (review)", async () => {
+  stored = true;
+  render(<DelegationSection workspaceId="w1" canManage />);
+  fireEvent.click(await screen.findByRole("switch"));
+  expect(await screen.findByText("Delegation is off")).toBeInTheDocument();
+  // The recovery read returns `true`, the same value as the first read.
+  loseNextPutResponse();
+  fireEvent.click(toggle());
+  fireEvent.click(screen.getByRole("button", { name: "Turn on delegation" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Could not reach the server");
+  expect(await screen.findByText("Delegation is on")).toBeInTheDocument();
+  expect(toggle()).toHaveAttribute("aria-checked", "true");
+  expect(prompt()).not.toBeInTheDocument();
 });
