@@ -23,6 +23,10 @@ import {
   feedEnvelopeSchema,
   feedProfilesSchema,
   githubReleasesSchema,
+  createdInstallTokenSchema,
+  installTokenSummarySchema,
+  installTokensSchema,
+  type InstallTokenSummary,
   type GithubReleases,
   type FeedChannel,
   type FeedManifest,
@@ -148,6 +152,33 @@ export const desktopFeedApi = {
   downloadUrl: (profile: string, assetId: string) =>
     call(`/v1/desktop/feed/assets/${enc(assetId)}/download-url`, feedDownloadUrlSchema, {
       method: "POST",
+      headers: feedHeaders(profile),
+    }),
+  /** The caller's own install tokens for the profile; null when the feed is off (404). */
+  installTokens: async (
+    profile: string,
+    signal?: AbortSignal,
+  ): Promise<InstallTokenSummary[] | null> =>
+    (
+      await orNull(
+        call("/v1/desktop/feed/install-tokens", installTokensSchema, {
+          signal,
+          headers: feedHeaders(profile),
+        }),
+      )
+    )?.tokens ?? null,
+  /** The secret `token` is in this answer only; 429 past the hourly limit. */
+  createInstallToken: (profile: string, label?: string) =>
+    // Without a label call() sends `{}`, which the route accepts.
+    call("/v1/desktop/feed/install-tokens", createdInstallTokenSchema, {
+      method: "POST",
+      headers: feedHeaders(profile),
+      ...(label ? { body: { label } } : {}),
+    }),
+  /** 404 `install_token_not_found` when the id is unknown. */
+  revokeInstallToken: (profile: string, id: string) =>
+    call(`/v1/desktop/feed/install-tokens/${enc(id)}`, installTokenSummarySchema, {
+      method: "DELETE",
       headers: feedHeaders(profile),
     }),
 };
