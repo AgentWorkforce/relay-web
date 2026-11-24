@@ -1,3 +1,4 @@
+import { operatorData } from "./operator-data";
 import { ArrowUpRight, Download } from "lucide-react";
 import {
   Button,
@@ -9,7 +10,6 @@ import {
 import {
   dataset,
   fixtureClock,
-  proposedInitiatives,
   seed,
   type ScenarioId,
 } from "./scenarios";
@@ -23,6 +23,7 @@ export function GuidePanel({
   onConcept: () => void;
   onDownload: (value: unknown, name: string) => void;
 }) {
+  const analysis = operatorData(scenario);
   return (
     <section className="design-guide" aria-label="Designer onboarding">
       <Card>
@@ -145,7 +146,8 @@ export function GuidePanel({
                   clock: fixtureClock,
                   seed,
                   sessions: dataset(scenario),
-                  proposedInitiatives,
+                  proposedInitiatives: analysis.initiatives,
+                  operatorAnalysis: analysis,
                 },
                 `relay-${scenario}-design-pack.json`,
               )

@@ -1,3 +1,5 @@
+import { GuidePanel } from "./guide-panel";
+import { operatorData } from "./operator-data";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { Workbench } from "./workbench";
@@ -129,4 +131,49 @@ it("does not present a server contract for proposed fields", () => {
   expect(
     screen.getByText(/No server contract or deployed capability is asserted/),
   ).toBeInTheDocument();
+});
+
+it("drills a work category into the actual supporting human prompt", () => {
+  render(<Workbench />);
+  fireEvent.click(screen.getByRole("button", { name: /Operator concept/ }));
+  fireEvent.click(screen.getByRole("button", { name: "testing (1)" }));
+  const detail = screen.getByLabelText("Work category drill-down");
+  expect(within(detail).getByText("Validate the edge migration against the cache contract.")).toBeInTheDocument();
+  fireEvent.click(within(detail).getByRole("button", { name: /Open prompt evidence/ }));
+  expect(screen.getByTitle("Real dashboard with synthetic data")).toHaveAttribute("src", "/preview/small/?session=design-session-2&source=claude");
+});
+
+it("uses the full busy cohort in initiative cards and project drill-downs", () => {
+  history.replaceState(null, "", "/?view=Operator+concept&scenario=busy");
+  render(<Workbench />);
+  expect(screen.getAllByRole("button", {name: "View all 10 supporting sessions"})).toHaveLength(3);
+  fireEvent.click(screen.getByRole("button", {name: "Edge migration"}));
+  expect(within(screen.getByRole("region", {name: "Proposed project drill-down"})).getAllByRole("button", {name: "Inspect transcript"})).toHaveLength(10);
+});
+
+it("does not show current initiative cards or restored project detail without current analysis", () => {
+  for (const scenario of ["stale", "partial"]) {
+    history.replaceState(null, "", `/?view=Operator+concept&scenario=${scenario}&project=Edge+migration`);
+    const rendered = render(<Workbench />);
+    expect(screen.getByText("Current initiative analysis is unavailable")).toBeInTheDocument();
+    expect(screen.queryByRole("region", {name: "Proposed project drill-down"})).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", {name: "Edge migration"})).not.toBeInTheDocument();
+    expect(screen.queryByText("Routing implemented; staging validation pending")).not.toBeInTheDocument();
+    rendered.unmount();
+  }
+});
+
+it("downloads the same cohort and analysis availability from the onboarding guide", () => {
+  for (const scenario of ["busy", "stale", "partial", "empty"] as const) {
+    const download = vi.fn();
+    const rendered = render(<GuidePanel scenario={scenario} onConcept={vi.fn()} onDownload={download} />);
+    fireEvent.click(screen.getByRole("button", {name: "Download scenario pack"}));
+    const [pack, filename] = download.mock.calls[0]!;
+    const analysis = operatorData(scenario);
+    expect(pack.proposedInitiatives).toEqual(analysis.initiatives);
+    expect(pack.operatorAnalysis).toEqual(analysis);
+    expect(pack.sessions).toHaveLength(analysis.coverage.recordedSessions);
+    expect(filename).toBe(`relay-${scenario}-design-pack.json`);
+    rendered.unmount();
+  }
 });

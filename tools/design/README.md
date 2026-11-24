@@ -5,6 +5,14 @@ http://127.0.0.1:5174/. This uses the locked Vite/React/Tailwind dependencies;
 it needs no backend, secrets, extra packages or login. The
 [designer brief](../../docs/designer-onboarding.md) is the starting guide.
 
+## Operator data
+
+See the [operator data handoff](../../docs/operator-data-handoff.md) for the implemented
+per-session inputs, verified availability limits and missing cross-session synthesis.
+Operator concept now includes work-category drill-downs to human prompts, work themes and
+an evidence-backed improvement hypothesis. Data catalog can export the linked proposed pack.
+All interpretations are hand-authored synthetic examples, with stale/unavailable analysis states.
+
 ## Architecture
 
 - `vite.config.ts`: a separate, loopback-only development server and HTML roots.

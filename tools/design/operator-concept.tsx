@@ -1,3 +1,5 @@
+import { operatorData } from "./operator-data";
+import { OperatorEvidence } from "./operator-evidence";
 import { ArrowUpRight } from "lucide-react";
 import {
   Button,
@@ -28,6 +30,7 @@ export function OperatorConcept({
   onSession: (id: string) => void;
 }) {
   const data = dataset(scenario);
+  const analysisPack = operatorData(scenario);
   const selectedProject = proposedInitiatives.find(
     (item) => item.name === project,
   );
@@ -36,8 +39,9 @@ export function OperatorConcept({
       <div className="design-notice">
         <strong>Proposed product experience</strong>
         <p>
-          These initiative summaries, decisions and next steps are hand-authored
-          design examples. They are not returned by today’s operator APIs.
+          This concept uses hand-authored design examples. Initiative synthesis
+          is shown only when the selected scenario has current analysis. These
+          proposed fields are not returned by today’s operator APIs.
           Activity is not completion; no percentage or spend is implied.
         </p>
         <Button
@@ -63,6 +67,14 @@ export function OperatorConcept({
             No recorded work yet. Start with a clear onboarding state.
           </CardContent>
         </Card>
+      ) : analysisPack.coverage.currentAnalysisSessions === 0 ? (
+        <Card>
+          <CardContent className="p-6">
+            <strong>Current initiative analysis is unavailable</strong>
+            <p>{analysisPack.coverage.staleAnalysisSessions > 0 ? "The analysis is older than the recorded activity. Refresh it before showing a current initiative synthesis." : "These sessions have no available analysis. Recorded transcripts remain available in the dashboard."}</p>
+            <Button variant="outline" size="sm" onClick={() => inspect("operator-data")}>Inspect analysis coverage</Button>
+          </CardContent>
+        </Card>
       ) : selectedProject ? (
         <section
           className="design-project-detail"
@@ -73,6 +85,8 @@ export function OperatorConcept({
           </Button>
           <h2>{selectedProject.name}</h2>
           <p>{selectedProject.progress}</p>
+          <h3>What the humans asked for</h3>
+          {data.filter(({row}) => row.project.name === selectedProject.name).map(({row, events}) => <div key={row.sessionId} className="design-notice"><p>{events[0]!.content}</p><Button variant="ghost" size="sm" onClick={() => showSession(row.sessionId)}>Inspect original prompt</Button></div>)}
           {selectedProject.decision && (
             <div className="design-notice">
               <strong>Proposed decision needed</strong>
@@ -89,8 +103,8 @@ export function OperatorConcept({
             makes a claim.
           </p>
           <div className="design-project-detail-sessions">
-            {selectedProject.sessionIds.map((ref) => {
-              const record = data.find(({ row }) => row.sessionId === ref)!;
+            {data.filter(({ row }) => row.project.name === selectedProject.name).map((record) => {
+              const ref = record.row.sessionId;
               return (
                 <Card key={ref}>
                   <CardHeader>
@@ -151,6 +165,7 @@ export function OperatorConcept({
                 </CardTitle>
               </CardHeader>
               <CardContent>
+                {analysisPack.initiatives.find(initiative => initiative.title === item.name) && <p><strong>Human goal:</strong> {analysisPack.initiatives.find(initiative => initiative.title === item.name)!.humanGoal}</p>}
                 <p>{item.progress}</p>
                 {item.decision && (
                   <div className="design-decision">
@@ -164,27 +179,29 @@ export function OperatorConcept({
                 </div>
                 <div className="design-evidence">
                   <span>Supporting sessions</span>
-                  {item.sessionIds.map((ref) => (
+                  {data.filter(({ row }) => row.project.name === item.name).slice(0, 3).map(({row}) => (
                     <Button
-                      key={ref}
+                      key={row.sessionId}
                       variant="ghost"
                       size="sm"
-                      onClick={() => showSession(ref)}
+                      onClick={() => showSession(row.sessionId)}
                     >
-                      {data.find(({ row }) => row.sessionId === ref)?.row.title}
+                      {row.title}
                       <ArrowUpRight size={13} />
                     </Button>
                   ))}
+                  <Button variant="ghost" size="sm" onClick={() => setProject(item.name)}>View all {data.filter(({row}) => row.project.name === item.name).length} supporting sessions</Button>
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
+      {(!selectedProject || analysisPack.coverage.currentAnalysisSessions === 0) && <OperatorEvidence scenario={scenario} onSession={showSession} onInspect={inspect} />}
       <p className="design-footnote">
-        Concept scope: the first six synthetic sessions. “Service error” and
-        “Slow service” affect the supporting dashboard reads; this hand-authored
-        proposal is not a live synthesis.
+        Counts and project membership use the complete selected synthetic cohort.
+        “Service error” and “Slow service” affect the supporting dashboard reads;
+        this hand-authored proposal is not a live synthesis.
       </p>
     </section>
   );
