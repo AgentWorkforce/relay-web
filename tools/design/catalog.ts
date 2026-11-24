@@ -21,6 +21,7 @@ export type CatalogEntry = {
   endpoint: string;
   source?: string;
   rawExport?: { text: string; name: string };
+  fixedCohort?: boolean;
   limitation: string;
   fields: Field[];
   example: (scenario: ScenarioId) => unknown;
@@ -285,6 +286,7 @@ export const catalog: CatalogEntry[] = [
   },
   {
     id: "pipeline-synthesis",
+    fixedCohort: true,
     rawExport: pipelineDownloads.synthesis,
     title: "Pipeline synthesis v1",
     availability: "Experimental",
@@ -303,6 +305,7 @@ export const catalog: CatalogEntry[] = [
   },
   {
     id: "pipeline-synthesis-v2",
+    fixedCohort: true,
     rawExport: pipelineV2Downloads.synthesis,
     title: "Pipeline synthesis v2 preview",
     availability: "Experimental",

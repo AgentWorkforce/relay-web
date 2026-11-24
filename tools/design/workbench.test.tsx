@@ -133,6 +133,19 @@ it("does not present a server contract for proposed fields", () => {
   ).toBeInTheDocument();
 });
 
+it.each(["Pipeline synthesis v1", "Pipeline synthesis v2 preview"])("keeps %s frozen without discarding the selected operator project", title => {
+  history.replaceState(null, "", "/?view=Operator+concept&project=Edge+migration&scenario=small");
+  render(<Workbench />);
+  expect(screen.getByRole("region", {name: "Proposed project drill-down"})).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", {name: /Data catalog/}));
+  fireEvent.click(within(screen.getByRole("navigation", {name: "Data domains"})).getByRole("button", {name: new RegExp(title)}));
+  expect(screen.getByRole("combobox", {name: "Scenario"})).toBeDisabled();
+  expect(screen.getByText("Frozen source cohort; the scenario selector does not apply.")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", {name: /Operator concept/}));
+  expect(screen.getByRole("region", {name: "Proposed project drill-down"})).toBeInTheDocument();
+  expect(screen.getByRole("combobox", {name: "Scenario"})).toBeEnabled();
+});
+
 it("drills a work category into the actual supporting human prompt", () => {
   render(<Workbench />);
   fireEvent.click(screen.getByRole("button", { name: /Operator concept/ }));

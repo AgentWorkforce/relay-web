@@ -84,7 +84,7 @@ export function Workbench() {
     [],
   );
   const frame = useRef<HTMLIFrameElement>(null);
-  const pipelineView = view === "Pipeline sample" || (view === "Data catalog" && entryId === "pipeline-synthesis");
+  const pipelineView = view === "Pipeline sample" || (view === "Data catalog" && catalog.find(entry => entry.id === entryId)?.fixedCohort === true);
   const scenarioInfo = scenarios.find((item) => item.id === scenario)!;
   const data = dataset(scenario);
   const requestedPreview =
