@@ -10,10 +10,11 @@ import { delegationError } from "./delegation-errors";
 import { useLoad } from "./use-load";
 import { Button, Card, CardContent, CardHeader, CardTitle, Switch } from "../shell/ui";
 import { DelegatesSection } from "./delegates-section";
+import { TrustRuleCard } from "./trust-rule-card";
 
 /**
  * Reads the workspace's stored delegation policy and shows the switch for it,
- * then the Delegates section, which follows the policy (claims and new grants
+ * the caller's trust rule while delegation is on, then the Delegates section, which follows the policy (claims and new grants
  * need delegation on; grants cannot outlive its maximum). Render it keyed by
  * workspace id: a workspace switch then starts fresh, and a request still in
  * flight for the old workspace is dropped.
@@ -41,6 +42,7 @@ export function DelegationSection(props: { workspaceId: string; canManage: boole
         onSaved={reload}
         onSaveFailed={reload}
       />
+      {data.policy.delegation_enabled ? <TrustRuleCard workspaceId={props.workspaceId} /> : null}
       <DelegatesSection
         workspaceId={props.workspaceId}
         delegationEnabled={data.policy.delegation_enabled}
