@@ -198,3 +198,82 @@ it("drops an answer that arrives after a workspace switch", async () => {
   expect(screen.queryByText("stale answer for w1")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Revoke trust rule" })).not.toBeInTheDocument();
 });
+
+it("applies a successful turn-on at once, and shows a failed re-read with a retry", async () => {
+  let reads = 0;
+  reply = (call) => (call.path === ROUTE && call.method === "GET" && ++reads > 1
+    ? [503, { error: "Delegation is unavailable", code: "unavailable" }] : undefined);
+  render(<TrustRuleCard workspaceId="w1" delegationEnabled />);
+  fireEvent.click(await screen.findByRole("button", { name: "Trust my connected assistants" }));
+  fireEvent.click(screen.getByRole("button", { name: "Turn on the trust rule" }));
+  expect(await screen.findByRole("button", { name: "Revoke trust rule" })).toBeInTheDocument();
+  expect(await screen.findByRole("alert")).toHaveTextContent("Delegation is unavailable");
+  expect(screen.queryByRole("button", { name: "Trust my connected assistants" })).not.toBeInTheDocument();
+  reply = null;
+  fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+  await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  expect(screen.getByRole("button", { name: "Revoke trust rule" })).toBeInTheDocument();
+});
+
+it("applies a successful revoke at once: while the re-read is in flight, the rule is off and nothing can re-send", async () => {
+  state = ON;
+  let finishReread!: (reply: [number, unknown]) => void;
+  let reads = 0;
+  reply = (call) => (call.path === ROUTE && call.method === "GET" && ++reads === 2
+    ? new Promise((resolve) => { finishReread = resolve; }) : undefined);
+  render(<TrustRuleCard workspaceId="w1" delegationEnabled />);
+  fireEvent.click(await screen.findByRole("button", { name: "Revoke trust rule" }));
+  expect(await screen.findByRole("button", { name: "Trust my connected assistants" })).toBeInTheDocument();
+  await waitFor(() => expect(reads).toBe(2));
+  expect(screen.queryByRole("button", { name: "Revoke trust rule" })).not.toBeInTheDocument();
+  expect(screen.queryByText("bot-1")).not.toBeInTheDocument();
+  expect(writes()).toEqual([{ method: "DELETE", path: ROUTE, body: {} }]);
+  await act(async () => finishReread([200, OFF]));
+  expect(screen.getByRole("button", { name: "Trust my connected assistants" })).toBeInTheDocument();
+});
+
+it("a read issued before a successful write never replaces what the write confirmed", async () => {
+  // Read 1 answers off; read 2 (a retry issued before the write) is held and answers "off" after the
+  // turn-on; the turn-on's re-read (read 3) fails.
+  let reads = 0;
+  let finishSecond!: (reply: [number, unknown]) => void;
+  reply = (call) => {
+    if (call.path !== ROUTE || call.method !== "GET") return undefined;
+    reads += 1;
+    if (reads === 1) return [503, { error: "Delegation is unavailable", code: "unavailable" }];
+    if (reads === 2) return new Promise((resolve) => { finishSecond = resolve; });
+    if (reads >= 4) return [503, { error: "Delegation is unavailable", code: "unavailable" }];
+    return undefined;
+  };
+  render(<TrustRuleCard workspaceId="w1" delegationEnabled />);
+  fireEvent.click(await screen.findByRole("button", { name: "Try again" }));
+  fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+  // Read 3 answers off and is applied; read 2 is still in flight.
+  fireEvent.click(await screen.findByRole("button", { name: "Trust my connected assistants" }));
+  fireEvent.click(screen.getByRole("button", { name: "Turn on the trust rule" }));
+  expect(await screen.findByRole("button", { name: "Revoke trust rule" })).toBeInTheDocument();
+  await waitFor(() => expect(reads).toBe(4));
+  await act(async () => finishSecond([200, OFF]));
+  expect(screen.getByRole("button", { name: "Revoke trust rule" })).toBeInTheDocument();
+});
+
+it("follows a Trusted delegates change at once, even when the policy re-read fails", async () => {
+  let enabled = false;
+  let policyReads = 0;
+  reply = (call) => {
+    if (!call.path.endsWith("/delegates/policy")) return undefined;
+    if (call.method === "PUT") {
+      enabled = (call.body as { delegation_enabled: boolean }).delegation_enabled;
+      return [200, { delegation_enabled: enabled, max_expiry_days: 30 }];
+    }
+    return ++policyReads > 1 ? [503, { error: "Delegation is unavailable", code: "unavailable" }]
+      : [200, { delegation_enabled: enabled, max_expiry_days: 30 }];
+  };
+  render(<DelegationSection workspaceId="w1" canManage />);
+  expect(await screen.findByText("Turn on Trusted delegates to use the trust rule.")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("switch"));
+  fireEvent.click(screen.getByRole("button", { name: "Turn on delegation" }));
+  expect(await screen.findByRole("button", { name: "Trust my connected assistants" })).toBeInTheDocument();
+  await waitFor(() => expect(policyReads).toBe(2));
+  expect(screen.queryByText("Turn on Trusted delegates to use the trust rule.")).not.toBeInTheDocument();
+});

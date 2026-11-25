@@ -54,7 +54,7 @@ export function DelegationSection(props: { workspaceId: string; canManage: boole
         onSaveFailed={reload}
       />
       {/* Shown with delegation off too: a rule stays revocable while delegation is off. */}
-      <TrustRuleCard workspaceId={props.workspaceId} delegationEnabled={data.policy.delegation_enabled} />
+      <TrustRuleCard workspaceId={props.workspaceId} delegationEnabled={policy.delegation_enabled} />
       <DelegatesSection
         workspaceId={props.workspaceId}
         delegationEnabled={policy.delegation_enabled}

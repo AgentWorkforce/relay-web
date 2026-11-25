@@ -5,7 +5,7 @@
 // class (#owner-decisions 251241083284656128), so turning it on sends `{}`.
 import { useEffect, useRef, useState } from "react";
 import { adminApi, ApiError } from "./api";
-import type { TrustRuleCovered } from "./contracts";
+import type { TrustRuleCovered, TrustRuleState } from "./contracts";
 import { delegationError } from "./delegation-errors";
 import { useLoad } from "./use-load";
 import { Button, Card, CardContent, CardHeader, CardTitle } from "../shell/ui";
@@ -31,6 +31,10 @@ export function rootLabel(item: Pick<TrustRuleCovered, "root_kind" | "connector"
  * It belongs to the workspace it was rendered for (DelegationSection is keyed
  * by workspace id): an answer that settles after a switch is dropped. A
  * relay-control without the trust-rule route (404 on the read) hides it.
+ *
+ * A successful turn-on or revoke is applied at once from its answer, then
+ * re-read; a read issued before the write never replaces it (even if the
+ * re-read fails, which shows its error with a retry).
  */
 export function TrustRuleCard({
   workspaceId,
@@ -47,19 +51,29 @@ export function TrustRuleCard({
       mounted.current = false;
     };
   }, []);
-  const { data: state, error: loadError, reload } = useLoad((signal) => adminApi.trustRule(workspaceId, signal));
+  // Reads are numbered when issued, so a write's confirmed state outranks every read issued before it.
+  const reads = useRef(0);
+  const { data, error: loadError, reload } = useLoad(async (signal) => {
+    const read = ++reads.current;
+    return { state: await adminApi.trustRule(workspaceId, signal), read };
+  });
+  const [confirmed, setConfirmed] = useState<{ state: TrustRuleState; through: number } | null>(null);
+  const state = confirmed && (!data || data.read <= confirmed.through) ? confirmed.state : (data?.state ?? null);
   const [confirming, setConfirming] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (loadError instanceof ApiError && loadError.status === 404 && !state) return null;
 
-  const write = async (work: () => Promise<unknown>, fallback: string) => {
+  /** Runs one write; `work` answers the state it confirmed, applied before the re-read. */
+  const write = async (work: () => Promise<TrustRuleState>, fallback: string) => {
     setPending(true);
     setError(null);
     try {
-      await work();
-      if (mounted.current) reload();
+      const next = await work();
+      if (!mounted.current) return;
+      setConfirmed({ state: next, through: reads.current });
+      reload();
     } catch (failure) {
       if (mounted.current) setError(delegationError(failure, fallback));
     } finally {
@@ -69,7 +83,12 @@ export function TrustRuleCard({
       }
     }
   };
-  const turnOn = () => write(() => adminApi.putTrustRule(workspaceId), "Could not turn on the trust rule. Try again.");
+  const turnOn = () =>
+    write(async () => {
+      const { rule } = await adminApi.putTrustRule(workspaceId);
+      // A new rule covers no agent until one relays an approval; the re-read fills in the lists.
+      return { rule, covered: [], shadowed: [] };
+    }, "Could not turn on the trust rule. Try again.");
   const revoke = () =>
     write(async () => {
       try {
@@ -78,6 +97,7 @@ export function TrustRuleCard({
         // A revoke that finds no rule (another tab revoked it) still leaves the rule off.
         if (!(failure instanceof ApiError && failure.status === 404)) throw failure;
       }
+      return { rule: null, covered: [], shadowed: [] };
     }, "Could not revoke the trust rule. Try again.");
 
   const rule = state?.rule ?? null;
@@ -91,7 +111,7 @@ export function TrustRuleCard({
           Trust every assistant you connect, and every agent they start, for every action class this workspace allows.
           It has no expiry and needs no tap from you. It lasts until you revoke it here or disconnect the assistant.
         </p>
-        {loadError && !state ? (
+        {loadError ? (
           <p role="alert" className="text-sm text-destructive">
             {delegationError(loadError, "Could not load your trust rule.")}{" "}
             <Button type="button" variant="outline" size="sm" onClick={reload}>Try again</Button>
