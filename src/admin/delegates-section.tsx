@@ -301,7 +301,11 @@ export function DelegatesSection({
               {grants.map((grant) => (
                 <li key={grant.grant_id} className="flex flex-wrap items-center gap-2 text-sm">
                   <code>{grant.delegate_agent_id}</code>
-                  <span>{grant.scopes.map((scope) => `${scope.class}: ${scope.targets.join(" ")}`).join("; ")}</span>
+                  <span>
+                    {grant.trust_rule_id
+                      ? "All classes (trust rule)"
+                      : grant.scopes.map((scope) => `${scope.class}: ${scope.targets.join(" ")}`).join("; ")}
+                  </span>
                   {grant.require_tier_o.length ? (
                     <span>{`needs the owner's own approval for ${grant.require_tier_o.join(", ")}`}</span>
                   ) : null}
@@ -332,9 +336,9 @@ export function DelegatesSection({
               {confirm.kind === "one"
                 ? "Revoke this grant? Its unredeemed approvals stop working at once."
                 : all
-                  ? "Revoke every grant and approval in this workspace? Every grant is revoked, and every unredeemed " +
+                  ? "Revoke every grant and approval in this workspace? Every grant and every trust rule is revoked, and every unredeemed " +
                     "approval from anyone stops working at once, including approvals given without a grant."
-                  : "Revoke all your grants and approvals? Every grant you made is revoked, and every unredeemed " +
+                  : "Revoke all your grants and approvals? Every grant you made and your trust rule are revoked, and every unredeemed " +
                     "approval you gave stops working at once, including approvals given without a grant."}
             </p>
             <div className="flex gap-2">

@@ -356,3 +356,9 @@ it("does not bring a claim code back after delegation is turned off and on again
   expect(screen.getByRole("button", { name: "Start a claim" })).toBeInTheDocument();
   expect(screen.queryByTestId("claim-code")).not.toBeInTheDocument();
 });
+
+it("shows a trust-rule grant (scopes []) as covering every class", async () => {
+  routes = { "GET /": () => [200, { grants: [grant({ scopes: [], trust_rule_id: "dtr_1", delegate_agent_id: "bot-1" })] }] };
+  render(section());
+  expect(await screen.findByText("All classes (trust rule)")).toBeInTheDocument();
+});

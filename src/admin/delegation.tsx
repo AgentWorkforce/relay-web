@@ -38,6 +38,8 @@ export function DelegationSection(props: { workspaceId: string; canManage: boole
   // rule ends the grants it created. A change in one re-reads the other.
   const [grantsChanged, setGrantsChanged] = useState(0);
   const [ruleChanged, setRuleChanged] = useState(0);
+  // A saved policy change re-reads the trust rule card too (what it covers follows delegation on or off).
+  const [policyChanged, setPolicyChanged] = useState(0);
   // A failed first read hides the card rather than show a state relay-control
   // did not confirm. A failed re-read keeps the last confirmed state.
   if (!data) return null;
@@ -54,6 +56,7 @@ export function DelegationSection(props: { workspaceId: string; canManage: boole
         // it shows the server's value.
         onSaved={(confirmed) => {
           setSaved({ policy: confirmed, through: reads.current });
+          setPolicyChanged((value) => value + 1);
           reload();
         }}
         onSaveFailed={reload}
@@ -62,7 +65,8 @@ export function DelegationSection(props: { workspaceId: string; canManage: boole
       <TrustRuleCard
         workspaceId={props.workspaceId}
         delegationEnabled={policy.delegation_enabled}
-        refreshKey={grantsChanged}
+        // Both counters only grow, so their sum changes whenever either does.
+        refreshKey={grantsChanged + policyChanged}
         onChanged={() => setRuleChanged((value) => value + 1)}
       />
       <DelegatesSection

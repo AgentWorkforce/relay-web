@@ -322,3 +322,39 @@ it("re-reads the Delegates list after the rule is revoked, since revoking it end
   await waitFor(() => expect(screen.queryByRole("button", { name: "Revoke bot-1" })).not.toBeInTheDocument());
   expect(screen.getByText(/^revoked, expires/)).toBeInTheDocument();
 });
+
+it("re-reads the rule after revoke-all under Delegates, which also ends the rule", async () => {
+  state = ON;
+  reply = (call) => {
+    if (call.path.endsWith("/delegates/policy")) return [200, { delegation_enabled: true, max_expiry_days: 30 }];
+    if (call.method === "POST" && call.path.endsWith("/delegates/revoke-all")) {
+      state = OFF;
+      return [200, { revoked: ["grt_1"] }];
+    }
+    return undefined;
+  };
+  render(<DelegationSection workspaceId="w1" canManage />);
+  expect(await screen.findByRole("button", { name: "Revoke trust rule" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Revoke all my grants and approvals" }));
+  expect(screen.getByText(/your trust rule are revoked/)).toBeInTheDocument();
+  fireEvent.click(within(screen.getByRole("group", { name: "Confirm revocation" })).getByRole("button", { name: "Revoke" }));
+  expect(await screen.findByRole("button", { name: "Trust my connected assistants" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Revoke trust rule" })).not.toBeInTheDocument();
+});
+
+it("re-reads the rule after a Trusted delegates change is saved", async () => {
+  state = ON;
+  let enabled = true;
+  reply = (call) => {
+    if (!call.path.endsWith("/delegates/policy")) return undefined;
+    if (call.method === "PUT") enabled = (call.body as { delegation_enabled: boolean }).delegation_enabled;
+    return [200, { delegation_enabled: enabled, max_expiry_days: 30 }];
+  };
+  render(<DelegationSection workspaceId="w1" canManage />);
+  expect(await screen.findByRole("button", { name: "Revoke trust rule" })).toBeInTheDocument();
+  const ruleReads = () => calls.filter((call) => call.method === "GET" && call.path === ROUTE).length;
+  const before = ruleReads();
+  fireEvent.click(screen.getByRole("switch"));
+  expect(await screen.findByText("Delegation is off")).toBeInTheDocument();
+  await waitFor(() => expect(ruleReads()).toBeGreaterThan(before));
+});

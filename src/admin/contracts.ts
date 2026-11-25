@@ -504,6 +504,8 @@ export const delegateGrantSchema = z.object({
   require_tier_o: z.array(z.string()),
   expires_at: z.string(),
   status: z.string(),
+  /** Set on a grant the owner's trust rule created: it covers every class the policy allows, with `scopes: []`. */
+  trust_rule_id: z.string().nullable().optional(),
 });
 export type DelegateGrant = z.infer<typeof delegateGrantSchema>;
 export const delegateGrantsSchema = z.object({ grants: z.array(delegateGrantSchema) });
