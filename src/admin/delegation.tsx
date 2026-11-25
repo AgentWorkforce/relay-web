@@ -6,6 +6,7 @@
 // Under the card sits the Delegates section (delegates-section.tsx).
 import { useEffect, useRef, useState } from "react";
 import { adminApi } from "./api";
+import type { DelegationPolicy } from "./contracts";
 import { delegationError } from "./delegation-errors";
 import { useLoad } from "./use-load";
 import { Button, Card, CardContent, CardHeader, CardTitle, Switch } from "../shell/ui";
@@ -19,32 +20,42 @@ import { DelegatesSection } from "./delegates-section";
  * flight for the old workspace is dropped.
  */
 export function DelegationSection(props: { workspaceId: string; canManage: boolean }) {
-  // Each completed read is a new observation, numbered, even when its value
-  // equals the previous read's: the card compares reads, not booleans.
+  // Each read is a new observation, numbered when it is issued, even when its
+  // value equals the previous read's: the card compares reads, not booleans.
   const reads = useRef(0);
-  const { data, reload } = useLoad(async (signal) => ({
-    policy: await adminApi.delegationPolicy(props.workspaceId, signal),
-    read: ++reads.current,
-  }));
+  const { data, reload } = useLoad(async (signal) => {
+    const read = ++reads.current;
+    return { policy: await adminApi.delegationPolicy(props.workspaceId, signal), read };
+  });
+  // The policy a successful save confirmed, and the last read issued before
+  // it. It stands over any read issued no later than that (even one that
+  // completes after the save, or when the re-read fails); a read issued after
+  // the save replaces it.
+  const [saved, setSaved] = useState<{ policy: DelegationPolicy; through: number } | null>(null);
   // A failed first read hides the card rather than show a state relay-control
   // did not confirm. A failed re-read keeps the last confirmed state.
   if (!data) return null;
+  const policy = saved && data.read <= saved.through ? saved.policy : data.policy;
   return (
     <>
       <DelegationEnabledCard
         workspaceId={props.workspaceId}
-        serverEnabled={data.policy.delegation_enabled}
+        serverEnabled={policy.delegation_enabled}
         readId={data.read}
         canManage={props.canManage}
-        // Either way, re-read: what depends on the policy (the Delegates
-        // section) follows a save, and a failed save shows the server's value.
-        onSaved={reload}
+        // Apply the confirmed policy at once (the Delegates section follows it
+        // even if the re-read fails), then re-read. A failed save re-reads so
+        // it shows the server's value.
+        onSaved={(confirmed) => {
+          setSaved({ policy: confirmed, through: reads.current });
+          reload();
+        }}
         onSaveFailed={reload}
       />
       <DelegatesSection
         workspaceId={props.workspaceId}
-        delegationEnabled={data.policy.delegation_enabled}
-        maxExpiryDays={data.policy.max_expiry_days}
+        delegationEnabled={policy.delegation_enabled}
+        maxExpiryDays={policy.max_expiry_days}
         isAdmin={props.canManage}
       />
     </>
@@ -71,8 +82,8 @@ export function DelegationEnabledCard({
   /** Identifies that read: a new id is a fresh read, whatever its value. */
   readId: number;
   canManage: boolean;
-  /** Asks for a fresh read after a successful save. */
-  onSaved?: () => void;
+  /** Gets the policy the save confirmed; the parent applies it, then re-reads. */
+  onSaved?: (policy: DelegationPolicy) => void;
   /** Asks for a fresh read, so a failed save shows the server's latest value. */
   onSaveFailed?: () => void;
 }) {
@@ -131,7 +142,7 @@ export function DelegationEnabledCard({
       // The saved value is now the baseline; only a later read replaces it.
       latestRead.current = { ...latestRead.current, enabled: policy.delegation_enabled };
       setEnabled(policy.delegation_enabled);
-      onSaved?.();
+      onSaved?.(policy);
     } catch (failure) {
       if (!mounted.current) return;
       failed(failure);

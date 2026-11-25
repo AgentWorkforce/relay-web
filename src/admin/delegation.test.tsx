@@ -333,3 +333,54 @@ it("off, then on: a committed on whose response is lost shows the recovery read'
   expect(toggle()).toHaveAttribute("aria-checked", "true");
   expect(prompt()).not.toBeInTheDocument();
 });
+
+it("applies the confirmed policy to the Delegates section at once, even when the re-read fails", async () => {
+  let policyReads = 0;
+  reply = (call) => {
+    if (call.method === "GET" && call.path === POLICY && ++policyReads > 1)
+      return json({ error: "Delegation is unavailable", code: "unavailable" }, 503);
+    return undefined;
+  };
+  render(<DelegationSection workspaceId="w1" canManage />);
+  expect(await screen.findByText(/Delegation is off for this workspace/)).toBeInTheDocument();
+  fireEvent.click(toggle());
+  fireEvent.click(screen.getByRole("button", { name: "Turn on delegation" }));
+  expect(await screen.findByRole("button", { name: "Start a claim" })).toBeInTheDocument();
+  await waitFor(() => expect(policyReads).toBe(2));
+  expect(screen.getByText("Delegation is on")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Start a claim" })).toBeInTheDocument();
+});
+
+it("a policy read issued before a successful save never replaces the saved state, even if the re-read fails", async () => {
+  // Read 1 answers off. A failed save asks for read 2, which is held and answers the old "off" only
+  // after a later successful save; that save's re-read (read 3) fails.
+  let policyReads = 0;
+  let finishSecond!: (response: Response) => void;
+  let putFails = true;
+  reply = (call) => {
+    if (call.method === "PUT") {
+      if (putFails) return Promise.reject(new TypeError("Failed to fetch"));
+      stored = true;
+      return undefined;
+    }
+    if (call.path !== POLICY) return undefined;
+    policyReads += 1;
+    if (policyReads === 2) return new Promise<Response>((resolve) => { finishSecond = resolve; });
+    if (policyReads >= 3) return json({ error: "Delegation is unavailable", code: "unavailable" }, 503);
+    return undefined;
+  };
+  render(<DelegationSection workspaceId="w1" canManage />);
+  fireEvent.click(await screen.findByRole("switch"));
+  fireEvent.click(screen.getByRole("button", { name: "Turn on delegation" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Could not reach the server");
+  await waitFor(() => expect(policyReads).toBe(2));
+  putFails = false;
+  fireEvent.click(toggle());
+  fireEvent.click(screen.getByRole("button", { name: "Turn on delegation" }));
+  expect(await screen.findByRole("button", { name: "Start a claim" })).toBeInTheDocument();
+  await waitFor(() => expect(policyReads).toBe(3));
+  await act(async () => finishSecond(json({ delegation_enabled: false, max_expiry_days: 90, allowed_classes: null,
+    require_tier_o: [], code_owner_match: "any_path" })));
+  expect(screen.getByText("Delegation is on")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Start a claim" })).toBeInTheDocument();
+});

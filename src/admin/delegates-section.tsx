@@ -27,6 +27,10 @@ const fieldClass =
  *
  * It belongs to the workspace it was rendered for (DelegationSection is keyed
  * by workspace id): an answer that settles after a switch is dropped.
+ *
+ * The grant list belongs to the view it was read for (mine, or every grant):
+ * rows from another view are never shown, so a Revoke button always matches
+ * its view, and a failed read shows its error with a retry.
  */
 export function DelegatesSection({
   workspaceId,
@@ -47,9 +51,12 @@ export function DelegatesSection({
     };
   }, []);
   const [all, setAll] = useState(false);
-  const { data: grants, error: loadError, reload } = useLoad((signal) =>
-    adminApi.delegateGrants(workspaceId, all, signal),
-  );
+  const { data: list, error: loadError, reload } = useLoad(async (signal) => ({
+    all,
+    grants: await adminApi.delegateGrants(workspaceId, all, signal),
+  }));
+  // Only rows read for the view on screen; another view's rows (and their Revoke buttons) never show.
+  const grants = list && list.all === all ? list.grants : null;
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -60,6 +67,9 @@ export function DelegatesSection({
   const [targets, setTargets] = useState("");
   const [expiryDays, setExpiryDays] = useState("");
   const [tierO, setTierO] = useState(false);
+
+  // A claim code is shown once; turning delegation off and on again must not bring it back.
+  if (!delegationEnabled && claim) setClaim(null);
 
   /** Runs one change; `work` answers true when the grant list should be re-read. */
   const run = async (work: () => Promise<boolean | void>, fallback: string) => {
@@ -83,9 +93,14 @@ export function DelegatesSection({
 
   const addGrant = () =>
     run(async () => {
-      const list = targets.split(/[\s,]+/u).map((target) => target.trim()).filter(Boolean);
+      // Targets are separated by whitespace, which no target can hold; a comma can be part of one.
+      const list = targets.split(/\s+/u).filter(Boolean);
       if (!agentId.trim() || !list.length) {
         setError("Enter the agent id and at least one target.");
+        return;
+      }
+      if (list.some((target) => target.endsWith(","))) {
+        setError("Separate targets with spaces, not commas: a comma is kept as part of the target.");
         return;
       }
       const days = expiryDays.trim() ? Number(expiryDays) : null;
@@ -118,7 +133,7 @@ export function DelegatesSection({
         if (mounted.current) setNotice("Grant revoked.");
       } else {
         const revoked = await adminApi.revokeAllDelegateGrants(workspaceId, all);
-        if (mounted.current) setNotice(`Revoked ${revoked.length} grant(s).`);
+        if (mounted.current) setNotice(`Revoked ${revoked.length} grant(s) and the approvals in scope.`);
       }
       return true;
     }, "Could not revoke. Try again.");
@@ -134,7 +149,6 @@ export function DelegatesSection({
   };
 
   const id = (name: string) => `delegates-${name}-${workspaceId}`;
-  const activeGrants = grants?.filter((grant) => grant.status === "active") ?? [];
   return (
     <Card>
       <CardHeader>
@@ -201,11 +215,11 @@ export function DelegatesSection({
                 </select>
               </div>
               <div className="flex flex-col gap-1">
-                <label htmlFor={id("targets")} className="text-sm font-medium">Targets</label>
+                <label htmlFor={id("targets")} className="text-sm font-medium">Targets (separated by spaces)</label>
                 <Input
                   id={id("targets")}
                   value={targets}
-                  placeholder="owner/repo, owner/*"
+                  placeholder="owner/repo owner/*"
                   onChange={(event) => setTargets(event.target.value)}
                   disabled={pending}
                 />
@@ -253,19 +267,19 @@ export function DelegatesSection({
                 Show every grant in the workspace
               </label>
             ) : null}
-            {activeGrants.length ? (
-              <Button type="button" variant="outline" disabled={pending} onClick={() => setConfirm({ kind: "all" })}>
-                {all ? "Revoke every grant" : "Revoke all my grants"}
-              </Button>
-            ) : null}
+            {/* Always offered: it also revokes approvals given without a grant, which the list does not show. */}
+            <Button type="button" variant="outline" disabled={pending} onClick={() => setConfirm({ kind: "all" })}>
+              {all ? "Revoke every grant and approval" : "Revoke all my grants and approvals"}
+            </Button>
           </div>
-          {loadError && !grants ? (
+          {loadError ? (
             <p role="alert" className="text-sm text-destructive">
               {delegationError(loadError, "Could not load grants.")}{" "}
               <Button type="button" variant="outline" size="sm" onClick={reload}>Try again</Button>
             </p>
-          ) : grants === null ? (
-            <p className="text-sm text-muted-foreground">Loading grants...</p>
+          ) : null}
+          {grants === null ? (
+            loadError ? null : <p className="text-sm text-muted-foreground">Loading grants...</p>
           ) : grants.length === 0 ? (
             <p className="text-sm text-muted-foreground">No grants yet.</p>
           ) : (
@@ -273,7 +287,10 @@ export function DelegatesSection({
               {grants.map((grant) => (
                 <li key={grant.grant_id} className="flex flex-wrap items-center gap-2 text-sm">
                   <code>{grant.delegate_agent_id}</code>
-                  <span>{grant.scopes.map((scope) => `${scope.class}: ${scope.targets.join(", ")}`).join("; ")}</span>
+                  <span>{grant.scopes.map((scope) => `${scope.class}: ${scope.targets.join(" ")}`).join("; ")}</span>
+                  {grant.require_tier_o.length ? (
+                    <span>{`needs the owner's own approval for ${grant.require_tier_o.join(", ")}`}</span>
+                  ) : null}
                   <span className="text-muted-foreground">
                     {`${grant.status}, expires ${new Date(grant.expires_at).toLocaleDateString()}`}
                   </span>
@@ -301,8 +318,10 @@ export function DelegatesSection({
               {confirm.kind === "one"
                 ? "Revoke this grant? Its unredeemed approvals stop working at once."
                 : all
-                  ? "Revoke every grant in this workspace? Every unredeemed approval under them stops working at once."
-                  : "Revoke all your grants? Every unredeemed approval under them stops working at once."}
+                  ? "Revoke every grant and approval in this workspace? Every grant is revoked, and every unredeemed " +
+                    "approval from anyone stops working at once, including approvals given without a grant."
+                  : "Revoke all your grants and approvals? Every grant you made is revoked, and every unredeemed " +
+                    "approval you gave stops working at once, including approvals given without a grant."}
             </p>
             <div className="flex gap-2">
               <Button type="button" disabled={pending} onClick={() => void revoke()}>Revoke</Button>

@@ -83,7 +83,7 @@ it("grants with the form's values and shows the server's refusal", async () => {
   render(section());
   fireEvent.change(screen.getByLabelText("Agent id"), { target: { value: "assistant-9" } });
   fireEvent.change(screen.getByLabelText("Class"), { target: { value: "release" } });
-  fireEvent.change(screen.getByLabelText("Targets"), { target: { value: "acme/web:stable:*:*:*, acme/api:stable:*:*:*" } });
+  fireEvent.change(screen.getByLabelText(/^Targets/), { target: { value: "acme/web:stable:*:*:*  acme/api:stable:*:*:*" } });
   fireEvent.change(screen.getByLabelText(/Expires in/), { target: { value: "7" } });
   fireEvent.click(screen.getByLabelText(/Require my own approval/));
   fireEvent.click(screen.getByRole("button", { name: "Grant" }));
@@ -110,7 +110,7 @@ it("a successful grant clears the form, says so and re-reads the list", async ()
   render(section());
   await screen.findByText("No grants yet.");
   fireEvent.change(screen.getByLabelText("Agent id"), { target: { value: "assistant-9" } });
-  fireEvent.change(screen.getByLabelText("Targets"), { target: { value: "acme/*" } });
+  fireEvent.change(screen.getByLabelText(/^Targets/), { target: { value: "acme/*" } });
   fireEvent.click(screen.getByRole("button", { name: "Grant" }));
   expect(await screen.findByText("Granted assistant-9.")).toBeInTheDocument();
   expect(await screen.findByText("assistant-9")).toBeInTheDocument();
@@ -126,7 +126,7 @@ it("refuses an expiry past the policy maximum, or a missing target, before sendi
   fireEvent.change(screen.getByLabelText("Agent id"), { target: { value: "a" } });
   fireEvent.click(screen.getByRole("button", { name: "Grant" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Enter the agent id and at least one target.");
-  fireEvent.change(screen.getByLabelText("Targets"), { target: { value: "acme/*" } });
+  fireEvent.change(screen.getByLabelText(/^Targets/), { target: { value: "acme/*" } });
   fireEvent.change(screen.getByLabelText(/Expires in/), { target: { value: "30" } });
   fireEvent.click(screen.getByRole("button", { name: "Grant" }));
   await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("from 1 to 14"));
@@ -152,8 +152,9 @@ it("revokes one grant only after a confirmation, then re-reads", async () => {
 it("cancelling a revocation sends nothing", async () => {
   routes = { "GET /": () => [200, { grants: [grant()] }] };
   render(section());
-  fireEvent.click(await screen.findByRole("button", { name: "Revoke all my grants" }));
-  expect(screen.getByText(/Revoke all your grants\?/)).toBeInTheDocument();
+  await screen.findByText("assistant-1");
+  fireEvent.click(screen.getByRole("button", { name: "Revoke all my grants and approvals" }));
+  expect(screen.getByText(/Revoke all your grants and approvals\?/)).toBeInTheDocument();
   fireEvent.click(within(confirmGroup()).getByRole("button", { name: "Cancel" }));
   expect(screen.queryByRole("group", { name: "Confirm revocation" })).not.toBeInTheDocument();
   expect(writes()).toEqual([]);
@@ -169,10 +170,11 @@ it("revoke-all asks first; an admin's 'every grant' view revokes with {all: true
   await screen.findByText("assistant-1");
   fireEvent.click(screen.getByLabelText("Show every grant in the workspace"));
   expect(await screen.findByText("bot-2")).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Revoke every grant" }));
-  expect(screen.getByText(/Revoke every grant in this workspace\?/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Revoke every grant and approval" }));
+  expect(screen.getByText(/Revoke every grant and approval in this workspace\?/)).toHaveTextContent(
+    "including approvals given without a grant");
   fireEvent.click(within(confirmGroup()).getByRole("button", { name: "Revoke" }));
-  expect(await screen.findByText("Revoked 2 grant(s).")).toBeInTheDocument();
+  expect(await screen.findByText("Revoked 2 grant(s) and the approvals in scope.")).toBeInTheDocument();
   expect(writes()).toEqual([{ method: "POST", path: `${BASE}/revoke-all`, body: { all: true } }]);
 });
 
@@ -184,9 +186,9 @@ it("a member's revoke-all sends {} for their own grants, and members get no 'eve
   render(section());
   await screen.findByText("assistant-1");
   expect(screen.queryByText("Show every grant in the workspace")).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Revoke all my grants" }));
+  fireEvent.click(screen.getByRole("button", { name: "Revoke all my grants and approvals" }));
   fireEvent.click(within(confirmGroup()).getByRole("button", { name: "Revoke" }));
-  expect(await screen.findByText("Revoked 1 grant(s).")).toBeInTheDocument();
+  expect(await screen.findByText("Revoked 1 grant(s) and the approvals in scope.")).toBeInTheDocument();
   expect(writes()).toEqual([{ method: "POST", path: `${BASE}/revoke-all`, body: {} }]);
 });
 
@@ -213,7 +215,7 @@ it("with delegation off, hides claims and new grants but keeps list and revoke",
   expect(screen.queryByRole("form", { name: "Grant a delegate" })).not.toBeInTheDocument();
   expect(screen.getByText(/Delegation is off for this workspace/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Revoke assistant-1" })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Revoke all my grants" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Revoke all my grants and approvals" })).toBeInTheDocument();
 });
 
 it("sits under the toggle, follows it on, and takes the policy's expiry cap", async () => {
@@ -250,4 +252,107 @@ it("drops an answer that arrives after a workspace switch", async () => {
   expect(screen.queryByTestId("claim-code")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Start a claim" })).toBeEnabled();
   expect(await screen.findByText("No grants yet.")).toBeInTheDocument();
+});
+
+it("keeps a literal comma inside a target, and refuses commas used as separators", async () => {
+  routes = { "GET /": () => [200, { grants: [] }], "POST /": () => [201, grant()] };
+  render(section());
+  fireEvent.change(screen.getByLabelText("Agent id"), { target: { value: "assistant-1" } });
+  fireEvent.change(screen.getByLabelText("Class"), { target: { value: "external_comms" } });
+  fireEvent.change(screen.getByLabelText(/^Targets/), { target: { value: "acme, channel:ops" } });
+  fireEvent.click(screen.getByRole("button", { name: "Grant" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Separate targets with spaces");
+  expect(writes()).toEqual([]);
+  fireEvent.change(screen.getByLabelText(/^Targets/), { target: { value: "channel:ops,security channel:eng" } });
+  fireEvent.click(screen.getByRole("button", { name: "Grant" }));
+  await waitFor(() => expect(writes()).toHaveLength(1));
+  expect(writes()[0]!.body).toMatchObject({
+    scopes: [{ class: "external_comms", targets: ["channel:ops,security", "channel:eng"] }],
+  });
+});
+
+it("never shows the every-grant rows in the personal view, and shows a failed read of it with a retry", async () => {
+  let mineFails = false;
+  routes = {
+    "GET /?all=1": () => [200, { grants: [grant({ grant_id: "grt_other0001", owner_id: "u2", delegate_agent_id: "bot-2" })] }],
+    "GET /": () => (mineFails ? [503, { error: "Delegation is unavailable", code: "unavailable" }] : [200, { grants: [grant()] }]),
+  };
+  render(section({ isAdmin: true }));
+  await screen.findByText("assistant-1");
+  fireEvent.click(screen.getByLabelText("Show every grant in the workspace"));
+  expect(await screen.findByText("bot-2")).toBeInTheDocument();
+  mineFails = true;
+  fireEvent.click(screen.getByLabelText("Show every grant in the workspace"));
+  // The every-grant rows go at once, before the personal read settles.
+  expect(screen.queryByText("bot-2")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Revoke bot-2" })).not.toBeInTheDocument();
+  expect(await screen.findByRole("alert")).toHaveTextContent("Delegation is unavailable");
+  expect(screen.queryByText("bot-2")).not.toBeInTheDocument();
+  mineFails = false;
+  fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+  expect(await screen.findByText("assistant-1")).toBeInTheDocument();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+it("drops an every-grant answer that settles after the admin went back to their own grants", async () => {
+  let finishAll!: (reply: [number, unknown]) => void;
+  routes = {
+    "GET /?all=1": () => new Promise((resolve) => { finishAll = resolve; }),
+    "GET /": () => [200, { grants: [grant()] }],
+  };
+  render(section({ isAdmin: true }));
+  await screen.findByText("assistant-1");
+  fireEvent.click(screen.getByLabelText("Show every grant in the workspace"));
+  expect(screen.queryByText("assistant-1")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByLabelText("Show every grant in the workspace"));
+  expect(await screen.findByText("assistant-1")).toBeInTheDocument();
+  await act(async () => finishAll([200, { grants: [grant({ grant_id: "grt_other0001", owner_id: "u2", delegate_agent_id: "bot-2" })] }]));
+  expect(screen.queryByText("bot-2")).not.toBeInTheDocument();
+  expect(screen.getByText("assistant-1")).toBeInTheDocument();
+});
+
+it("shows a failed re-read after a revocation alongside the list it still has", async () => {
+  let reads = 0;
+  routes = {
+    "GET /": () => (++reads === 1 ? [200, { grants: [grant()] }] : [503, { error: "Delegation is unavailable", code: "unavailable" }]),
+    "DELETE /grt_abcdefgh1": () => [200, grant({ status: "revoked" })],
+  };
+  render(section());
+  fireEvent.click(await screen.findByRole("button", { name: "Revoke assistant-1" }));
+  fireEvent.click(within(confirmGroup()).getByRole("button", { name: "Revoke" }));
+  expect(await screen.findByText("Grant revoked.")).toBeInTheDocument();
+  expect(await screen.findByRole("alert")).toHaveTextContent("Delegation is unavailable");
+  expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+});
+
+it("offers revoke-all with no grants listed, since it also revokes approvals given without a grant", async () => {
+  routes = { "GET /": () => [200, { grants: [] }], "POST /revoke-all": () => [200, { revoked: [] }] };
+  render(section());
+  await screen.findByText("No grants yet.");
+  fireEvent.click(screen.getByRole("button", { name: "Revoke all my grants and approvals" }));
+  expect(screen.getByText(/Revoke all your grants and approvals\?/)).toHaveTextContent(
+    "including approvals given without a grant");
+  fireEvent.click(within(confirmGroup()).getByRole("button", { name: "Revoke" }));
+  expect(await screen.findByText("Revoked 0 grant(s) and the approvals in scope.")).toBeInTheDocument();
+  expect(writes()).toEqual([{ method: "POST", path: `${BASE}/revoke-all`, body: {} }]);
+});
+
+it("shows the classes a grant needs the owner's own (Tier O) approval for", async () => {
+  routes = { "GET /": () => [200, { grants: [grant({ require_tier_o: ["merge"] })] }] };
+  render(section());
+  expect(await screen.findByText("needs the owner's own approval for merge")).toBeInTheDocument();
+});
+
+it("does not bring a claim code back after delegation is turned off and on again", async () => {
+  routes = {
+    "GET /": () => [200, { grants: [] }],
+    "POST /claims": () => [201, { claim_id: "clm_1", code: "dlg_onetimecode", expires_at: "2026-11-25T00:10:00.000Z" }],
+  };
+  const { rerender } = render(section());
+  fireEvent.click(screen.getByRole("button", { name: "Start a claim" }));
+  expect(await screen.findByTestId("claim-code")).toHaveTextContent("dlg_onetimecode");
+  rerender(section({ delegationEnabled: false }));
+  rerender(section({ delegationEnabled: true }));
+  expect(screen.getByRole("button", { name: "Start a claim" })).toBeInTheDocument();
+  expect(screen.queryByTestId("claim-code")).not.toBeInTheDocument();
 });
