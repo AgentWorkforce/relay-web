@@ -39,10 +39,16 @@ export function rootLabel(item: Pick<TrustRuleCovered, "root_kind" | "connector"
 export function TrustRuleCard({
   workspaceId,
   delegationEnabled,
+  refreshKey = 0,
+  onChanged,
 }: {
   workspaceId: string;
   /** With delegation off, a rule can only be revoked, not turned on; it covers nothing until delegation is on again. */
   delegationEnabled: boolean;
+  /** A new value re-reads the rule (a grant changed under Delegates, which can change what the rule covers or what wins over it). */
+  refreshKey?: number;
+  /** Called after the rule was turned on or revoked, so the Delegates list (which holds its grants) re-reads. */
+  onChanged?: () => void;
 }) {
   const mounted = useRef(true);
   useEffect(() => {
@@ -58,6 +64,11 @@ export function TrustRuleCard({
     return { state: await adminApi.trustRule(workspaceId, signal), read };
   });
   const [confirmed, setConfirmed] = useState<{ state: TrustRuleState; through: number } | null>(null);
+  const [seenRefresh, setSeenRefresh] = useState(refreshKey);
+  if (seenRefresh !== refreshKey) {
+    setSeenRefresh(refreshKey);
+    reload();
+  }
   const state = confirmed && (!data || data.read <= confirmed.through) ? confirmed.state : (data?.state ?? null);
   const [confirming, setConfirming] = useState(false);
   const [pending, setPending] = useState(false);
@@ -74,6 +85,7 @@ export function TrustRuleCard({
       if (!mounted.current) return;
       setConfirmed({ state: next, through: reads.current });
       reload();
+      onChanged?.();
     } catch (failure) {
       if (mounted.current) setError(delegationError(failure, fallback));
     } finally {

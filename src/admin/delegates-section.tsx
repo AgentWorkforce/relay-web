@@ -37,11 +37,17 @@ export function DelegatesSection({
   delegationEnabled,
   maxExpiryDays,
   isAdmin,
+  refreshKey = 0,
+  onGrantsChanged,
 }: {
   workspaceId: string;
   delegationEnabled: boolean;
   maxExpiryDays: number;
   isAdmin: boolean;
+  /** A new value re-reads the list (the trust rule changed, which can end grants). */
+  refreshKey?: number;
+  /** Called after a grant was added or revoked, so what depends on the grants (the trust rule card) re-reads. */
+  onGrantsChanged?: () => void;
 }) {
   const mounted = useRef(true);
   useEffect(() => {
@@ -55,6 +61,11 @@ export function DelegatesSection({
     all,
     grants: await adminApi.delegateGrants(workspaceId, all, signal),
   }));
+  const [seenRefresh, setSeenRefresh] = useState(refreshKey);
+  if (seenRefresh !== refreshKey) {
+    setSeenRefresh(refreshKey);
+    reload();
+  }
   // Only rows read for the view on screen; another view's rows (and their Revoke buttons) never show.
   const grants = list && list.all === all ? list.grants : null;
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +88,10 @@ export function DelegatesSection({
     setError(null);
     setNotice(null);
     try {
-      if ((await work()) && mounted.current) reload();
+      if ((await work()) && mounted.current) {
+        reload();
+        onGrantsChanged?.();
+      }
     } catch (failure) {
       if (mounted.current) setError(delegationError(failure, fallback));
     } finally {

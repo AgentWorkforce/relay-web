@@ -33,6 +33,11 @@ export function DelegationSection(props: { workspaceId: string; canManage: boole
   // completes after the save, or when the re-read fails); a read issued after
   // the save replaces it.
   const [saved, setSaved] = useState<{ policy: DelegationPolicy; through: number } | null>(null);
+  // The trust rule and the grants depend on each other: revoking a bot's own
+  // grant can put it under the rule (the shadowed count), and revoking the
+  // rule ends the grants it created. A change in one re-reads the other.
+  const [grantsChanged, setGrantsChanged] = useState(0);
+  const [ruleChanged, setRuleChanged] = useState(0);
   // A failed first read hides the card rather than show a state relay-control
   // did not confirm. A failed re-read keeps the last confirmed state.
   if (!data) return null;
@@ -54,12 +59,19 @@ export function DelegationSection(props: { workspaceId: string; canManage: boole
         onSaveFailed={reload}
       />
       {/* Shown with delegation off too: a rule stays revocable while delegation is off. */}
-      <TrustRuleCard workspaceId={props.workspaceId} delegationEnabled={policy.delegation_enabled} />
+      <TrustRuleCard
+        workspaceId={props.workspaceId}
+        delegationEnabled={policy.delegation_enabled}
+        refreshKey={grantsChanged}
+        onChanged={() => setRuleChanged((value) => value + 1)}
+      />
       <DelegatesSection
         workspaceId={props.workspaceId}
         delegationEnabled={policy.delegation_enabled}
         maxExpiryDays={policy.max_expiry_days}
         isAdmin={props.canManage}
+        refreshKey={ruleChanged}
+        onGrantsChanged={() => setGrantsChanged((value) => value + 1)}
       />
     </>
   );

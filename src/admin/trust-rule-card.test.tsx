@@ -277,3 +277,48 @@ it("follows a Trusted delegates change at once, even when the policy re-read fai
   await waitFor(() => expect(policyReads).toBe(2));
   expect(screen.queryByText("Turn on Trusted delegates to use the trust rule.")).not.toBeInTheDocument();
 });
+
+it("re-reads the rule after a grant is revoked under Delegates, so the shadowed count follows", async () => {
+  state = ON;
+  let ownGrantLive = true;
+  reply = (call) => {
+    if (call.path.endsWith("/delegates/policy")) return [200, { delegation_enabled: true, max_expiry_days: 30 }];
+    if (call.path === `${ROUTE.replace("/trust-rule", "")}` && call.method === "GET") {
+      return [200, { grants: ownGrantLive ? [{ grant_id: "g", owner_id: "u1", delegate_agent_id: "bot-2",
+        scopes: [{ class: "merge", targets: ["acme/*"] }], require_tier_o: [], expires_at: "2026-12-24T00:00:00.000Z",
+        status: "active" }] : [] }];
+    }
+    if (call.method === "DELETE" && call.path.endsWith("/delegates/g")) {
+      ownGrantLive = false;
+      state = { ...ON, shadowed: [] };
+      return [200, { grant_id: "g", owner_id: "u1", delegate_agent_id: "bot-2", scopes: [], require_tier_o: [],
+        expires_at: "2026-12-24T00:00:00.000Z", status: "revoked" }];
+    }
+    return undefined;
+  };
+  render(<DelegationSection workspaceId="w1" canManage />);
+  expect(await screen.findByText(/1 bot uses its own grant/)).toBeInTheDocument();
+  fireEvent.click(await screen.findByRole("button", { name: "Revoke bot-2" }));
+  fireEvent.click(within(screen.getByRole("group", { name: "Confirm revocation" })).getByRole("button", { name: "Revoke" }));
+  await waitFor(() => expect(screen.queryByText(/1 bot uses its own grant/)).not.toBeInTheDocument());
+});
+
+it("re-reads the Delegates list after the rule is revoked, since revoking it ends the grants it created", async () => {
+  state = ON;
+  let ruleGrantLive = true;
+  reply = (call) => {
+    if (call.path.endsWith("/delegates/policy")) return [200, { delegation_enabled: true, max_expiry_days: 30 }];
+    if (call.path === ROUTE && call.method === "DELETE") ruleGrantLive = false;
+    if (call.path === `${ROUTE.replace("/trust-rule", "")}` && call.method === "GET") {
+      return [200, { grants: [{ grant_id: "grt_1", owner_id: "u1", delegate_agent_id: "bot-1",
+        scopes: [{ class: "merge", targets: ["*"] }], require_tier_o: [], expires_at: "2026-12-24T00:00:00.000Z",
+        status: ruleGrantLive ? "active" : "revoked" }] }];
+    }
+    return undefined;
+  };
+  render(<DelegationSection workspaceId="w1" canManage />);
+  expect(await screen.findByRole("button", { name: "Revoke bot-1" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Revoke trust rule" }));
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Revoke bot-1" })).not.toBeInTheDocument());
+  expect(screen.getByText(/^revoked, expires/)).toBeInTheDocument();
+});
