@@ -3,15 +3,20 @@
 // relay-control's GET|PUT /workspaces/{id}/delegates/policy. Hosted reads the
 // stored state on the server; here DelegationSection reads it with the GET and
 // renders nothing until it has an answer, or at all when the read fails.
+// Under the card sits the Delegates section (delegates-section.tsx).
 import { useEffect, useRef, useState } from "react";
-import { adminApi, ApiError, SignedOut } from "./api";
-import { message, useLoad } from "./use-load";
+import { adminApi } from "./api";
+import { delegationError } from "./delegation-errors";
+import { useLoad } from "./use-load";
 import { Button, Card, CardContent, CardHeader, CardTitle, Switch } from "../shell/ui";
+import { DelegatesSection } from "./delegates-section";
 
 /**
- * Reads the workspace's stored delegation switch and shows the card for it.
- * Render it keyed by workspace id: a workspace switch then starts a fresh
- * card, and a save still in flight for the old workspace is dropped.
+ * Reads the workspace's stored delegation policy and shows the switch for it,
+ * then the Delegates section, which follows the policy (claims and new grants
+ * need delegation on; grants cannot outlive its maximum). Render it keyed by
+ * workspace id: a workspace switch then starts fresh, and a request still in
+ * flight for the old workspace is dropped.
  */
 export function DelegationSection(props: { workspaceId: string; canManage: boolean }) {
   // Each completed read is a new observation, numbered, even when its value
@@ -25,27 +30,25 @@ export function DelegationSection(props: { workspaceId: string; canManage: boole
   // did not confirm. A failed re-read keeps the last confirmed state.
   if (!data) return null;
   return (
-    <DelegationEnabledCard
-      workspaceId={props.workspaceId}
-      serverEnabled={data.policy.delegation_enabled}
-      readId={data.read}
-      canManage={props.canManage}
-      onSaveFailed={reload}
-    />
+    <>
+      <DelegationEnabledCard
+        workspaceId={props.workspaceId}
+        serverEnabled={data.policy.delegation_enabled}
+        readId={data.read}
+        canManage={props.canManage}
+        // Either way, re-read: what depends on the policy (the Delegates
+        // section) follows a save, and a failed save shows the server's value.
+        onSaved={reload}
+        onSaveFailed={reload}
+      />
+      <DelegatesSection
+        workspaceId={props.workspaceId}
+        delegationEnabled={data.policy.delegation_enabled}
+        maxExpiryDays={data.policy.max_expiry_days}
+        isAdmin={props.canManage}
+      />
+    </>
   );
-}
-
-function saveError(failure: unknown): string {
-  if (failure instanceof ApiError) {
-    // Delegation routes answer `{ error: <message>, code }`; others `{ error: <code>, message }`.
-    const detail = (failure.body ?? {}) as { error?: unknown; message?: unknown };
-    if (typeof detail.message === "string" && detail.message) return detail.message;
-    if (typeof detail.error === "string" && detail.error) return detail.error;
-    return "Could not change delegation. Try again.";
-  }
-  // An expired session goes to sign in; anything else never reached relay-control.
-  if (failure instanceof SignedOut) return message(failure);
-  return "Could not reach the server. Try again.";
 }
 
 /**
@@ -59,6 +62,7 @@ export function DelegationEnabledCard({
   serverEnabled,
   readId,
   canManage,
+  onSaved,
   onSaveFailed,
 }: {
   workspaceId: string;
@@ -67,6 +71,8 @@ export function DelegationEnabledCard({
   /** Identifies that read: a new id is a fresh read, whatever its value. */
   readId: number;
   canManage: boolean;
+  /** Asks for a fresh read after a successful save. */
+  onSaved?: () => void;
   /** Asks for a fresh read, so a failed save shows the server's latest value. */
   onSaveFailed?: () => void;
 }) {
@@ -97,7 +103,10 @@ export function DelegationEnabledCard({
   const [seenRead, setSeenRead] = useState(readId);
   if (seenRead !== readId) {
     setSeenRead(readId);
-    if (!pending) {
+    // A fresh read that changes the state closes an open prompt (it asked
+    // about the old state); one that confirms it, such as the re-read after a
+    // save, leaves the prompt alone.
+    if (!pending && serverEnabled !== enabled) {
       setEnabled(serverEnabled);
       setConfirming(false);
     }
@@ -108,7 +117,7 @@ export function DelegationEnabledCard({
     // A failed save shows the latest read if one completed while it ran.
     const failed = (failure: unknown) => {
       if (latestRead.current.id !== readAtStart) setEnabled(latestRead.current.enabled);
-      setError(saveError(failure));
+      setError(delegationError(failure, "Could not change delegation. Try again."));
       onSaveFailed?.();
     };
     // Every settled save (success, API error, network failure, or an answer
@@ -122,6 +131,7 @@ export function DelegationEnabledCard({
       // The saved value is now the baseline; only a later read replaces it.
       latestRead.current = { ...latestRead.current, enabled: policy.delegation_enabled };
       setEnabled(policy.delegation_enabled);
+      onSaved?.();
     } catch (failure) {
       if (!mounted.current) return;
       failed(failure);

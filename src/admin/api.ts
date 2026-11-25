@@ -41,6 +41,11 @@ import {
   usagePersonSessionsSchema,
   workspaceLeadersSchema,
   delegationPolicySchema,
+  delegateClaimSchema,
+  delegateGrantSchema,
+  delegateGrantsSchema,
+  revokedGrantsSchema,
+  type DelegationClass,
   type TokenPurpose,
   type Role,
 } from "./contracts";
@@ -458,6 +463,31 @@ export const adminApi = {
       method: "PUT",
       body: { delegation_enabled: enabled },
     }),
+  /** The caller's grants; owners and admins pass `all` for every grant. Allowed while delegation is off. */
+  delegateGrants: async (workspace: string, all: boolean, signal?: AbortSignal) =>
+    (await call(`${ws(workspace)}/delegates${all ? "?all=1" : ""}`, delegateGrantsSchema, { signal })).grants,
+  /** Refused with `not_enabled` while delegation is off; `not_delegate` unless the agent is bound to the caller. */
+  createDelegateGrant: (
+    workspace: string,
+    input: {
+      delegate_agent_id: string;
+      scopes: Array<{ class: DelegationClass; targets: string[] }>;
+      expires_at?: string;
+      require_tier_o?: DelegationClass[];
+    },
+  ) => call(`${ws(workspace)}/delegates`, delegateGrantSchema, { method: "POST", body: input }),
+  /** The grant's owner or an owner/admin; idempotent, allowed while delegation is off. */
+  revokeDelegateGrant: (workspace: string, grant: string) =>
+    call(`${ws(workspace)}/delegates/${enc(grant)}`, delegateGrantSchema, { method: "DELETE" }),
+  /** The caller's active grants, or with `all` (owner/admin) every grant in the workspace. */
+  revokeAllDelegateGrants: async (workspace: string, all: boolean) =>
+    (await call(`${ws(workspace)}/delegates/revoke-all`, revokedGrantsSchema, {
+      method: "POST",
+      body: all ? { all: true } : {},
+    })).revoked,
+  /** A one-time claim code, valid for 10 minutes; refused with `not_enabled` while delegation is off. */
+  startDelegateClaim: (workspace: string) =>
+    call(`${ws(workspace)}/delegates/claims`, delegateClaimSchema, { method: "POST" }),
   hardDeleteSession: (
     organization: string,
     session: { workspaceId: string; source: string; sessionId: string },

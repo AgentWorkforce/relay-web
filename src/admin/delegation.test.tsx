@@ -30,6 +30,7 @@ function respond(call: Call): Reply {
     return json({ delegation_enabled: stored, max_expiry_days: 90, allowed_classes: null,
       require_tier_o: [], code_owner_match: "any_path", ...(call.method === "PUT" ? { revoked_grants: [] } : {}) });
   }
+  if (call.path.endsWith("/delegates")) return json({ grants: [] });
   if (call.path.endsWith("/memberships")) return json({ memberships: [] });
   if (call.path.endsWith("/invitations")) return json({ invitations: [] });
   return json({ error: "not_found", message: "no fake" }, 404);
@@ -162,7 +163,7 @@ it("a stale server value that arrives during a save never overwrites the confirm
   expect(screen.getByText("Delegation is off")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Turning on..." })).toBeInTheDocument();
   rerender(card({ initialEnabled: false }));
-  await act(async () => held.resolve(json({ delegation_enabled: true })));
+  await act(async () => held.resolve(json({ delegation_enabled: true, max_expiry_days: 90 })));
   expect(await screen.findByText("Delegation is on")).toBeInTheDocument();
   // Re-rendering the same stale read changes nothing; a newer read is followed.
   rerender(card({ initialEnabled: false, readId: readCounter }));
@@ -200,7 +201,7 @@ it("a failed save with no server value during it keeps the pre-save state", asyn
 
 it("never leaves the prompt open or the switch disabled once a save settles, on any path", async () => {
   const answers: Array<() => Reply> = [
-    () => json({ delegation_enabled: true }),
+    () => json({ delegation_enabled: true, max_expiry_days: 90 }),
     () => json({ error: "nope", code: "forbidden" }, 403),
     () => Promise.reject(new TypeError("Failed to fetch")),
   ];
@@ -238,6 +239,24 @@ it("hides the card when the policy cannot be read", async () => {
   await screen.findByRole("heading", { level: 1, name: "Members" });
   expect(screen.queryByText("Trusted delegates")).not.toBeInTheDocument();
   expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+});
+
+it("re-reads the policy after a successful save, so what depends on it follows", async () => {
+  render(<DelegationSection workspaceId="w1" canManage />);
+  fireEvent.click(await screen.findByRole("switch"));
+  fireEvent.click(screen.getByRole("button", { name: "Turn on delegation" }));
+  await waitFor(() => expect(calls.filter((call) => call.method === "GET" && call.path === POLICY)).toHaveLength(2));
+  expect(screen.getByText("Delegation is on")).toBeInTheDocument();
+});
+
+it("a fresh read that confirms the state leaves an open prompt alone; one that changes it closes the prompt", () => {
+  const { rerender } = render(card());
+  fireEvent.click(toggle());
+  rerender(card({ initialEnabled: false }));
+  expect(prompt()).toBeInTheDocument();
+  rerender(card({ initialEnabled: true }));
+  expect(prompt()).not.toBeInTheDocument();
+  expect(screen.getByText("Delegation is on")).toBeInTheDocument();
 });
 
 it("re-reads the policy after a failed save and shows the server's value", async () => {
@@ -296,7 +315,8 @@ it("on, then off: a committed off whose response is lost shows the recovery read
   expect(await screen.findByRole("alert")).toHaveTextContent("Could not reach the server");
   expect(await screen.findByText("Delegation is off")).toBeInTheDocument();
   expect(toggle()).toHaveAttribute("aria-checked", "false");
-  expect(calls.filter((call) => call.method === "GET" && call.path === POLICY)).toHaveLength(2);
+  // The first read, the re-read after the successful save, and the recovery read.
+  expect(calls.filter((call) => call.method === "GET" && call.path === POLICY)).toHaveLength(3);
 });
 
 it("off, then on: a committed on whose response is lost shows the recovery read's on (review)", async () => {
