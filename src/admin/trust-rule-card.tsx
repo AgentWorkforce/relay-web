@@ -1,11 +1,11 @@
 // Hosted Cloud's TrustRuleCard
 // (packages/web/app/dashboard/settings/trust-rule-card.tsx), on
 // relay-control's GET|PUT|DELETE /workspaces/{id}/delegates/trust-rule.
-// Self-host also lets the owner pick the classes that still need their own
-// tap (`require_tier_o`), which the route accepts on every PUT.
+// Like Cloud, it offers no per-class owner tap: the rule needs no tap for any
+// class (#owner-decisions 251241083284656128), so turning it on sends `{}`.
 import { useEffect, useRef, useState } from "react";
 import { adminApi, ApiError } from "./api";
-import { DELEGATION_CLASSES, type DelegationClass, type TrustRuleCovered } from "./contracts";
+import type { TrustRuleCovered } from "./contracts";
 import { delegationError } from "./delegation-errors";
 import { useLoad } from "./use-load";
 import { Button, Card, CardContent, CardHeader, CardTitle } from "../shell/ui";
@@ -21,12 +21,10 @@ export function rootLabel(item: Pick<TrustRuleCovered, "root_kind" | "connector"
   return "connected assistant";
 }
 
-const sameClasses = (a: readonly string[], b: readonly string[]) =>
-  a.length === b.length && a.every((item) => b.includes(item));
-
 /**
- * The caller's own set-once trust rule. Shown under Trusted delegates while
- * delegation is on. Turning it on asks once; revoking is one click. It lists
+ * The caller's own set-once trust rule, shown under Trusted delegates whenever
+ * the policy could be read. Turning it on asks once and needs delegation on;
+ * revoking is one click and works with delegation off too, as the API allows. It lists
  * every agent the rule covers now, with the connector or claim it was proven
  * through, so the owner can find what to disconnect.
  *
@@ -34,7 +32,14 @@ const sameClasses = (a: readonly string[], b: readonly string[]) =>
  * by workspace id): an answer that settles after a switch is dropped. A
  * relay-control without the trust-rule route (404 on the read) hides it.
  */
-export function TrustRuleCard({ workspaceId }: { workspaceId: string }) {
+export function TrustRuleCard({
+  workspaceId,
+  delegationEnabled,
+}: {
+  workspaceId: string;
+  /** With delegation off, a rule can only be revoked, not turned on; it covers nothing until delegation is on again. */
+  delegationEnabled: boolean;
+}) {
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -46,15 +51,6 @@ export function TrustRuleCard({ workspaceId }: { workspaceId: string }) {
   const [confirming, setConfirming] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // The classes that still need the owner's tap: a draft, seeded from the rule.
-  const [tierO, setTierO] = useState<DelegationClass[]>([]);
-  const stored = state?.rule?.require_tier_o ?? [];
-  const storedKey = state ? `${state.rule?.trust_rule_id ?? "off"}:${stored.join(",")}` : null;
-  const [seeded, setSeeded] = useState<string | null>(null);
-  if (storedKey !== null && storedKey !== seeded) {
-    setSeeded(storedKey);
-    setTierO(DELEGATION_CLASSES.filter((item) => stored.includes(item)));
-  }
 
   if (loadError instanceof ApiError && loadError.status === 404 && !state) return null;
 
@@ -73,8 +69,7 @@ export function TrustRuleCard({ workspaceId }: { workspaceId: string }) {
       }
     }
   };
-  const turnOn = () => write(() => adminApi.putTrustRule(workspaceId, tierO), "Could not turn on the trust rule. Try again.");
-  const saveTierO = () => write(() => adminApi.putTrustRule(workspaceId, tierO), "Could not save. Try again.");
+  const turnOn = () => write(() => adminApi.putTrustRule(workspaceId), "Could not turn on the trust rule. Try again.");
   const revoke = () =>
     write(async () => {
       try {
@@ -84,30 +79,6 @@ export function TrustRuleCard({ workspaceId }: { workspaceId: string }) {
         if (!(failure instanceof ApiError && failure.status === 404)) throw failure;
       }
     }, "Could not revoke the trust rule. Try again.");
-
-  const tierOBoxes = (
-    <fieldset className="flex flex-col gap-1" disabled={pending}>
-      <legend className="text-sm font-medium">Still ask me first (Tier O) for</legend>
-      <div className="flex flex-wrap gap-x-4 gap-y-1">
-        {DELEGATION_CLASSES.map((item) => (
-          <label key={item} className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={tierO.includes(item)}
-              onChange={(event) =>
-                setTierO((current) =>
-                  event.target.checked
-                    ? DELEGATION_CLASSES.filter((each) => each === item || current.includes(each))
-                    : current.filter((each) => each !== item),
-                )
-              }
-            />
-            {item}
-          </label>
-        ))}
-      </div>
-    </fieldset>
-  );
 
   const rule = state?.rule ?? null;
   return (
@@ -127,20 +98,22 @@ export function TrustRuleCard({ workspaceId }: { workspaceId: string }) {
           </p>
         ) : null}
         {!state && !loadError ? <p className="text-sm text-muted-foreground">Loading…</p> : null}
-        {state && !rule && !confirming ? (
+        {state && !rule && !delegationEnabled ? (
+          <p className="text-sm text-muted-foreground">Turn on Trusted delegates to use the trust rule.</p>
+        ) : null}
+        {state && !rule && !confirming && delegationEnabled ? (
           <div>
             <Button type="button" disabled={pending} onClick={() => setConfirming(true)}>
               Trust my connected assistants
             </Button>
           </div>
         ) : null}
-        {state && !rule && confirming ? (
+        {state && !rule && confirming && delegationEnabled ? (
           <div className="flex flex-col gap-2" role="group" aria-label="Confirm turning on the trust rule">
             <p className="text-sm">
               Every connected assistant, every class, no expiry, no tap, until you revoke it or the connector. A
               bot&apos;s own grant still wins over this rule.
             </p>
-            {tierOBoxes}
             <div className="flex gap-2">
               <Button type="button" disabled={pending} onClick={() => void turnOn()}>
                 {pending ? "Turning on..." : "Turn on the trust rule"}
@@ -157,21 +130,14 @@ export function TrustRuleCard({ workspaceId }: { workspaceId: string }) {
               On since {new Date(rule.created_at).toLocaleString()}. Revoking ends the rule and every grant it created,
               and cancels their unused approvals.
             </p>
+            {!delegationEnabled ? (
+              <p className="text-sm text-muted-foreground">
+                Trusted delegates is off, so the rule covers nothing until it is turned back on. You can still revoke it.
+              </p>
+            ) : null}
             <div>
               <Button type="button" variant="destructive" disabled={pending} onClick={() => void revoke()}>
                 {pending ? "Revoking..." : "Revoke trust rule"}
-              </Button>
-            </div>
-            {tierOBoxes}
-            <div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={pending || sameClasses(tierO, stored)}
-                onClick={() => void saveTierO()}
-              >
-                Save
               </Button>
             </div>
             {state!.covered.length ? (

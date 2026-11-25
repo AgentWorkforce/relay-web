@@ -14,7 +14,7 @@ import { TrustRuleCard } from "./trust-rule-card";
 
 /**
  * Reads the workspace's stored delegation policy and shows the switch for it,
- * the caller's trust rule while delegation is on, then the Delegates section, which follows the policy (claims and new grants
+ * the caller's trust rule, then the Delegates section, which follows the policy (claims and new grants
  * need delegation on; grants cannot outlive its maximum). Render it keyed by
  * workspace id: a workspace switch then starts fresh, and a request still in
  * flight for the old workspace is dropped.
@@ -42,7 +42,8 @@ export function DelegationSection(props: { workspaceId: string; canManage: boole
         onSaved={reload}
         onSaveFailed={reload}
       />
-      {data.policy.delegation_enabled ? <TrustRuleCard workspaceId={props.workspaceId} /> : null}
+      {/* Shown with delegation off too: a rule stays revocable while delegation is off. */}
+      <TrustRuleCard workspaceId={props.workspaceId} delegationEnabled={data.policy.delegation_enabled} />
       <DelegatesSection
         workspaceId={props.workspaceId}
         delegationEnabled={data.policy.delegation_enabled}

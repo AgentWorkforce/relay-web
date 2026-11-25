@@ -494,15 +494,12 @@ export const adminApi = {
   trustRule: (workspace: string, signal?: AbortSignal) =>
     call(`${ws(workspace)}/delegates/trust-rule`, trustRuleStateSchema, { signal }),
   /**
-   * Turns the caller's rule on (idempotent) and sets which classes still need
-   * the owner's own tap; the whole list is sent each time. `not_enabled`
-   * while delegation is off.
+   * Turns the caller's rule on (idempotent). Sends `{}` as Cloud does: no
+   * class keeps an owner tap (#owner-decisions 251241083284656128).
+   * `not_enabled` while delegation is off.
    */
-  putTrustRule: (workspace: string, requireTierO: DelegationClass[]) =>
-    call(`${ws(workspace)}/delegates/trust-rule`, trustRulePutSchema, {
-      method: "PUT",
-      body: { require_tier_o: requireTierO },
-    }),
+  putTrustRule: (workspace: string) =>
+    call(`${ws(workspace)}/delegates/trust-rule`, trustRulePutSchema, { method: "PUT", body: {} }),
   /** Ends the rule and every grant it created; 404 `not_found` when no rule is on. */
   revokeTrustRule: (workspace: string) =>
     call(`${ws(workspace)}/delegates/trust-rule`, null, { method: "DELETE" }),

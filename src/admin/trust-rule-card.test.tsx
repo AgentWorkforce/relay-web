@@ -9,7 +9,7 @@ type Reply = [number, unknown] | Promise<[number, unknown]>;
 const ROUTE = "/cloud/api/v1/workspaces/w1/delegates/trust-rule";
 const OFF = { rule: null, covered: [], shadowed: [] };
 const ON = {
-  rule: { trust_rule_id: "dtr_1", owner_id: "u1", require_tier_o: ["deploy"], created_at: "2026-11-24T00:00:00.000Z",
+  rule: { trust_rule_id: "dtr_1", owner_id: "u1", require_tier_o: [], created_at: "2026-11-24T00:00:00.000Z",
     updated_at: "2026-11-24T00:00:00.000Z" },
   shadowed: [{ grant_id: "g", delegate_agent_id: "bot-2", expires_at: "2026-12-24T00:00:00.000Z" }],
   covered: [
@@ -30,9 +30,8 @@ function respond(call: Call): Reply {
   if (custom) return custom;
   if (call.path === ROUTE) {
     if (call.method === "PUT") {
-      const tierO = (call.body as { require_tier_o: string[] }).require_tier_o;
-      state = { ...ON, covered: [], shadowed: [], rule: { ...ON.rule, require_tier_o: tierO } };
-      return [201, { rule: (state as typeof ON).rule }];
+      state = { ...ON, covered: [], shadowed: [] };
+      return [201, { rule: ON.rule }];
     }
     if (call.method === "DELETE") {
       state = OFF;
@@ -67,26 +66,24 @@ afterEach(() => {
 const writes = () => calls.filter((call) => call.method !== "GET");
 const confirmGroup = () => screen.getByRole("group", { name: "Confirm turning on the trust rule" });
 
-it("says plainly what the rule trusts, asks once with the Tier O classes, and sends a PUT", async () => {
-  render(<TrustRuleCard workspaceId="w1" />);
+it("says plainly what the rule trusts, asks once, and sends a PUT of {} (no class keeps a tap)", async () => {
+  render(<TrustRuleCard workspaceId="w1" delegationEnabled />);
   expect(screen.getByText(/no expiry and needs no tap from you/)).toBeInTheDocument();
   fireEvent.click(await screen.findByRole("button", { name: "Trust my connected assistants" }));
   expect(writes()).toEqual([]);
   expect(within(confirmGroup()).getByText(
     /Every connected assistant, every class, no expiry, no tap, until you revoke it or the connector\./,
   )).toBeInTheDocument();
-  fireEvent.click(within(confirmGroup()).getByLabelText("release"));
-  fireEvent.click(within(confirmGroup()).getByLabelText("merge"));
+  // No per-class choice: Cloud's card has none either.
+  expect(within(confirmGroup()).queryByRole("checkbox")).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Turn on the trust rule" }));
   expect(await screen.findByRole("button", { name: "Revoke trust rule" })).toBeInTheDocument();
-  // Sent in the classes' canonical order.
-  expect(writes()).toEqual([{ method: "PUT", path: ROUTE, body: { require_tier_o: ["merge", "release"] } }]);
-  expect(screen.getByLabelText("merge")).toBeChecked();
-  expect(screen.getByLabelText("deploy")).not.toBeChecked();
+  expect(writes()).toEqual([{ method: "PUT", path: ROUTE, body: {} }]);
+  expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
 });
 
 it("cancelling the confirmation sends nothing", async () => {
-  render(<TrustRuleCard workspaceId="w1" />);
+  render(<TrustRuleCard workspaceId="w1" delegationEnabled />);
   fireEvent.click(await screen.findByRole("button", { name: "Trust my connected assistants" }));
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
   expect(screen.queryByRole("group", { name: "Confirm turning on the trust rule" })).not.toBeInTheDocument();
@@ -95,7 +92,7 @@ it("cancelling the confirmation sends nothing", async () => {
 
 it("lists each covered agent with its root kind and connector, and the bots whose own grant wins", async () => {
   state = ON;
-  render(<TrustRuleCard workspaceId="w1" />);
+  render(<TrustRuleCard workspaceId="w1" delegationEnabled />);
   const list = await screen.findByRole("list", { name: "Agents the trust rule covers" });
   const items = within(list).getAllByRole("listitem").map((item) => item.textContent);
   expect(items).toEqual([
@@ -110,7 +107,7 @@ it("lists each covered agent with its root kind and connector, and the bots whos
 
 it("revokes in one click", async () => {
   state = ON;
-  render(<TrustRuleCard workspaceId="w1" />);
+  render(<TrustRuleCard workspaceId="w1" delegationEnabled />);
   fireEvent.click(await screen.findByRole("button", { name: "Revoke trust rule" }));
   expect(await screen.findByRole("button", { name: "Trust my connected assistants" })).toBeInTheDocument();
   expect(writes()).toEqual([{ method: "DELETE", path: ROUTE, body: {} }]);
@@ -123,28 +120,31 @@ it("a revoke that finds no rule still shows the rule off", async () => {
     state = OFF;
     return [404, { error: "No trust rule is on", code: "not_found" }];
   };
-  render(<TrustRuleCard workspaceId="w1" />);
+  render(<TrustRuleCard workspaceId="w1" delegationEnabled />);
   fireEvent.click(await screen.findByRole("button", { name: "Revoke trust rule" }));
   expect(await screen.findByRole("button", { name: "Trust my connected assistants" })).toBeInTheDocument();
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });
 
-it("changes the Tier O classes of a rule that is on with the whole list", async () => {
+it("with delegation off, offers no way to turn the rule on", async () => {
+  render(<TrustRuleCard workspaceId="w1" delegationEnabled={false} />);
+  expect(await screen.findByText("Turn on Trusted delegates to use the trust rule.")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Trust my connected assistants" })).not.toBeInTheDocument();
+  expect(writes()).toEqual([]);
+});
+
+it("with delegation off, a rule that is on can still be revoked", async () => {
   state = ON;
-  render(<TrustRuleCard workspaceId="w1" />);
-  expect(await screen.findByLabelText("deploy")).toBeChecked();
-  const save = screen.getByRole("button", { name: "Save" });
-  expect(save).toBeDisabled();
-  fireEvent.click(screen.getByLabelText("spend"));
-  fireEvent.click(screen.getByRole("button", { name: "Save" }));
-  await waitFor(() => expect(writes()).toEqual([{ method: "PUT", path: ROUTE, body: { require_tier_o: ["deploy", "spend"] } }]));
-  await waitFor(() => expect(screen.getByRole("button", { name: "Save" })).toBeDisabled());
-  expect(screen.getByLabelText("spend")).toBeChecked();
+  render(<TrustRuleCard workspaceId="w1" delegationEnabled={false} />);
+  expect(await screen.findByText(/the rule covers nothing until it is turned back on/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Revoke trust rule" }));
+  expect(await screen.findByText("Turn on Trusted delegates to use the trust rule.")).toBeInTheDocument();
+  expect(writes()).toEqual([{ method: "DELETE", path: ROUTE, body: {} }]);
 });
 
 it("shows the API's error and a network failure", async () => {
   reply = (call) => (call.method === "PUT" ? [403, { error: "Delegation is off for this workspace", code: "not_enabled" }] : undefined);
-  render(<TrustRuleCard workspaceId="w1" />);
+  render(<TrustRuleCard workspaceId="w1" delegationEnabled />);
   fireEvent.click(await screen.findByRole("button", { name: "Trust my connected assistants" }));
   fireEvent.click(screen.getByRole("button", { name: "Turn on the trust rule" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Delegation is off for this workspace");
@@ -158,19 +158,20 @@ it("shows the API's error and a network failure", async () => {
 it("shows a failed read with a retry, and hides on a relay-control without the route", async () => {
   let fails = true;
   reply = (call) => (call.method === "GET" && fails ? [503, { error: "Delegation is unavailable", code: "unavailable" }] : undefined);
-  const { unmount } = render(<TrustRuleCard workspaceId="w1" />);
+  const { unmount } = render(<TrustRuleCard workspaceId="w1" delegationEnabled />);
   expect(await screen.findByRole("alert")).toHaveTextContent("Delegation is unavailable");
   fails = false;
   fireEvent.click(screen.getByRole("button", { name: "Try again" }));
   expect(await screen.findByRole("button", { name: "Trust my connected assistants" })).toBeInTheDocument();
   unmount();
   reply = (call) => (call.path === ROUTE ? [404, { error: "not_found", message: "Not found" }] : undefined);
-  const { container } = render(<TrustRuleCard workspaceId="w1" />);
+  const { container } = render(<TrustRuleCard workspaceId="w1" delegationEnabled />);
   await waitFor(() => expect(calls.filter((call) => call.path === ROUTE)).toHaveLength(3));
   await waitFor(() => expect(container).toBeEmptyDOMElement());
 });
 
-it("shows under Trusted delegates only while delegation is on", async () => {
+it("stays under Trusted delegates when delegation is turned off, with revoke and without enabling", async () => {
+  state = ON;
   let enabled = true;
   reply = (call) => {
     if (!call.path.endsWith("/delegates/policy")) return undefined;
@@ -180,14 +181,15 @@ it("shows under Trusted delegates only while delegation is on", async () => {
   render(<DelegationSection workspaceId="w1" canManage />);
   expect(await screen.findByText("Trust rule")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("switch"));
-  await waitFor(() => expect(screen.queryByText("Trust rule")).not.toBeInTheDocument());
+  expect(await screen.findByText(/the rule covers nothing until it is turned back on/)).toBeInTheDocument();
   expect(screen.getByText("Delegation is off")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Revoke trust rule" })).toBeEnabled();
 });
 
 it("drops an answer that arrives after a workspace switch", async () => {
   let finish!: (reply: [number, unknown]) => void;
   reply = (call) => (call.method === "PUT" ? new Promise((resolve) => { finish = resolve; }) : undefined);
-  const keyed = (workspaceId: string) => <TrustRuleCard key={workspaceId} workspaceId={workspaceId} />;
+  const keyed = (workspaceId: string) => <TrustRuleCard key={workspaceId} workspaceId={workspaceId} delegationEnabled />;
   const { rerender } = render(keyed("w1"));
   fireEvent.click(await screen.findByRole("button", { name: "Trust my connected assistants" }));
   fireEvent.click(screen.getByRole("button", { name: "Turn on the trust rule" }));

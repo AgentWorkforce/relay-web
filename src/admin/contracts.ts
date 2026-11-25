@@ -525,7 +525,6 @@ export const revokedGrantsSchema = z.object({ revoked: z.array(z.string()) });
  */
 export const trustRuleSchema = z.object({
   trust_rule_id: z.string(),
-  require_tier_o: z.array(z.string()).default([]),
   created_at: z.string(),
 });
 export const trustRuleStateSchema = z.object({
