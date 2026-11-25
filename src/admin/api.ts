@@ -45,6 +45,8 @@ import {
   delegateGrantSchema,
   delegateGrantsSchema,
   revokedGrantsSchema,
+  trustRulePutSchema,
+  trustRuleStateSchema,
   type DelegationClass,
   type TokenPurpose,
   type Role,
@@ -488,6 +490,19 @@ export const adminApi = {
   /** A one-time claim code, valid for 10 minutes; refused with `not_enabled` while delegation is off. */
   startDelegateClaim: (workspace: string) =>
     call(`${ws(workspace)}/delegates/claims`, delegateClaimSchema, { method: "POST" }),
+  /** The caller's own trust rule (`rule: null` when off), the agents it covers and the bots whose own grant wins. */
+  trustRule: (workspace: string, signal?: AbortSignal) =>
+    call(`${ws(workspace)}/delegates/trust-rule`, trustRuleStateSchema, { signal }),
+  /**
+   * Turns the caller's rule on (idempotent). Sends `{}` as Cloud does: no
+   * class keeps an owner tap (#owner-decisions 251241083284656128).
+   * `not_enabled` while delegation is off.
+   */
+  putTrustRule: (workspace: string) =>
+    call(`${ws(workspace)}/delegates/trust-rule`, trustRulePutSchema, { method: "PUT", body: {} }),
+  /** Ends the rule and every grant it created; 404 `not_found` when no rule is on. */
+  revokeTrustRule: (workspace: string) =>
+    call(`${ws(workspace)}/delegates/trust-rule`, null, { method: "DELETE" }),
   hardDeleteSession: (
     organization: string,
     session: { workspaceId: string; source: string; sessionId: string },

@@ -504,6 +504,8 @@ export const delegateGrantSchema = z.object({
   require_tier_o: z.array(z.string()),
   expires_at: z.string(),
   status: z.string(),
+  /** Set on a grant the owner's trust rule created: it covers every class the policy allows, with `scopes: []`. */
+  trust_rule_id: z.string().nullable().optional(),
 });
 export type DelegateGrant = z.infer<typeof delegateGrantSchema>;
 export const delegateGrantsSchema = z.object({ grants: z.array(delegateGrantSchema) });
@@ -516,3 +518,30 @@ export const delegateClaimSchema = z.object({
 export type DelegateClaim = z.infer<typeof delegateClaimSchema>;
 /** POST /delegates/revoke-all: the revoked grant ids. */
 export const revokedGrantsSchema = z.object({ revoked: z.array(z.string()) });
+
+/**
+ * relay-control GET|PUT|DELETE /workspaces/{id}/delegates/trust-rule (the
+ * twin of Cloud's route): the caller's own set-once trust rule, the agents it
+ * covers now with the root they were proven through, and the bots whose own
+ * grant wins over it.
+ */
+export const trustRuleSchema = z.object({
+  trust_rule_id: z.string(),
+  created_at: z.string(),
+});
+export const trustRuleStateSchema = z.object({
+  rule: trustRuleSchema.nullable(),
+  covered: z.array(z.object({
+    grant_id: z.string(),
+    delegate_agent_id: z.string(),
+    root_kind: z.enum(["claim", "connector"]).nullable(),
+    connector: z.string().nullable(),
+    root_agent_id: z.string().nullable(),
+    launched_by: z.string().nullable(),
+    hops: z.number().int().nonnegative(),
+  })).default([]),
+  shadowed: z.array(z.object({ grant_id: z.string(), delegate_agent_id: z.string() })).default([]),
+});
+export type TrustRuleState = z.infer<typeof trustRuleStateSchema>;
+export type TrustRuleCovered = TrustRuleState["covered"][number];
+export const trustRulePutSchema = z.object({ rule: trustRuleSchema });

@@ -11,10 +11,11 @@ import { delegationError } from "./delegation-errors";
 import { useLoad } from "./use-load";
 import { Button, Card, CardContent, CardHeader, CardTitle, Switch } from "../shell/ui";
 import { DelegatesSection } from "./delegates-section";
+import { TrustRuleCard } from "./trust-rule-card";
 
 /**
  * Reads the workspace's stored delegation policy and shows the switch for it,
- * then the Delegates section, which follows the policy (claims and new grants
+ * the caller's trust rule, then the Delegates section, which follows the policy (claims and new grants
  * need delegation on; grants cannot outlive its maximum). Render it keyed by
  * workspace id: a workspace switch then starts fresh, and a request still in
  * flight for the old workspace is dropped.
@@ -32,6 +33,13 @@ export function DelegationSection(props: { workspaceId: string; canManage: boole
   // completes after the save, or when the re-read fails); a read issued after
   // the save replaces it.
   const [saved, setSaved] = useState<{ policy: DelegationPolicy; through: number } | null>(null);
+  // The trust rule and the grants depend on each other: revoking a bot's own
+  // grant can put it under the rule (the shadowed count), and revoking the
+  // rule ends the grants it created. A change in one re-reads the other.
+  const [grantsChanged, setGrantsChanged] = useState(0);
+  const [ruleChanged, setRuleChanged] = useState(0);
+  // A saved policy change re-reads the trust rule card too (what it covers follows delegation on or off).
+  const [policyChanged, setPolicyChanged] = useState(0);
   // A failed first read hides the card rather than show a state relay-control
   // did not confirm. A failed re-read keeps the last confirmed state.
   if (!data) return null;
@@ -48,15 +56,26 @@ export function DelegationSection(props: { workspaceId: string; canManage: boole
         // it shows the server's value.
         onSaved={(confirmed) => {
           setSaved({ policy: confirmed, through: reads.current });
+          setPolicyChanged((value) => value + 1);
           reload();
         }}
         onSaveFailed={reload}
+      />
+      {/* Shown with delegation off too: a rule stays revocable while delegation is off. */}
+      <TrustRuleCard
+        workspaceId={props.workspaceId}
+        delegationEnabled={policy.delegation_enabled}
+        // Both counters only grow, so their sum changes whenever either does.
+        refreshKey={grantsChanged + policyChanged}
+        onChanged={() => setRuleChanged((value) => value + 1)}
       />
       <DelegatesSection
         workspaceId={props.workspaceId}
         delegationEnabled={policy.delegation_enabled}
         maxExpiryDays={policy.max_expiry_days}
         isAdmin={props.canManage}
+        refreshKey={ruleChanged}
+        onGrantsChanged={() => setGrantsChanged((value) => value + 1)}
       />
     </>
   );

@@ -37,11 +37,17 @@ export function DelegatesSection({
   delegationEnabled,
   maxExpiryDays,
   isAdmin,
+  refreshKey = 0,
+  onGrantsChanged,
 }: {
   workspaceId: string;
   delegationEnabled: boolean;
   maxExpiryDays: number;
   isAdmin: boolean;
+  /** A new value re-reads the list (the trust rule changed, which can end grants). */
+  refreshKey?: number;
+  /** Called after a grant was added or revoked, so what depends on the grants (the trust rule card) re-reads. */
+  onGrantsChanged?: () => void;
 }) {
   const mounted = useRef(true);
   useEffect(() => {
@@ -55,6 +61,11 @@ export function DelegatesSection({
     all,
     grants: await adminApi.delegateGrants(workspaceId, all, signal),
   }));
+  const [seenRefresh, setSeenRefresh] = useState(refreshKey);
+  if (seenRefresh !== refreshKey) {
+    setSeenRefresh(refreshKey);
+    reload();
+  }
   // Only rows read for the view on screen; another view's rows (and their Revoke buttons) never show.
   const grants = list && list.all === all ? list.grants : null;
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +88,10 @@ export function DelegatesSection({
     setError(null);
     setNotice(null);
     try {
-      if ((await work()) && mounted.current) reload();
+      if ((await work()) && mounted.current) {
+        reload();
+        onGrantsChanged?.();
+      }
     } catch (failure) {
       if (mounted.current) setError(delegationError(failure, fallback));
     } finally {
@@ -287,7 +301,11 @@ export function DelegatesSection({
               {grants.map((grant) => (
                 <li key={grant.grant_id} className="flex flex-wrap items-center gap-2 text-sm">
                   <code>{grant.delegate_agent_id}</code>
-                  <span>{grant.scopes.map((scope) => `${scope.class}: ${scope.targets.join(" ")}`).join("; ")}</span>
+                  <span>
+                    {grant.trust_rule_id
+                      ? "All classes (trust rule)"
+                      : grant.scopes.map((scope) => `${scope.class}: ${scope.targets.join(" ")}`).join("; ")}
+                  </span>
                   {grant.require_tier_o.length ? (
                     <span>{`needs the owner's own approval for ${grant.require_tier_o.join(", ")}`}</span>
                   ) : null}
@@ -318,9 +336,9 @@ export function DelegatesSection({
               {confirm.kind === "one"
                 ? "Revoke this grant? Its unredeemed approvals stop working at once."
                 : all
-                  ? "Revoke every grant and approval in this workspace? Every grant is revoked, and every unredeemed " +
+                  ? "Revoke every grant and approval in this workspace? Every grant and every trust rule is revoked, and every unredeemed " +
                     "approval from anyone stops working at once, including approvals given without a grant."
-                  : "Revoke all your grants and approvals? Every grant you made is revoked, and every unredeemed " +
+                  : "Revoke all your grants and approvals? Every grant you made and your trust rule are revoked, and every unredeemed " +
                     "approval you gave stops working at once, including approvals given without a grant."}
             </p>
             <div className="flex gap-2">
