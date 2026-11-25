@@ -483,5 +483,36 @@ export type WorkspaceLeaders = z.infer<typeof workspaceLeadersSchema>;
  */
 export const delegationPolicySchema = z.object({
   delegation_enabled: z.boolean(),
+  /** The longest grant lifetime the workspace allows, in days. */
+  max_expiry_days: z.number().int().positive(),
 });
 export type DelegationPolicy = z.infer<typeof delegationPolicySchema>;
+
+/** relay-control's DelegationActionClass: the classes a grant or approval can name. */
+export const DELEGATION_CLASSES = [
+  "merge", "pr_ops", "deploy", "release", "secret_change", "destructive", "spend", "external_comms", "prompt_approval",
+  "config_change",
+] as const;
+export type DelegationClass = (typeof DELEGATION_CLASSES)[number];
+
+/** relay-control DelegateGrant (GET|POST /workspaces/{id}/delegates, DELETE /delegates/{grantId}). */
+export const delegateGrantSchema = z.object({
+  grant_id: z.string(),
+  owner_id: z.string(),
+  delegate_agent_id: z.string(),
+  scopes: z.array(z.object({ class: z.string(), targets: z.array(z.string()) })),
+  require_tier_o: z.array(z.string()),
+  expires_at: z.string(),
+  status: z.string(),
+});
+export type DelegateGrant = z.infer<typeof delegateGrantSchema>;
+export const delegateGrantsSchema = z.object({ grants: z.array(delegateGrantSchema) });
+/** POST /delegates/claims: a one-time code, shown once. */
+export const delegateClaimSchema = z.object({
+  claim_id: z.string(),
+  code: z.string(),
+  expires_at: z.string(),
+});
+export type DelegateClaim = z.infer<typeof delegateClaimSchema>;
+/** POST /delegates/revoke-all: the revoked grant ids. */
+export const revokedGrantsSchema = z.object({ revoked: z.array(z.string()) });
