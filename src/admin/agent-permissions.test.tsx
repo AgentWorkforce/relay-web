@@ -305,9 +305,10 @@ it("excluding an agent decided by its own grant revokes that grant too", async (
   openAdvanced();
   fireEvent.click(within(screen.getByRole("table", { name: "Your agents" })).getByRole("button", { name: "Exclude" }));
   await waitFor(() => expect(writes()).toHaveLength(2));
+  // The exclusion is written before the grant is revoked, so access never widens in between.
   expect(writes()).toEqual([
-    { method: "DELETE", path: "/grt_9", body: {} },
     { method: "POST", path: "/bindings", body: { principal: { kind: "agent", ref: "agt_1" }, role: "excluded" } },
+    { method: "DELETE", path: "/grt_9", body: {} },
   ]);
   expect(await screen.findByText(/its own grant was revoked/)).toBeInTheDocument();
   expect(grantsChanged).toHaveBeenCalledTimes(1);
@@ -363,17 +364,46 @@ it("turns a binding_exists on adding Relay agents into the convert offer", async
   await waitFor(() => expect(writes()[1]).toEqual({ method: "PATCH", path: "/bindings/dtr_legacy", body: { role: "trusted" } }));
 });
 
-it("a failed exclusion after its grant was revoked still re-reads and says what happened", async () => {
+it("excludes before revoking the agent's own grant (PATCH first), and a failed revoke says it keeps that grant", async () => {
+  routes["GET /bindings"] = () => [200, { bindings: [binding(), binding({ binding_id: "rul_own", role: "standard",
+    principal: { kind: "agent", ref: "agt_1", name: "helper" } })], recommendation: null }];
   routes["GET /agents"] = () => [200, { agents: [agent({ effective: { binding_id: null, role: "custom", source: "explicit_grant", grant_id: "grt_9" } })] }];
-  routes["DELETE /grt_9"] = () => [200, { grant_id: "grt_9", owner_id: "u1", delegate_agent_id: "helper", scopes: [], require_tier_o: [],
-    expires_at: "2099-01-01T00:00:00.000Z", status: "revoked" }];
-  routes["POST /bindings"] = () => [503, { error: "Delegation is unavailable", code: "unavailable" }];
-  const grantsChanged = vi.fn();
-  render(panel({ onGrantsChanged: grantsChanged }));
+  routes["PATCH /bindings/rul_own"] = () => [200, { binding: binding({ binding_id: "rul_own", role: "excluded" }) }];
+  routes["DELETE /grt_9"] = () => [503, { error: "Delegation is unavailable", code: "unavailable" }];
+  const changed = vi.fn();
+  render(panel({ onChanged: changed }));
   await loaded();
   openAdvanced();
   fireEvent.click(within(screen.getByRole("table", { name: "Your agents" })).getByRole("button", { name: "Exclude" }));
-  expect(await screen.findByText(/own grant was revoked, but excluding it failed: Delegation is unavailable/)).toBeInTheDocument();
+  expect(await screen.findByText(/its own grant could not be revoked, so it still acts on that grant: Delegation is unavailable/)).toBeInTheDocument();
+  expect(writes()).toEqual([
+    { method: "PATCH", path: "/bindings/rul_own", body: { role: "excluded" } },
+    { method: "DELETE", path: "/grt_9", body: {} },
+  ]);
   await waitFor(() => expect(reads("/bindings")).toBe(2));
-  expect(grantsChanged).toHaveBeenCalledTimes(1);
+  expect(changed).toHaveBeenCalledTimes(1);
 });
+
+it("a failed exclusion revokes nothing", async () => {
+  routes["GET /agents"] = () => [200, { agents: [agent({ effective: { binding_id: null, role: "custom", source: "explicit_grant", grant_id: "grt_9" } })] }];
+  routes["POST /bindings"] = () => [503, { error: "Delegation is unavailable", code: "unavailable" }];
+  render(panel());
+  await loaded();
+  openAdvanced();
+  fireEvent.click(within(screen.getByRole("table", { name: "Your agents" })).getByRole("button", { name: "Exclude" }));
+  expect(await screen.findByText(/Delegation is unavailable/)).toBeInTheDocument();
+  expect(writes()).toEqual([{ method: "POST", path: "/bindings", body: { principal: { kind: "agent", ref: "agt_1" }, role: "excluded" } }]);
+});
+
+it("offers converting a legacy rule the API sends as all_agents", async () => {
+  routes["GET /bindings"] = () => [200, { bindings: [binding({ binding_id: "dtr_legacy", role: "legacy",
+    principal: { kind: "all_agents", ref: null, name: "All my agents" } })],
+    recommendation: { principal: { kind: "relay_agents" }, role: "trusted", label: "Give your Relay agents Trusted" } }];
+  routes["PATCH /bindings/dtr_legacy"] = () => [200, { binding: binding({ binding_id: "dtr_legacy", role: "trusted" }) }];
+  render(panel());
+  await loaded();
+  expect(screen.queryByRole("button", { name: "Apply" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Convert your existing rule to Trusted" }));
+  await waitFor(() => expect(writes()).toEqual([{ method: "PATCH", path: "/bindings/dtr_legacy", body: { role: "trusted" } }]));
+});
+

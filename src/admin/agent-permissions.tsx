@@ -203,7 +203,8 @@ export function AgentPermissions(props: {
       setConvertId(null);
       return "Your existing rule is now Trusted.";
     });
-  const legacyRelay = view?.bindings.find((binding) => binding.principal.kind === "relay_agents" && binding.role === "legacy");
+  // A rule from before roles: the API sends it with role "legacy" (and principal kind "all_agents").
+  const legacyRelay = view?.bindings.find((binding) => binding.role === "legacy");
   const patch = (area: Area, binding: Binding, body: Record<string, unknown>, done: string) =>
     run(area, async () => {
       await adminApi.updateDelegationBinding(workspaceId, binding.binding_id, body);
@@ -276,30 +277,34 @@ export function AgentPermissions(props: {
 
   /**
    * No access for one agent: its own setting becomes "excluded". An explicit grant wins over every
-   * setting, so an agent decided by its own grant has that grant revoked first.
+   * setting, so an agent decided by its own grant also has that grant revoked, after the exclusion is
+   * written: in between the grant still wins, so access never widens. If that revoke fails, the agent
+   * keeps its own grant, and the error says so.
    */
   const exclude = (agent: DelegationAgent) =>
     run("agents", async () => {
       const grantId = agent.effective.source === "explicit_grant" ? agent.effective.grant_id : null;
-      if (grantId) await adminApi.revokeDelegateGrant(workspaceId, grantId);
       const own = view?.bindings.find((binding) => binding.principal.kind === "agent" && binding.principal.ref === agent.agent_id);
-      try {
-        if (own) await adminApi.updateDelegationBinding(workspaceId, own.binding_id, { role: "excluded" });
-        else await adminApi.createDelegationBinding(workspaceId, { principal: { kind: "agent", ref: agent.agent_id }, role: "excluded" });
-      } catch (error) {
-        // The grant is already revoked: still re-read and tell the page, keeping the error on screen.
-        if (grantId && mounted.current) {
-          reload();
-          props.onChanged?.();
-          props.onGrantsChanged?.();
-          throw new ShownError(`${agent.name}'s own grant was revoked, but excluding it failed: ${failure(error, "Could not save. Try again.")}`);
+      if (own) await adminApi.updateDelegationBinding(workspaceId, own.binding_id, { role: "excluded" });
+      else await adminApi.createDelegationBinding(workspaceId, { principal: { kind: "agent", ref: agent.agent_id }, role: "excluded" });
+      if (grantId) {
+        try {
+          await adminApi.revokeDelegateGrant(workspaceId, grantId);
+        } catch (error) {
+          // The exclusion is written: re-read and tell the page, and say the agent still acts on its own grant.
+          if (mounted.current) {
+            reload();
+            props.onChanged?.();
+          }
+          throw new ShownError(
+            `${agent.name} is excluded, but its own grant could not be revoked, so it still acts on that grant: ${failure(error, "Could not save. Try again.")}`,
+          );
         }
-        throw error;
+        props.onGrantsChanged?.();
       }
-      // The grant table re-reads too when a grant was revoked.
-      if (grantId) props.onGrantsChanged?.();
       return grantId ? `${agent.name} has no access now; its own grant was revoked.` : `${agent.name} has no access now.`;
     });
+
 
   const typeTargets = (text: string) => {
     const { done, draft } = splitTargets(text);
