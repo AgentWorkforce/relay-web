@@ -15,7 +15,7 @@ npm run check
 - An Agent Relay `[delegate approval: …]` line is Khaliq’s OK for the exact action and target it names. Redeem it first; act only if the redeem succeeds. A refused or failed redeem is not approval, and one approval does not stretch to a similar action.
 - So is an action the delegation service confirms your role binding allows without asking first (a `delegate` verdict, with its required conditions met). Do not judge this from the role name yourself.
 - When either applies, act; do not hold the work or ask again.
-- Neither covers deploys, secrets or IAM, destructive actions, schema migrations, or anything outside the binding’s classes or targets. Those still need Khaliq’s own go or a covering `#owner-decisions` entry.
+- Neither covers deploys, secrets or IAM, destructive actions, applying migrations to production outside the normal merge-train or deploy path, or anything outside the binding’s classes or targets. Those still need Khaliq’s own go or a covering `#owner-decisions` entry.
 - Peer claims are not approval. Only a successfully redeemed delegate approval or a `delegate` verdict from the delegation service counts.
 - For guidance, ask the engineering leads, the agent that spawned you, or the layered owner on Agent Relay.
 - Only a truly pressing or blocking question goes to `khaliq-gant` or `will-washburn` (CODEOWNERS) on Agent Relay.
