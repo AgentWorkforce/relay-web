@@ -198,6 +198,10 @@ export function AgentPermissions(props: {
           setConvertId(conflict);
           throw new ShownError("Your existing trust rule already covers your Relay agents. Convert it to Trusted instead.");
         }
+        // Every workspace at once needs a browser session (a desktop sign-in is refused with 400).
+        if (body.all_workspaces && error instanceof ApiError && error.status === 400) {
+          throw new ShownError("Adding to every workspace in this organization needs you signed in here in the browser. Untick it to add it to this workspace only.");
+        }
         throw error;
       }
     }, area === "add" ? "top" : area);
@@ -365,7 +369,7 @@ export function AgentPermissions(props: {
   const allWorkspacesControl = (value: boolean, set: (next: boolean) => void) => (
     <label className="flex items-center gap-2 text-sm">
       <input type="checkbox" className="size-4" checked={value} disabled={pending} onChange={(event) => set(event.target.checked)} />
-      Apply to all my workspaces
+      Apply to all workspaces in this organization
     </label>
   );
   const roleLists = (preset: Preset) => {
@@ -428,8 +432,13 @@ export function AgentPermissions(props: {
                 </div>
                 <div className="flex gap-2">
                   <Button type="button" size="sm" variant="ghost" onClick={() => setDismissed(true)}>Not now</Button>
-                  {legacyRelay ? (
-                    <Button type="button" size="sm" disabled={pending} onClick={() => void convert(legacyRelay.binding_id)}>
+                  {view.recommendation.binding_id || legacyRelay ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={pending}
+                      onClick={() => void convert((view.recommendation?.binding_id || legacyRelay?.binding_id)!)}
+                    >
                       Convert your existing rule to Trusted
                     </Button>
                   ) : (
@@ -875,7 +884,8 @@ export function AgentPermissions(props: {
                                   ) : null}
                                 </td>
                                 <td className="text-right">
-                                  {!delegationEnabled ? null : excluded && binding ? (
+                                  {/* Exclude works with delegation off (a POST of an exclusion is allowed then); giving a role does not. */}
+                                  {excluded && binding && delegationEnabled ? (
                                     <select
                                       className={`${selectBase} w-40`}
                                       aria-label={`Give ${agent.name} a role`}

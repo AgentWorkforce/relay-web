@@ -128,7 +128,7 @@ it("adds a permission for one of my agents picked by id, with optional expiry an
   const again = screen.getByRole("form", { name: "Add permission" });
   fireEvent.click(within(again).getByRole("button", { name: "Set expiry" }));
   fireEvent.change(within(again).getByLabelText("Expires after"), { target: { value: "7" } });
-  fireEvent.click(within(again).getByLabelText("Apply to all my workspaces"));
+  fireEvent.click(within(again).getByLabelText("Apply to all workspaces in this organization"));
   fireEvent.click(within(again).getByRole("button", { name: "Add" }));
   await waitFor(() => expect(writes()).toHaveLength(2));
   const body = writes()[1]!.body as Record<string, unknown>;
@@ -321,7 +321,7 @@ it("the custom form keeps its own expiry and workspace choice", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Add permission" }));
   const draft = screen.getByRole("form", { name: "Add permission" });
   fireEvent.click(within(draft).getByRole("button", { name: "Set expiry" }));
-  fireEvent.click(within(draft).getByLabelText("Apply to all my workspaces"));
+  fireEvent.click(within(draft).getByLabelText("Apply to all workspaces in this organization"));
   fireEvent.click(within(draft).getByRole("button", { name: "Cancel" }));
   openAdvanced();
   const form = screen.getByRole("form", { name: "Add a custom permission" });
@@ -422,4 +422,35 @@ it("says merges that need GitHub checks are not available on self-hosted, and li
   // Listed under Groups, and offered as a Who in a custom permission.
   expect(screen.getAllByText("Cursor cloud agents").filter((node) => node.tagName !== "OPTION")).toHaveLength(1);
   expect(within(screen.getByRole("form", { name: "Add a custom permission" })).getByRole("option", { name: "Cursor cloud agents" })).toBeInTheDocument();
+});
+
+it("applies a recommendation that names a live legacy rule as a PATCH of that rule", async () => {
+  routes["GET /bindings"] = () => [200, { bindings: [], recommendation: { principal: { kind: "relay_agents" }, role: "trusted",
+    label: "Give your Relay agents Trusted", binding_id: "dtr_legacy" } }];
+  routes["PATCH /bindings/dtr_legacy"] = () => [200, { binding: binding({ binding_id: "dtr_legacy", role: "trusted" }) }];
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Convert your existing rule to Trusted" }));
+  await waitFor(() => expect(writes()).toEqual([{ method: "PATCH", path: "/bindings/dtr_legacy", body: { role: "trusted" } }]));
+});
+
+it("keeps Exclude while delegation is off (an exclusion may be posted then)", async () => {
+  routes["POST /bindings"] = () => [201, { binding: binding({ binding_id: "rul_x", role: "excluded" }) }];
+  render(panel({ delegationEnabled: false }));
+  await loaded();
+  openAdvanced();
+  fireEvent.click(within(screen.getByRole("table", { name: "Your agents" })).getByRole("button", { name: "Exclude" }));
+  await waitFor(() => expect(writes()).toEqual([{ method: "POST", path: "/bindings", body: { principal: { kind: "agent", ref: "agt_1" }, role: "excluded" } }]));
+});
+
+it("says plainly when every workspace in the organization needs a browser session (400)", async () => {
+  routes["POST /bindings"] = () => [400, { error: "all_workspaces needs a browser session", code: "invalid_request" }];
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Add permission" }));
+  const form = screen.getByRole("form", { name: "Add permission" });
+  fireEvent.change(within(form).getByLabelText("Who"), { target: { value: "agent:agt_1" } });
+  fireEvent.click(within(form).getByLabelText("Apply to all workspaces in this organization"));
+  fireEvent.click(within(form).getByRole("button", { name: "Add" }));
+  expect(await screen.findByText(/Adding to every workspace in this organization needs you signed in here in the browser\./)).toBeInTheDocument();
 });

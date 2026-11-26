@@ -617,6 +617,8 @@ export const recommendationSchema = z.object({
   principal: z.object({ kind: principalKindSchema, ref: z.string().nullable().optional() }),
   role: z.string(),
   label: z.string(),
+  /** Set while a rule from before roles is live: applying converts it (PATCH to the role) instead of adding a row. */
+  binding_id: z.string().nullable().optional(),
 }).nullable();
 export type Recommendation = z.infer<typeof recommendationSchema>;
 export const bindingsSchema = z.object({ bindings: z.array(bindingSchema), recommendation: recommendationSchema.default(null) });
