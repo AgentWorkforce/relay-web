@@ -354,7 +354,10 @@ export function AgentPermissions(props: {
   const sameSet = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((item) => b.includes(item));
   // The row's own conditions (merge needs checks to pass): carried along, never dropped silently.
   const editConditions = editing?.binding.required_conditions ?? null;
-  const conditionsShown = Object.entries(editConditions ?? {}).filter(([, list]) => list.length);
+  // Shown as kept only for actions still chosen (a Custom edit can set an action to Never).
+  const conditionsShown = Object.entries(editConditions ?? {}).filter(
+    ([item, list]) => list.length && (editing?.role !== "custom" || editClasses.includes(item)),
+  );
   const editProblem = !editing
     ? null
     : editRepos.some((target) => target.endsWith(","))
@@ -386,12 +389,11 @@ export function AgentPermissions(props: {
     const body: Record<string, unknown> = {
       ...(roleChanged ? { role: editing.role } : {}),
       ...(classesChanged ? { classes: editClasses, require_tier_o: editAsked, required_conditions: conditions } : {}),
-      ...(limitChanged
-        ? { pr_ops_limit: editing.commentsOnly && prWork ? ["comment"] : null }
-        : // A limit cannot stay once PR work is gone from the actions.
-          classesChanged && !prWork && binding.pr_ops_limit
-          ? { pr_ops_limit: null }
-          : {}),
+      // Whenever the actions change (a switch to Custom included) the limit is sent too, or the server would
+      // store none: the box's choice when it changed, else the row's own limit while PR work stays on.
+      ...(classesChanged || limitChanged
+        ? { pr_ops_limit: !prWork ? null : limitChanged ? (editing.commentsOnly ? ["comment"] : null) : (binding.pr_ops_limit ?? null) }
+        : {}),
       ...(targetsChanged ? { targets } : {}),
       ...(editing.expiry === "keep" ? {} : { expires_at: editing.expiry === "never" ? null : expiresAt(editing.expiry) }),
     };
