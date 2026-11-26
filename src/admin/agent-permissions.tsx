@@ -372,7 +372,8 @@ export function AgentPermissions(props: {
       || !sameSet(editedNow.require_tier_o, editing.binding.require_tier_o)
       || !sameSet(editedNow.targets ?? [], editing.binding.targets ?? [])
       || (editedNow.expires_at ?? null) !== (editing.binding.expires_at ?? null)
-      || JSON.stringify(editedNow.pr_ops_limit ?? null) !== JSON.stringify(editing.binding.pr_ops_limit ?? null))
+      || JSON.stringify(editedNow.pr_ops_limit ?? null) !== JSON.stringify(editing.binding.pr_ops_limit ?? null)
+      || JSON.stringify(editedNow.required_conditions ?? null) !== JSON.stringify(editing.binding.required_conditions ?? null))
   ) {
     setEditing(null);
     setNotice("top", "That row changed while you were editing it. Open Edit again to change it.");
@@ -432,9 +433,12 @@ export function AgentPermissions(props: {
       return;
     }
     setSavingEdit(binding.binding_id);
-    const saved = await patch("top", binding, body, `Saved ${binding.principal.name}.`);
-    setSavingEdit(null);
-    if (saved) setEditing(null);
+    // Cleared however the save ends: a stuck marker would stop a later change to this row from closing the draft.
+    try {
+      if (await patch("top", binding, body, `Saved ${binding.principal.name}.`)) setEditing(null);
+    } finally {
+      setSavingEdit(null);
+    }
   };
 
   const remove = () => {

@@ -834,3 +834,39 @@ it("leaves a custom row's unreadable conditions to the server instead of sending
   await waitFor(() => expect(writes()).toHaveLength(1));
   expect(writes()[0]!.body).not.toHaveProperty("required_conditions");
 });
+
+it("closes the editor when only the row's conditions changed elsewhere", async () => {
+  let conditions: Record<string, Array<{ type: string }>> = { merge: [{ type: "ci_green" }] };
+  routes["GET /bindings"] = () => [200, { bindings: [binding({ classes: ["merge", "pr_ops"], required_conditions: conditions })], recommendation: null }];
+  const { rerender } = render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Edit Relay agents" }));
+  fireEvent.change(within(screen.getByRole("form", { name: "Edit permission" })).getByLabelText("Role"), { target: { value: "custom" } });
+  conditions = { merge: [{ type: "ci_green" }, { type: "mergeable" }] };
+  rerender(panel({ refreshKey: 1 }));
+  expect(await screen.findByText("That row changed while you were editing it. Open Edit again to change it.")).toBeInTheDocument();
+  expect(screen.queryByRole("form", { name: "Edit permission" })).not.toBeInTheDocument();
+  expect(writes()).toEqual([]);
+});
+
+it("clears its saving marker when a save fails, so a later change elsewhere still closes the draft", async () => {
+  let role = "trusted";
+  routes["GET /bindings"] = () => [200, { bindings: [binding({ role, required_conditions: {} })], recommendation: null }];
+  routes["PATCH /bindings/rul_1"] = (call) => {
+    const body = call.body as { role?: string };
+    if (!body.role) return [500, { error: "Delegation is unavailable. Try again." }];
+    role = body.role;
+    return [200, { binding: binding({ role }) }];
+  };
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Edit Relay agents" }));
+  const form = screen.getByRole("form", { name: "Edit permission" });
+  fireEvent.change(within(form).getByLabelText("Repos"), { target: { value: "acme/web" } });
+  fireEvent.click(within(form).getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(writes()).toHaveLength(1));
+  await waitFor(() => expect(within(screen.getByRole("form", { name: "Edit permission" })).getByRole("button", { name: "Save" })).toBeEnabled());
+  fireEvent.change(screen.getByRole("combobox", { name: "Role for Relay agents" }), { target: { value: "standard" } });
+  expect(await screen.findByText("That row changed while you were editing it. Open Edit again to change it.")).toBeInTheDocument();
+  expect(screen.queryByRole("form", { name: "Edit permission" })).not.toBeInTheDocument();
+});
