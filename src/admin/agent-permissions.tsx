@@ -15,6 +15,25 @@ type Access = "never" | "allow" | "ask";
 type Area = "top" | "add" | "custom" | "groups" | "agents";
 
 const EXPIRY_PRESETS = [7, 30, 90];
+const REPO_HINT = "Use owner/repo or owner/* for repos.";
+// A repo pattern the API refuses: a wildcard in the owner part (a star before the slash).
+// owner/repo and owner/(star) are fine.
+export function badRepoPattern(target: string): boolean {
+  const slash = target.indexOf("/");
+  return slash > 0 && target.slice(0, slash).includes("*");
+}
+/** Why an all-workspaces add skipped a workspace, in words. */
+const SKIP_REASONS: Record<string, string> = {
+  not_enabled: "delegation is off there",
+  binding_exists: "it already has a row for this",
+  forbidden: "you can't manage permissions there",
+  unavailable: "it couldn't be reached; try that one again",
+};
+export function skippedNote(skipped: Array<{ workspace_id: string; reason: string }>): string {
+  return `Not added in ${skipped.length} workspace${skipped.length === 1 ? "" : "s"}: ${skipped
+    .map((item) => `${item.workspace_id} (${SKIP_REASONS[item.reason] ?? item.reason})`)
+    .join("; ")}.`;
+}
 /**
  * Self-hosted relay-control reads no GitHub state, so an action whose role requires GitHub conditions
  * (merge needs checks to pass) is refused here (fail closed). Say so instead of promising it.
@@ -191,17 +210,22 @@ export function AgentPermissions(props: {
     run(area, async () => {
       try {
         const answer = await adminApi.createDelegationBinding(workspaceId, body);
-        return answer.skipped.length ? `${done} Skipped ${answer.skipped.length} workspace(s) where it could not be added.` : done;
+        // Some workspaces of an all-workspaces add can be skipped (one may even have failed) while the rest were added.
+        return answer.skipped.length ? `${done} ${skippedNote(answer.skipped)}` : done;
       } catch (error) {
         const conflict = error instanceof ApiError ? (error.body as { binding_id?: unknown } | null)?.binding_id : undefined;
         if (delegationCode(error) === "binding_exists" && (body.principal as { kind?: string })?.kind === "relay_agents" && typeof conflict === "string") {
           setConvertId(conflict);
           throw new ShownError("Your existing trust rule already covers your Relay agents. Convert it to Trusted instead.");
         }
-        // Every workspace at once needs a browser session (a desktop sign-in is refused with 400).
-        if (body.all_workspaces && error instanceof ApiError && error.status === 400) {
+        const bad400 = error instanceof ApiError && error.status === 400;
+        const targets = (body.targets as string[] | undefined) ?? [];
+        // A repo pattern with a wildcard owner is refused with 400; so is every workspace at once without a browser session.
+        if (bad400 && targets.some(badRepoPattern)) throw new ShownError(REPO_HINT);
+        if (bad400 && body.all_workspaces) {
           throw new ShownError("Adding to every workspace in this organization needs you signed in here in the browser. Untick it to add it to this workspace only.");
         }
+        if (bad400 && targets.length) throw new ShownError(REPO_HINT);
         throw error;
       }
     }, area === "add" ? "top" : area);
@@ -243,7 +267,9 @@ export function AgentPermissions(props: {
   const targetList = [...targetChips, ...targetDraft.split(/\s+/u).filter(Boolean)];
   const targetProblem = targetList.some((target) => target.endsWith(","))
     ? "Separate repos with spaces, not commas: a comma is kept as part of the repo."
-    : null;
+    : targetList.some(badRepoPattern)
+      ? REPO_HINT
+      : null;
   const customAllowed = Object.entries(custom.access).filter(([, access]) => access === "allow").map(([item]) => item);
   const customAsk = Object.entries(custom.access).filter(([, access]) => access === "ask").map(([item]) => item);
   const customValid = customAllowed.length + customAsk.length > 0 && !targetProblem;

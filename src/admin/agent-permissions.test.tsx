@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { Binding, DelegationAgent, DelegationGroup, RolesInfo } from "./contracts";
-import { AgentPermissions, principalFor } from "./agent-permissions";
+import { AgentPermissions, badRepoPattern, principalFor, skippedNote } from "./agent-permissions";
 
 type Call = { method: string; path: string; body: unknown };
 type Handler = (call: Call) => [number, unknown] | Promise<[number, unknown]>;
@@ -134,7 +134,7 @@ it("adds a permission for one of my agents picked by id, with optional expiry an
   const body = writes()[1]!.body as Record<string, unknown>;
   expect(body).toMatchObject({ principal: { kind: "relay_agents" }, role: "trusted", all_workspaces: true });
   expect((Date.parse(String(body.expires_at)) - Date.now()) / 86_400_000).toBeGreaterThan(6.9);
-  expect(await screen.findByText(/Skipped 1 workspace\(s\)/)).toBeInTheDocument();
+  expect(await screen.findByText("Added. Not added in 1 workspace: w9 (delegation is off there).")).toBeInTheDocument();
 });
 
 it("builds a custom permission: disabled until an action is chosen, then posts classes, ask-first and repos", async () => {
@@ -453,4 +453,37 @@ it("says plainly when every workspace in the organization needs a browser sessio
   fireEvent.click(within(form).getByLabelText("Apply to all workspaces in this organization"));
   fireEvent.click(within(form).getByRole("button", { name: "Add" }));
   expect(await screen.findByText(/Adding to every workspace in this organization needs you signed in here in the browser\./)).toBeInTheDocument();
+});
+
+it("refuses a repo pattern with a wildcard owner before sending, and maps the server's 400 to the same hint", async () => {
+  expect(badRepoPattern("*/web")).toBe(true);
+  expect(badRepoPattern("acme/*")).toBe(false);
+  routes["POST /bindings"] = () => [400, { error: "Invalid targets", code: "invalid_request" }];
+  render(panel());
+  await loaded();
+  openAdvanced();
+  const form = screen.getByRole("form", { name: "Add a custom permission" });
+  fireEvent.change(within(form).getByLabelText("Merge PRs once checks pass"), { target: { value: "allow" } });
+  fireEvent.change(within(form).getByLabelText("Repos"), { target: { value: "*/web" } });
+  expect(within(form).getByRole("alert")).toHaveTextContent("Use owner/repo or owner/* for repos.");
+  expect(within(form).getByRole("button", { name: "Add custom permission" })).toBeDisabled();
+  fireEvent.change(within(form).getByLabelText("Repos"), { target: { value: "acme/* " } });
+  fireEvent.click(within(form).getByRole("button", { name: "Add custom permission" }));
+  await waitFor(() => expect(writes()).toHaveLength(1));
+  expect(await within(form).findByText("Use owner/repo or owner/* for repos.")).toBeInTheDocument();
+});
+
+it("lists the workspaces an all-workspaces add skipped, with each reason in words", async () => {
+  expect(skippedNote([{ workspace_id: "w9", reason: "not_enabled" }, { workspace_id: "w2", reason: "binding_exists" },
+    { workspace_id: "w3", reason: "forbidden" }, { workspace_id: "w4", reason: "unavailable" }]))
+    .toBe("Not added in 4 workspaces: w9 (delegation is off there); w2 (it already has a row for this); "
+      + "w3 (you can't manage permissions there); w4 (it couldn't be reached; try that one again).");
+  routes["POST /bindings"] = () => [201, { bindings: [binding()], skipped: [{ workspace_id: "w9", reason: "unavailable" }] }];
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Add permission" }));
+  const form = screen.getByRole("form", { name: "Add permission" });
+  fireEvent.click(within(form).getByLabelText("Apply to all workspaces in this organization"));
+  fireEvent.click(within(form).getByRole("button", { name: "Add" }));
+  expect(await screen.findByText("Added. Not added in 1 workspace: w9 (it couldn't be reached; try that one again).")).toBeInTheDocument();
 });
