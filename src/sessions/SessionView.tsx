@@ -321,7 +321,7 @@ export function SessionView({
         turnsError: turnPage.status === "rejected" ? "Some recorded messages could not be loaded." : turns ? null : data.turnsError });
       if (eventPage.status === "rejected") throw eventPage.reason;
       visitedPairs.values.add(pair);
-      if ((nextCursor || turnsNextCursor) && visitedPairs.values.has(JSON.stringify([nextCursor, turnsNextCursor]))) throw new Error("History pagination did not advance.");
+      if ((events || turns) && (nextCursor || turnsNextCursor) && visitedPairs.values.has(JSON.stringify([nextCursor, turnsNextCursor]))) throw new Error("History pagination did not advance.");
     } catch (reason) {
       if (!controller.signal.aborted) setMoreFailure({ key, error: reason as Error });
     } finally {

@@ -867,6 +867,24 @@ it("continues event pages when a large session's turn projection is unavailable"
   expect(await screen.findByRole("button", { name: "Retry loading history" })).toBeInTheDocument();
 });
 
+it("keeps a failed later turn page retryable without reporting stalled pagination", async () => {
+  window.__AGENT_RELAY_DASHBOARD_CONFIG__ = { sessionVisualizations: true };
+  window.history.replaceState(null, "", "/?session=s%2F1&source=codex");
+  let failed = true;
+  respond(/\/sessions\/s%2F1\/turns$/, (url) =>
+    url.searchParams.get("cursor") === "turn-next" && failed
+      ? new Response("scope_too_large", { status: 501 })
+      : { turns: [{ id: "turn-first", ts: now, role: "user", content: "Another request" }], nextCursor: url.searchParams.get("cursor") ? null : "turn-next" });
+  render(<Dashboard />);
+  const retry = await screen.findByRole("button", { name: "Retry loading history" });
+  expect(calls.filter((url) => url.pathname.endsWith("/turns")).map((url) => url.searchParams.get("cursor"))).toEqual([null, "turn-next"]);
+  expect(screen.queryByText("History pagination did not advance.")).not.toBeInTheDocument();
+  failed = false;
+  fireEvent.click(retry);
+  await waitFor(() => expect(calls.filter((url) => url.pathname.endsWith("/turns")).map((url) => url.searchParams.get("cursor"))).toEqual([null, "turn-next", "turn-next"]));
+  expect(screen.queryByRole("button", { name: "Retry loading history" })).not.toBeInTheDocument();
+});
+
 it("pauses trace loading on failure and resumes from the failed cursor after retry", async () => {
   window.__AGENT_RELAY_DASHBOARD_CONFIG__ = { sessionVisualizations: true };
   window.history.replaceState(null, "", "/?session=s%2F1&source=codex");
