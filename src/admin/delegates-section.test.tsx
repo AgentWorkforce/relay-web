@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { DelegateGrant } from "./contracts";
-import { DelegatesSection } from "./delegates-section";
-import { DelegationSection } from "./delegation";
+import { CAN_OPTIONS, DelegatesSection, expiryOptions } from "./delegates-section";
 
 type Call = { method: string; path: string; body: unknown };
 type Handler = (call: Call) => [number, unknown] | Promise<[number, unknown]>;
@@ -14,31 +13,25 @@ let routes: Record<string, Handler> = {};
 const grant = (overrides: Partial<DelegateGrant> = {}): DelegateGrant => ({
   grant_id: "grt_abcdefgh1", owner_id: "u1", delegate_agent_id: "assistant-1",
   scopes: [{ class: "merge", targets: ["acme/*"] }], require_tier_o: [],
-  expires_at: "2026-12-24T00:00:00.000Z", status: "active", ...overrides,
+  expires_at: "2099-12-24T00:00:00.000Z", status: "active", ...overrides,
 });
 
 beforeEach(() => {
   calls = [];
   routes = {};
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (input: string, init: RequestInit = {}) => {
-      const call: Call = {
-        method: init.method ?? "GET",
-        path: input,
-        body: init.body ? JSON.parse(init.body as string) : undefined,
-      };
-      calls.push(call);
-      const rest = input.startsWith(BASE) ? input.slice(BASE.length) : input;
-      const key = `${call.method} ${rest.startsWith("?") || !rest ? `/${rest}` : rest}`;
-      const handler = routes[key];
-      if (!handler) return new Response(JSON.stringify({ error: `unexpected ${key}` }), { status: 500 });
-      const [status, body] = await handler(call);
-      return new Response(JSON.stringify(body), { status });
-    }),
-  );
+  // Plain response objects (what the API client reads), so fake timers cannot stall reading a body.
+  vi.stubGlobal("fetch", vi.fn(async (input: string, init: RequestInit = {}) => {
+    const call: Call = { method: init.method ?? "GET", path: input, body: init.body ? JSON.parse(init.body as string) : undefined };
+    calls.push(call);
+    const rest = input.startsWith(BASE) ? input.slice(BASE.length) : input;
+    const key = `${call.method} ${rest.startsWith("?") || !rest ? `/${rest}` : rest}`;
+    const handler = routes[key];
+    const [status, body] = handler ? await handler(call) : [500, { error: `unexpected ${key}` }];
+    return { ok: status >= 200 && status < 300, status, text: async () => JSON.stringify(body) };
+  }));
 });
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -48,317 +41,260 @@ const section = (props: Partial<Parameters<typeof DelegatesSection>[0]> = {}) =>
 );
 const writes = () => calls.filter((call) => call.method !== "GET");
 const confirmGroup = () => screen.getByRole("group", { name: "Confirm revocation" });
+const addForm = () => screen.getByRole("form", { name: "Add grant" });
+const submitButton = () => within(addForm()).getByRole("button", { name: "Add grant" });
 
-it("lists my grants with delegate, scopes, status and expiry", async () => {
-  routes = { "GET /": () => [200, { grants: [grant()] }] };
+it("shows one row per grant: agent, can (with ask me first), on, expires; inactive rows have no Remove", async () => {
+  routes = { "GET /": () => [200, { grants: [
+    grant({ scopes: [{ class: "release", targets: ["acme/web", "acme/*"] }], require_tier_o: ["release"] }),
+    grant({ grant_id: "grt_old", delegate_agent_id: "old-agent", status: "revoked" }),
+    grant({ grant_id: "grt_rule", delegate_agent_id: "rule-agent", scopes: [], trust_rule_id: "rul_1" }),
+    grant({ grant_id: "grt_ro", delegate_agent_id: "reader-bot", trust_rule_id: "rul_2",
+      scopes: [{ class: "pr_ops", targets: [], ops: ["comment"] }] }),
+    grant({ grant_id: "grt_tr", delegate_agent_id: "trusted-bot", trust_rule_id: "rul_3", require_tier_o: ["deploy"],
+      scopes: [{ class: "merge", targets: [], conditions: [{ type: "ci_green" }, { type: "mergeable" }] }, { class: "deploy", targets: [] }] }),
+  ] }] };
   render(section());
   expect(await screen.findByText("assistant-1")).toBeInTheDocument();
-  expect(screen.getByText("merge: acme/*")).toBeInTheDocument();
-  expect(screen.getByText(/^active, expires/)).toBeInTheDocument();
-  expect(calls[0]).toMatchObject({ method: "GET", path: BASE });
+  expect(screen.getByText("release, ask me first")).toBeInTheDocument();
+  expect(screen.getByText("acme/web acme/*")).toBeInTheDocument();
+  // A rule from before roles (no scopes) reads as every action; a system grant shows its binding's scopes, never "all".
+  expect(screen.getByText("All actions (set before roles)")).toBeInTheDocument();
+  expect(screen.getByText("pr_ops (only: comment)")).toBeInTheDocument();
+  expect(screen.getByText("merge (when checks pass and mergeable)")).toBeInTheDocument();
+  expect(screen.getByText("deploy, ask me first")).toBeInTheDocument();
+  expect(screen.getAllByText("Everything I own").length).toBeGreaterThan(0);
+  expect(screen.queryByText("all (trust rule)")).not.toBeInTheDocument();
+  expect(screen.getByText("revoked")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Remove assistant-1" })).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Remove old-agent" })).not.toBeInTheDocument();
 });
 
-it("starts a claim and shows the one-time code with its expiry, and copies it", async () => {
-  const writeText = vi.fn(async () => {});
-  vi.stubGlobal("navigator", { clipboard: { writeText } });
-  routes = {
-    "GET /": () => [200, { grants: [] }],
-    "POST /claims": () => [201, { claim_id: "clm_1", code: "dlg_onetimecode", expires_at: "2026-11-25T00:10:00.000Z" }],
-  };
+it("adds a grant: disabled until valid, ask-me-first maps to require_tier_o, expiry only behind Set expiry", async () => {
+  routes = { "GET /": () => [200, { grants: [] }], "POST /": () => [201, grant()] };
   render(section());
-  fireEvent.click(screen.getByRole("button", { name: "Start a claim" }));
-  expect(await screen.findByTestId("claim-code")).toHaveTextContent("dlg_onetimecode");
-  expect(screen.getByText(/it works once/)).toBeInTheDocument();
-  expect(writes()).toEqual([{ method: "POST", path: `${BASE}/claims`, body: {} }]);
-  fireEvent.click(screen.getByRole("button", { name: "Copy" }));
-  expect(await screen.findByText("Code copied.")).toBeInTheDocument();
-  expect(writeText).toHaveBeenCalledWith("dlg_onetimecode");
+  expect(await screen.findByText("No explicit grants.")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Add grant" }));
+  expect(submitButton()).toBeDisabled();
+  fireEvent.change(screen.getByLabelText("Agent"), { target: { value: "my agent" } });
+  fireEvent.change(screen.getByLabelText("On"), { target: { value: "acme/*" } });
+  expect(screen.getByRole("alert")).toHaveTextContent("An agent id has no spaces.");
+  expect(submitButton()).toBeDisabled();
+  fireEvent.change(screen.getByLabelText("Agent"), { target: { value: "agt_1" } });
+  expect(submitButton()).toBeEnabled();
+  expect(CAN_OPTIONS.find((option) => option.value === "merge:ask")?.label).toBe("merge (ask me first)");
+  fireEvent.change(screen.getByLabelText("Can"), { target: { value: "merge:ask" } });
+  expect(screen.queryByLabelText("Expires after")).not.toBeInTheDocument();
+  fireEvent.click(submitButton());
+  await waitFor(() => expect(writes()).toHaveLength(1));
+  expect(writes()[0]!.body).toEqual({ delegate_agent_id: "agt_1", scopes: [{ class: "merge", targets: ["acme/*"] }], require_tier_o: ["merge"] });
+
+  fireEvent.click(await screen.findByRole("button", { name: "Add grant" }));
+  fireEvent.change(screen.getByLabelText("Agent"), { target: { value: "agt_1" } });
+  fireEvent.change(screen.getByLabelText("On"), { target: { value: "acme/*" } });
+  expect(expiryOptions(30)).toEqual([7, 30]);
+  fireEvent.click(screen.getByRole("button", { name: /Set expiry/ }));
+  fireEvent.change(screen.getByLabelText("Expires after"), { target: { value: "7" } });
+  fireEvent.click(submitButton());
+  await waitFor(() => expect(writes()).toHaveLength(2));
+  expect(typeof (writes()[1]!.body as { expires_at: unknown }).expires_at).toBe("string");
+  expect(writes()[1]!.body).not.toHaveProperty("require_tier_o");
 });
 
-it("grants with the form's values and shows the server's refusal", async () => {
+it("keeps a literal comma inside a resource, refuses one used as a separator, and shows the server's refusal", async () => {
   routes = {
     "GET /": () => [200, { grants: [] }],
     "POST /": () => [403, { error: "The agent must be bound to you; claim it first", code: "not_delegate" }],
   };
   render(section());
-  fireEvent.change(screen.getByLabelText("Agent id"), { target: { value: "assistant-9" } });
-  fireEvent.change(screen.getByLabelText("Class"), { target: { value: "release" } });
-  fireEvent.change(screen.getByLabelText(/^Targets/), { target: { value: "acme/web:stable:*:*:*  acme/api:stable:*:*:*" } });
-  fireEvent.change(screen.getByLabelText(/Expires in/), { target: { value: "7" } });
-  fireEvent.click(screen.getByLabelText(/Require my own approval/));
-  fireEvent.click(screen.getByRole("button", { name: "Grant" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Add grant" }));
+  fireEvent.change(screen.getByLabelText("Agent"), { target: { value: "agt_1" } });
+  fireEvent.change(screen.getByLabelText("On"), { target: { value: "acme, channel:ops" } });
+  expect(screen.getByRole("alert")).toHaveTextContent("Separate resources with spaces");
+  fireEvent.click(screen.getByRole("button", { name: "Remove acme," }));
+  fireEvent.change(screen.getByLabelText("On"), { target: { value: "channel:ops,security channel:eng" } });
+  fireEvent.click(submitButton());
   expect(await screen.findByRole("alert")).toHaveTextContent("The agent must be bound to you; claim it first");
-  const body = writes()[0]!.body as Record<string, unknown>;
-  expect(body).toMatchObject({
-    delegate_agent_id: "assistant-9",
-    scopes: [{ class: "release", targets: ["acme/web:stable:*:*:*", "acme/api:stable:*:*:*"] }],
-    require_tier_o: ["release"],
-  });
-  const days = (Date.parse(body.expires_at as string) - Date.now()) / 86_400_000;
-  expect(days).toBeGreaterThan(6.9);
-  expect(days).toBeLessThanOrEqual(7);
-  // A refusal keeps the form as typed.
-  expect(screen.getByLabelText("Agent id")).toHaveValue("assistant-9");
+  expect((writes()[0]!.body as { scopes: Array<{ targets: string[] }> }).scopes[0]!.targets).toEqual(["channel:ops,security", "channel:eng"]);
+  // A refusal keeps the form open as typed.
+  expect(screen.getByLabelText("Agent")).toHaveValue("agt_1");
 });
 
-it("a successful grant clears the form, says so and re-reads the list", async () => {
-  let grants: DelegateGrant[] = [];
+it("removes a grant after a confirmation; a permission-row grant's confirmation says the agent is excluded", async () => {
+  let grants = [grant(), grant({ grant_id: "grt_rule", delegate_agent_id: "rule-agent", scopes: [], trust_rule_id: "rul_1" })];
   routes = {
     "GET /": () => [200, { grants }],
-    "POST /": () => { grants = [grant({ delegate_agent_id: "assistant-9" })]; return [201, grants[0]]; },
+    "DELETE /grt_abcdefgh1": () => { grants = [grant({ status: "revoked" }), grants[1]!]; return [200, grants[0]]; },
   };
   render(section());
-  await screen.findByText("No grants yet.");
-  fireEvent.change(screen.getByLabelText("Agent id"), { target: { value: "assistant-9" } });
-  fireEvent.change(screen.getByLabelText(/^Targets/), { target: { value: "acme/*" } });
-  fireEvent.click(screen.getByRole("button", { name: "Grant" }));
-  expect(await screen.findByText("Granted assistant-9.")).toBeInTheDocument();
-  expect(await screen.findByText("assistant-9")).toBeInTheDocument();
-  expect(screen.getByLabelText("Agent id")).toHaveValue("");
-  // No expiry entered: the server's default applies, and no Tier O was asked for.
-  expect(writes()[0]!.body).toEqual({ delegate_agent_id: "assistant-9", scopes: [{ class: "merge", targets: ["acme/*"] }] });
+  fireEvent.click(await screen.findByRole("button", { name: "Remove rule-agent" }));
+  expect(confirmGroup()).toHaveTextContent("the agent is excluded: it gets nothing until you give it its own setting");
+  fireEvent.click(screen.getByRole("button", { name: "Remove assistant-1" }));
+  expect(confirmGroup()).toHaveTextContent("Revoke this grant?");
+  fireEvent.click(within(confirmGroup()).getByRole("button", { name: "Remove" }));
+  expect(await screen.findByText("Removed.")).toBeInTheDocument();
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Remove assistant-1" })).not.toBeInTheDocument());
 });
 
-it("refuses an expiry past the policy maximum, or a missing target, before sending anything", async () => {
-  routes = { "GET /": () => [200, { grants: [] }] };
-  render(section({ maxExpiryDays: 14 }));
-  expect(screen.getByLabelText("Expires in (days, up to 14)")).toBeInTheDocument();
-  fireEvent.change(screen.getByLabelText("Agent id"), { target: { value: "a" } });
-  fireEvent.click(screen.getByRole("button", { name: "Grant" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Enter the agent id and at least one target.");
-  fireEvent.change(screen.getByLabelText(/^Targets/), { target: { value: "acme/*" } });
-  fireEvent.change(screen.getByLabelText(/Expires in/), { target: { value: "30" } });
-  fireEvent.click(screen.getByRole("button", { name: "Grant" }));
-  await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("from 1 to 14"));
-  expect(writes()).toEqual([]);
-});
-
-it("revokes one grant only after a confirmation, then re-reads", async () => {
-  let grants = [grant()];
-  routes = {
-    "GET /": () => [200, { grants }],
-    "DELETE /grt_abcdefgh1": () => { grants = [grant({ status: "revoked" })]; return [200, grants[0]]; },
-  };
-  render(section());
-  fireEvent.click(await screen.findByRole("button", { name: "Revoke assistant-1" }));
-  expect(screen.getByText(/Revoke this grant\?/)).toBeInTheDocument();
-  expect(writes()).toEqual([]);
-  fireEvent.click(within(confirmGroup()).getByRole("button", { name: "Revoke" }));
-  expect(await screen.findByText("Grant revoked.")).toBeInTheDocument();
-  expect(await screen.findByText(/^revoked, expires/)).toBeInTheDocument();
-  expect(writes()).toEqual([{ method: "DELETE", path: `${BASE}/grt_abcdefgh1`, body: {} }]);
-});
-
-it("cancelling a revocation sends nothing", async () => {
-  routes = { "GET /": () => [200, { grants: [grant()] }] };
-  render(section());
-  await screen.findByText("assistant-1");
-  fireEvent.click(screen.getByRole("button", { name: "Revoke all my grants and approvals" }));
-  expect(screen.getByText(/Revoke all your grants and approvals\?/)).toBeInTheDocument();
-  fireEvent.click(within(confirmGroup()).getByRole("button", { name: "Cancel" }));
-  expect(screen.queryByRole("group", { name: "Confirm revocation" })).not.toBeInTheDocument();
-  expect(writes()).toEqual([]);
-});
-
-it("revoke-all asks first; an admin's 'every grant' view revokes with {all: true}", async () => {
-  routes = {
-    "GET /?all=1": () => [200, { grants: [grant(), grant({ grant_id: "grt_other0001", owner_id: "u2", delegate_agent_id: "bot-2" })] }],
-    "GET /": () => [200, { grants: [grant()] }],
-    "POST /revoke-all": () => [200, { revoked: ["grt_abcdefgh1", "grt_other0001"] }],
-  };
-  render(section({ isAdmin: true }));
-  await screen.findByText("assistant-1");
-  fireEvent.click(screen.getByLabelText("Show every grant in the workspace"));
-  expect(await screen.findByText("bot-2")).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Revoke every grant and approval" }));
-  expect(screen.getByText(/Revoke every grant and approval in this workspace\?/)).toHaveTextContent(
-    "including approvals given without a grant");
-  fireEvent.click(within(confirmGroup()).getByRole("button", { name: "Revoke" }));
-  expect(await screen.findByText("Revoked 2 grant(s) and the approvals in scope.")).toBeInTheDocument();
-  expect(writes()).toEqual([{ method: "POST", path: `${BASE}/revoke-all`, body: { all: true } }]);
-});
-
-it("a member's revoke-all sends {} for their own grants, and members get no 'every grant' toggle", async () => {
+it("revoke everything sits in the overflow menu, asks first, and covers the view on screen", async () => {
   routes = {
     "GET /": () => [200, { grants: [grant()] }],
+    "GET /?all=1": () => [200, { grants: [grant()] }],
     "POST /revoke-all": () => [200, { revoked: ["grt_abcdefgh1"] }],
   };
-  render(section());
-  await screen.findByText("assistant-1");
-  expect(screen.queryByText("Show every grant in the workspace")).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Revoke all my grants and approvals" }));
-  fireEvent.click(within(confirmGroup()).getByRole("button", { name: "Revoke" }));
-  expect(await screen.findByText("Revoked 1 grant(s) and the approvals in scope.")).toBeInTheDocument();
-  expect(writes()).toEqual([{ method: "POST", path: `${BASE}/revoke-all`, body: {} }]);
-});
-
-it("shows a network failure, and a failed list read with a retry", async () => {
-  let listFails = true;
-  routes = {
-    "GET /": () => (listFails ? [503, { error: "Delegation is unavailable", code: "unavailable" }] : [200, { grants: [] }]),
-    "POST /claims": () => Promise.reject(new TypeError("Failed to fetch")),
-  };
-  render(section());
-  expect(await screen.findByRole("alert")).toHaveTextContent("Delegation is unavailable");
-  listFails = false;
-  fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-  expect(await screen.findByText("No grants yet.")).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Start a claim" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Could not reach the server. Try again.");
-});
-
-it("with delegation off, hides claims and new grants but keeps list and revoke", async () => {
-  routes = { "GET /": () => [200, { grants: [grant()] }] };
-  render(section({ delegationEnabled: false }));
-  await screen.findByText("assistant-1");
-  expect(screen.queryByRole("button", { name: "Start a claim" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("form", { name: "Grant a delegate" })).not.toBeInTheDocument();
-  expect(screen.getByText(/Delegation is off for this workspace/)).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Revoke assistant-1" })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Revoke all my grants and approvals" })).toBeInTheDocument();
-});
-
-it("sits under the toggle, follows it on, and takes the policy's expiry cap", async () => {
-  let enabled = false;
-  routes = {
-    "GET /policy": () => [200, { delegation_enabled: enabled, max_expiry_days: 21 }],
-    "PUT /policy": (call) => {
-      enabled = (call.body as { delegation_enabled: boolean }).delegation_enabled;
-      return [200, { delegation_enabled: enabled, max_expiry_days: 21, revoked_grants: [] }];
-    },
-    "GET /": () => [200, { grants: [] }],
-  };
-  render(<DelegationSection workspaceId="w1" canManage />);
-  expect(await screen.findByText(/Delegation is off for this workspace/)).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("switch"));
-  fireEvent.click(screen.getByRole("button", { name: "Turn on delegation" }));
-  expect(await screen.findByRole("button", { name: "Start a claim" })).toBeInTheDocument();
-  expect(screen.getByLabelText("Expires in (days, up to 21)")).toBeInTheDocument();
-});
-
-it("drops an answer that arrives after a workspace switch", async () => {
-  let finish!: (reply: [number, unknown]) => void;
-  routes = {
-    "GET /": () => [200, { grants: [] }],
-    "POST /claims": () => new Promise((resolve) => { finish = resolve; }),
-  };
-  const keyed = (workspaceId: string) => <DelegatesSection key={workspaceId} workspaceId={workspaceId}
-    delegationEnabled maxExpiryDays={30} isAdmin={false} />;
-  routes["GET /cloud/api/v1/workspaces/w2/delegates"] = () => [200, { grants: [] }];
-  const { rerender } = render(keyed("w1"));
-  fireEvent.click(screen.getByRole("button", { name: "Start a claim" }));
-  rerender(keyed("w2"));
-  await act(async () => finish([201, { claim_id: "clm_1", code: "dlg_staleforw1", expires_at: "2026-11-25T00:10:00.000Z" }]));
-  expect(screen.queryByTestId("claim-code")).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Start a claim" })).toBeEnabled();
-  expect(await screen.findByText("No grants yet.")).toBeInTheDocument();
-});
-
-it("keeps a literal comma inside a target, and refuses commas used as separators", async () => {
-  routes = { "GET /": () => [200, { grants: [] }], "POST /": () => [201, grant()] };
-  render(section());
-  fireEvent.change(screen.getByLabelText("Agent id"), { target: { value: "assistant-1" } });
-  fireEvent.change(screen.getByLabelText("Class"), { target: { value: "external_comms" } });
-  fireEvent.change(screen.getByLabelText(/^Targets/), { target: { value: "acme, channel:ops" } });
-  fireEvent.click(screen.getByRole("button", { name: "Grant" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Separate targets with spaces");
-  expect(writes()).toEqual([]);
-  fireEvent.change(screen.getByLabelText(/^Targets/), { target: { value: "channel:ops,security channel:eng" } });
-  fireEvent.click(screen.getByRole("button", { name: "Grant" }));
-  await waitFor(() => expect(writes()).toHaveLength(1));
-  expect(writes()[0]!.body).toMatchObject({
-    scopes: [{ class: "external_comms", targets: ["channel:ops,security", "channel:eng"] }],
-  });
-});
-
-it("never shows the every-grant rows in the personal view, and shows a failed read of it with a retry", async () => {
-  let mineFails = false;
-  routes = {
-    "GET /?all=1": () => [200, { grants: [grant({ grant_id: "grt_other0001", owner_id: "u2", delegate_agent_id: "bot-2" })] }],
-    "GET /": () => (mineFails ? [503, { error: "Delegation is unavailable", code: "unavailable" }] : [200, { grants: [grant()] }]),
-  };
   render(section({ isAdmin: true }));
   await screen.findByText("assistant-1");
-  fireEvent.click(screen.getByLabelText("Show every grant in the workspace"));
-  expect(await screen.findByText("bot-2")).toBeInTheDocument();
+  expect(screen.queryByText("Revoke everything")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "Revoke everything" }));
+  expect(confirmGroup()).toHaveTextContent("every permission row of yours (Relay agents, connector and group rows, single agents and exclusions, and your old trust rule) is removed");
+  fireEvent.click(within(confirmGroup()).getByRole("button", { name: "Revoke everything" }));
+  await waitFor(() => expect(writes()).toEqual([{ method: "POST", path: `${BASE}/revoke-all`, body: {} }]));
+  fireEvent.click(screen.getByRole("switch", { name: "Show every grant in the workspace" }));
+  await screen.findByText("assistant-1");
+  fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "Revoke everything" }));
+  expect(confirmGroup()).toHaveTextContent("Revoke everything in this workspace?");
+  fireEvent.click(within(confirmGroup()).getByRole("button", { name: "Revoke everything" }));
+  await waitFor(() => expect(writes()[1]).toEqual({ method: "POST", path: `${BASE}/revoke-all`, body: { all: true } }));
+});
+
+it("the every-grant filter is admin-only and never shows another view's rows; a failed read shows a retry", async () => {
+  let mineFails = false;
+  routes = {
+    "GET /?all=1": () => [200, { grants: [grant({ grant_id: "grt_o", owner_id: "u2", delegate_agent_id: "their-agent" })] }],
+    "GET /": () => (mineFails ? [503, { error: "Delegation is unavailable", code: "unavailable" }] : [200, { grants: [grant()] }]),
+  };
+  const { unmount } = render(section());
+  await screen.findByText("assistant-1");
+  expect(screen.queryByRole("switch", { name: "Show every grant in the workspace" })).not.toBeInTheDocument();
+  unmount();
+  render(section({ isAdmin: true }));
+  await screen.findByText("assistant-1");
+  fireEvent.click(screen.getByRole("switch", { name: "Show every grant in the workspace" }));
+  expect(await screen.findByText("their-agent")).toBeInTheDocument();
   mineFails = true;
-  fireEvent.click(screen.getByLabelText("Show every grant in the workspace"));
-  // The every-grant rows go at once, before the personal read settles.
-  expect(screen.queryByText("bot-2")).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Revoke bot-2" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("switch", { name: "Show every grant in the workspace" }));
+  expect(screen.queryByText("their-agent")).not.toBeInTheDocument();
   expect(await screen.findByRole("alert")).toHaveTextContent("Delegation is unavailable");
-  expect(screen.queryByText("bot-2")).not.toBeInTheDocument();
   mineFails = false;
   fireEvent.click(screen.getByRole("button", { name: "Try again" }));
   expect(await screen.findByText("assistant-1")).toBeInTheDocument();
-  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });
 
-it("drops an every-grant answer that settles after the admin went back to their own grants", async () => {
-  let finishAll!: (reply: [number, unknown]) => void;
+it("tells the page after a grant change, and re-reads on a new refresh key", async () => {
+  let revoked = false;
   routes = {
-    "GET /?all=1": () => new Promise((resolve) => { finishAll = resolve; }),
-    "GET /": () => [200, { grants: [grant()] }],
-  };
-  render(section({ isAdmin: true }));
-  await screen.findByText("assistant-1");
-  fireEvent.click(screen.getByLabelText("Show every grant in the workspace"));
-  expect(screen.queryByText("assistant-1")).not.toBeInTheDocument();
-  fireEvent.click(screen.getByLabelText("Show every grant in the workspace"));
-  expect(await screen.findByText("assistant-1")).toBeInTheDocument();
-  await act(async () => finishAll([200, { grants: [grant({ grant_id: "grt_other0001", owner_id: "u2", delegate_agent_id: "bot-2" })] }]));
-  expect(screen.queryByText("bot-2")).not.toBeInTheDocument();
-  expect(screen.getByText("assistant-1")).toBeInTheDocument();
-});
-
-it("shows a failed re-read after a revocation alongside the list it still has", async () => {
-  let reads = 0;
-  routes = {
-    "GET /": () => (++reads === 1 ? [200, { grants: [grant()] }] : [503, { error: "Delegation is unavailable", code: "unavailable" }]),
+    "GET /": () => [200, { grants: [grant({ status: revoked ? "revoked" : "active" })] }],
     "DELETE /grt_abcdefgh1": () => [200, grant({ status: "revoked" })],
   };
-  render(section());
-  fireEvent.click(await screen.findByRole("button", { name: "Revoke assistant-1" }));
-  fireEvent.click(within(confirmGroup()).getByRole("button", { name: "Revoke" }));
-  expect(await screen.findByText("Grant revoked.")).toBeInTheDocument();
-  expect(await screen.findByRole("alert")).toHaveTextContent("Delegation is unavailable");
-  expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+  const changed = vi.fn();
+  const { rerender } = render(section({ onGrantsChanged: changed }));
+  fireEvent.click(await screen.findByRole("button", { name: "Remove assistant-1" }));
+  fireEvent.click(within(confirmGroup()).getByRole("button", { name: "Remove" }));
+  await waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
+  revoked = true;
+  rerender(section({ onGrantsChanged: changed, refreshKey: 1 }));
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Remove assistant-1" })).not.toBeInTheDocument());
 });
 
-it("offers revoke-all with no grants listed, since it also revokes approvals given without a grant", async () => {
-  routes = { "GET /": () => [200, { grants: [] }], "POST /revoke-all": () => [200, { revoked: [] }] };
-  render(section());
-  await screen.findByText("No grants yet.");
-  fireEvent.click(screen.getByRole("button", { name: "Revoke all my grants and approvals" }));
-  expect(screen.getByText(/Revoke all your grants and approvals\?/)).toHaveTextContent(
-    "including approvals given without a grant");
-  fireEvent.click(within(confirmGroup()).getByRole("button", { name: "Revoke" }));
-  expect(await screen.findByText("Revoked 0 grant(s) and the approvals in scope.")).toBeInTheDocument();
-  expect(writes()).toEqual([{ method: "POST", path: `${BASE}/revoke-all`, body: {} }]);
+it("with delegation off, offers no add or claim but keeps Remove", async () => {
+  routes = { "GET /": () => [200, { grants: [grant()] }] };
+  render(section({ delegationEnabled: false }));
+  await screen.findByText("assistant-1");
+  expect(screen.queryByRole("button", { name: "Add grant" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Connect an external agent" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Remove assistant-1" })).toBeInTheDocument();
 });
 
-it("shows the classes a grant needs the owner's own (Tier O) approval for", async () => {
-  routes = { "GET /": () => [200, { grants: [grant({ require_tier_o: ["merge"] })] }] };
-  render(section());
-  expect(await screen.findByText("needs the owner's own approval for merge")).toBeInTheDocument();
-});
-
-it("does not bring a claim code back after delegation is turned off and on again", async () => {
+function claimRoutes() {
+  let n = 0;
   routes = {
     "GET /": () => [200, { grants: [] }],
-    "POST /claims": () => [201, { claim_id: "clm_1", code: "dlg_onetimecode", expires_at: "2026-11-25T00:10:00.000Z" }],
+    "POST /claims": () => {
+      n += 1;
+      return [201, { claim_id: `clm_${n}`, code: `dlg_code_${n}`, expires_at: new Date(Date.now() + 10 * 60_000).toISOString() }];
+    },
   };
-  const { rerender } = render(section());
-  fireEvent.click(screen.getByRole("button", { name: "Start a claim" }));
-  expect(await screen.findByTestId("claim-code")).toHaveTextContent("dlg_onetimecode");
-  rerender(section({ delegationEnabled: false }));
-  rerender(section({ delegationEnabled: true }));
-  expect(screen.getByRole("button", { name: "Start a claim" })).toBeInTheDocument();
+}
+
+it("connecting an external agent shows the one-time code with Copy and its expiry; Close clears it", async () => {
+  const writeText = vi.fn(async () => {});
+  vi.stubGlobal("navigator", { clipboard: { writeText } });
+  claimRoutes();
+  render(section());
+  fireEvent.click(screen.getByRole("button", { name: "Connect an external agent" }));
+  fireEvent.click(screen.getByRole("button", { name: "Get a code" }));
+  expect(await screen.findByTestId("claim-code")).toHaveTextContent("dlg_code_1");
+  expect(screen.getByText(/it works once/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+  expect(await screen.findByText("Code copied.")).toBeInTheDocument();
+  expect(writeText).toHaveBeenCalledWith("dlg_code_1");
+  fireEvent.click(screen.getByRole("button", { name: "Close" }));
+  fireEvent.click(screen.getByRole("button", { name: "Connect an external agent" }));
   expect(screen.queryByTestId("claim-code")).not.toBeInTheDocument();
 });
 
-it("shows a trust-rule grant (scopes []) as covering every class", async () => {
-  routes = { "GET /": () => [200, { grants: [grant({ scopes: [], trust_rule_id: "dtr_1", delegate_agent_id: "bot-1" })] }] };
+it("marks the code expired at expires_at, then starting a new claim replaces it", async () => {
+  // Only the expiry timer is faked; the code's expires_at is ten real minutes away. Requests settle on
+  // microtasks, flushed inside act, so no polling (which fake timers would stall) is needed.
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  const flush = () => act(async () => { for (let turn = 0; turn < 20; turn += 1) await Promise.resolve(); });
+  claimRoutes();
   render(section());
-  expect(await screen.findByText("All classes (trust rule)")).toBeInTheDocument();
+  await flush();
+  fireEvent.click(screen.getByRole("button", { name: "Connect an external agent" }));
+  fireEvent.click(screen.getByRole("button", { name: "Get a code" }));
+  await flush();
+  expect(screen.getByTestId("claim-code")).toHaveTextContent("dlg_code_1");
+  await act(async () => { vi.advanceTimersByTime(10 * 60_000 - 1_000); });
+  expect(screen.getByTestId("claim-code")).toHaveTextContent("dlg_code_1");
+  await act(async () => { vi.advanceTimersByTime(1_000); });
+  expect(screen.queryByTestId("claim-code")).not.toBeInTheDocument();
+  expect(screen.getByText("This code has expired.")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Start a new claim" }));
+  await flush();
+  expect(screen.getByTestId("claim-code")).toHaveTextContent("dlg_code_2");
+  expect(screen.queryByText("This code has expired.")).not.toBeInTheDocument();
+});
+
+it("starting a new claim while a code is shown replaces it, and turning delegation off clears it", async () => {
+  claimRoutes();
+  const { rerender } = render(section());
+  fireEvent.click(screen.getByRole("button", { name: "Connect an external agent" }));
+  fireEvent.click(screen.getByRole("button", { name: "Get a code" }));
+  expect(await screen.findByTestId("claim-code")).toHaveTextContent("dlg_code_1");
+  fireEvent.click(screen.getByRole("button", { name: "Start a new claim" }));
+  await waitFor(() => expect(screen.getByTestId("claim-code")).toHaveTextContent("dlg_code_2"));
+  expect(screen.getAllByTestId("claim-code")).toHaveLength(1);
+  rerender(section({ delegationEnabled: false }));
+  rerender(section({ delegationEnabled: true }));
+  expect(screen.queryByTestId("claim-code")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Get a code" })).toBeInTheDocument();
+});
+
+it("keeps each action beside its own repos, and a pre-roles rule grant keeps its ask-first list", async () => {
+  routes = { "GET /": () => [200, { grants: [
+    grant({ scopes: [{ class: "merge", targets: ["acme/web"] }, { class: "deploy", targets: ["acme/api"] }] }),
+    grant({ grant_id: "grt_old_rule", delegate_agent_id: "old-rule", scopes: [], trust_rule_id: "rul_9", require_tier_o: ["deploy", "release"] }),
+  ] }] };
+  render(section());
+  // One table row per scope: each action shares its row with its own repos.
+  const first = (await screen.findByText("assistant-1")).closest("tr")!;
+  const second = first.nextElementSibling as HTMLElement;
+  expect(within(first).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(expect.arrayContaining(["merge", "acme/web"]));
+  expect(within(second).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["deploy", "acme/api"]);
+  expect(screen.getByText("All actions (set before roles); ask me first: deploy, release")).toBeInTheDocument();
+});
+
+it("says what the default expiry is instead of promising none, and closes the add form when delegation turns off", async () => {
+  routes = { "GET /": () => [200, { grants: [] }] };
+  const { rerender } = render(section({ maxExpiryDays: 14 }));
+  fireEvent.click(await screen.findByRole("button", { name: "Add grant" }));
+  expect(screen.getByRole("button", { name: "Expires in 14 days. Set expiry" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Expires in 14 days. Set expiry" }));
+  expect(screen.getByRole("button", { name: "Use default (14 days)" })).toBeInTheDocument();
+  expect(screen.queryByText("No expiry")).not.toBeInTheDocument();
+  rerender(section({ maxExpiryDays: 14, delegationEnabled: false }));
+  expect(screen.queryByRole("form", { name: "Add grant" })).not.toBeInTheDocument();
 });

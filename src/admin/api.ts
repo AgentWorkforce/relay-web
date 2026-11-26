@@ -45,8 +45,11 @@ import {
   delegateGrantSchema,
   delegateGrantsSchema,
   revokedGrantsSchema,
-  trustRulePutSchema,
-  trustRuleStateSchema,
+  bindingsSchema,
+  bindingWriteSchema,
+  delegationAgentsSchema,
+  delegationGroupsSchema,
+  rolesInfoSchema,
   type DelegationClass,
   type TokenPurpose,
   type Role,
@@ -487,22 +490,35 @@ export const adminApi = {
       method: "POST",
       body: all ? { all: true } : {},
     })).revoked,
+  /** Preset roles (labels, descriptions, what each allows and asks first) and every action class. */
+  delegationRoles: (workspace: string, signal?: AbortSignal) =>
+    call(`${ws(workspace)}/delegates/roles`, rolesInfoSchema, { signal }),
+  /** The caller's bindings, and the recommended one when it is missing. */
+  delegationBindings: (workspace: string, signal?: AbortSignal) =>
+    call(`${ws(workspace)}/delegates/bindings`, bindingsSchema, { signal }),
+  /** 409 `binding_exists` when the principal already has a row; 422 `not_owned` for an agent the chain does not prove. */
+  createDelegationBinding: (workspace: string, input: Record<string, unknown>) =>
+    call(`${ws(workspace)}/delegates/bindings`, bindingWriteSchema, { method: "POST", body: input }),
+  /** A role change revokes the grants it decided at once. */
+  updateDelegationBinding: (workspace: string, bindingId: string, input: Record<string, unknown>) =>
+    call(`${ws(workspace)}/delegates/bindings/${enc(bindingId)}`, bindingWriteSchema, { method: "PATCH", body: input }),
+  deleteDelegationBinding: (workspace: string, bindingId: string) =>
+    call(`${ws(workspace)}/delegates/bindings/${enc(bindingId)}`, null, { method: "DELETE" }),
+  /** The built-in groups (always listed) and the caller's custom groups. */
+  delegationGroups: async (workspace: string, signal?: AbortSignal) =>
+    (await call(`${ws(workspace)}/delegates/groups`, delegationGroupsSchema, { signal })).groups,
+  createDelegationGroup: (workspace: string, input: { name: string; agent_ids: string[] }) =>
+    call(`${ws(workspace)}/delegates/groups`, null, { method: "POST", body: input }),
+  updateDelegationGroup: (workspace: string, groupId: string, input: { name?: string; add?: string[]; remove?: string[] }) =>
+    call(`${ws(workspace)}/delegates/groups/${enc(groupId)}`, null, { method: "PATCH", body: input }),
+  deleteDelegationGroup: (workspace: string, groupId: string) =>
+    call(`${ws(workspace)}/delegates/groups/${enc(groupId)}`, null, { method: "DELETE" }),
+  /** The caller's provable agents by immutable id, with what decides each one now. */
+  delegationAgents: async (workspace: string, signal?: AbortSignal) =>
+    (await call(`${ws(workspace)}/delegates/agents`, delegationAgentsSchema, { signal })).agents,
   /** A one-time claim code, valid for 10 minutes; refused with `not_enabled` while delegation is off. */
   startDelegateClaim: (workspace: string) =>
     call(`${ws(workspace)}/delegates/claims`, delegateClaimSchema, { method: "POST" }),
-  /** The caller's own trust rule (`rule: null` when off), the agents it covers and the bots whose own grant wins. */
-  trustRule: (workspace: string, signal?: AbortSignal) =>
-    call(`${ws(workspace)}/delegates/trust-rule`, trustRuleStateSchema, { signal }),
-  /**
-   * Turns the caller's rule on (idempotent). Sends `{}` as Cloud does: no
-   * class keeps an owner tap (#owner-decisions 251241083284656128).
-   * `not_enabled` while delegation is off.
-   */
-  putTrustRule: (workspace: string) =>
-    call(`${ws(workspace)}/delegates/trust-rule`, trustRulePutSchema, { method: "PUT", body: {} }),
-  /** Ends the rule and every grant it created; 404 `not_found` when no rule is on. */
-  revokeTrustRule: (workspace: string) =>
-    call(`${ws(workspace)}/delegates/trust-rule`, null, { method: "DELETE" }),
   hardDeleteSession: (
     organization: string,
     session: { workspaceId: string; source: string; sessionId: string },

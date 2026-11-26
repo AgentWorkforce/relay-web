@@ -30,6 +30,11 @@ function respond(call: Call): Reply {
     return json({ delegation_enabled: stored, max_expiry_days: 90, allowed_classes: null,
       require_tier_o: [], code_owner_match: "any_path", ...(call.method === "PUT" ? { revoked_grants: [] } : {}) });
   }
+  // Agent permissions (the bindings contract) under the toggle: nothing set up yet.
+  if (call.path.endsWith("/delegates/roles")) return json({ presets: [], classes: [], pr_ops_ops: [] });
+  if (call.path.endsWith("/delegates/bindings")) return json({ bindings: [], recommendation: null });
+  if (call.path.endsWith("/delegates/groups")) return json({ groups: [] });
+  if (call.path.endsWith("/delegates/agents")) return json({ agents: [] });
   if (call.path.endsWith("/delegates")) return json({ grants: [] });
   if (call.path.endsWith("/memberships")) return json({ memberships: [] });
   if (call.path.endsWith("/invitations")) return json({ invitations: [] });
@@ -342,13 +347,13 @@ it("applies the confirmed policy to the Delegates section at once, even when the
     return undefined;
   };
   render(<DelegationSection workspaceId="w1" canManage />);
-  expect(await screen.findByText(/Delegation is off for this workspace/)).toBeInTheDocument();
+  expect(await screen.findByText(/Delegation is off, so nothing can be added/)).toBeInTheDocument();
   fireEvent.click(toggle());
   fireEvent.click(screen.getByRole("button", { name: "Turn on delegation" }));
-  expect(await screen.findByRole("button", { name: "Start a claim" })).toBeInTheDocument();
+  expect(await screen.findByRole("button", { name: "Add permission" })).toBeInTheDocument();
   await waitFor(() => expect(policyReads).toBe(2));
   expect(screen.getByText("Delegation is on")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Start a claim" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Add permission" })).toBeInTheDocument();
 });
 
 it("a policy read issued before a successful save never replaces the saved state, even if the re-read fails", async () => {
@@ -377,10 +382,19 @@ it("a policy read issued before a successful save never replaces the saved state
   putFails = false;
   fireEvent.click(toggle());
   fireEvent.click(screen.getByRole("button", { name: "Turn on delegation" }));
-  expect(await screen.findByRole("button", { name: "Start a claim" })).toBeInTheDocument();
+  expect(await screen.findByRole("button", { name: "Add permission" })).toBeInTheDocument();
   await waitFor(() => expect(policyReads).toBe(3));
   await act(async () => finishSecond(json({ delegation_enabled: false, max_expiry_days: 90, allowed_classes: null,
     require_tier_o: [], code_owner_match: "any_path" })));
   expect(screen.getByText("Delegation is on")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Start a claim" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Add permission" })).toBeInTheDocument();
+});
+
+it("turning delegation on re-reads Agent permissions, so the recommendation can appear", async () => {
+  render(<DelegationSection workspaceId="w1" canManage />);
+  fireEvent.click(await screen.findByRole("switch", { name: /^Delegation is/ }));
+  const bindingReads = () => calls.filter((call) => call.method === "GET" && call.path.endsWith("/delegates/bindings")).length;
+  const before = bindingReads();
+  fireEvent.click(screen.getByRole("button", { name: "Turn on delegation" }));
+  await waitFor(() => expect(bindingReads()).toBeGreaterThan(before));
 });
