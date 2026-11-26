@@ -545,3 +545,78 @@ export const trustRuleStateSchema = z.object({
 export type TrustRuleState = z.infer<typeof trustRuleStateSchema>;
 export type TrustRuleCovered = TrustRuleState["covered"][number];
 export const trustRulePutSchema = z.object({ rule: trustRuleSchema });
+
+/**
+ * Delegation bindings, groups and roles (v1 contract: GET delegates/roles,
+ * GET|POST|PATCH|DELETE delegates/bindings, delegates/groups, GET
+ * delegates/agents). A binding is a trust-rule row: who (a principal) has
+ * which role, on what, until when.
+ */
+export const presetSchema = z.object({
+  role: z.string(),
+  label: z.string(),
+  description: z.string(),
+  classes: z.array(z.string()),
+  require_tier_o: z.array(z.string()),
+  pr_ops_limit: z.array(z.string()).nullable(),
+});
+export type Preset = z.infer<typeof presetSchema>;
+export const rolesInfoSchema = z.object({
+  presets: z.array(presetSchema),
+  classes: z.array(z.object({ class: z.string(), description: z.string() })),
+  pr_ops_ops: z.array(z.string()).default([]),
+});
+export type RolesInfo = z.infer<typeof rolesInfoSchema>;
+export const principalKindSchema = z.enum(["relay_agents", "connector_kind", "group", "agent", "all_agents"]);
+export type PrincipalKind = z.infer<typeof principalKindSchema>;
+export const bindingSchema = z.object({
+  binding_id: z.string(),
+  owner_id: z.string(),
+  principal: z.object({ kind: principalKindSchema, ref: z.string().nullable(), name: z.string() }),
+  role: z.string(),
+  classes: z.array(z.string()).default([]),
+  require_tier_o: z.array(z.string()).default([]),
+  pr_ops_limit: z.array(z.string()).nullable().default(null),
+  targets: z.array(z.string()).nullable().default(null),
+  expires_at: z.string().nullable().default(null),
+  covered: z.number().int().nonnegative().default(0),
+  clipped_by_policy: z.array(z.string()).default([]),
+});
+export type Binding = z.infer<typeof bindingSchema>;
+export const recommendationSchema = z.object({
+  principal: z.object({ kind: principalKindSchema, ref: z.string().nullable().optional() }),
+  role: z.string(),
+  label: z.string(),
+}).nullable();
+export type Recommendation = z.infer<typeof recommendationSchema>;
+export const bindingsSchema = z.object({ bindings: z.array(bindingSchema), recommendation: recommendationSchema.default(null) });
+export const bindingWriteSchema = z.object({
+  binding: bindingSchema.optional(),
+  bindings: z.array(bindingSchema).optional(),
+  skipped: z.array(z.object({ workspace_id: z.string(), reason: z.string() })).default([]),
+});
+export const delegationGroupSchema = z.object({
+  group_id: z.string(),
+  kind: z.enum(["builtin", "custom"]),
+  name: z.string(),
+  members: z.array(z.object({ agent_id: z.string(), name: z.string(), proven: z.boolean(), added_at: z.string().nullable() })),
+});
+export type DelegationGroup = z.infer<typeof delegationGroupSchema>;
+export const delegationGroupsSchema = z.object({ groups: z.array(delegationGroupSchema) });
+export const delegationAgentSchema = z.object({
+  agent_id: z.string(),
+  name: z.string(),
+  root_kind: z.enum(["claim", "connector"]),
+  connector: z.string().nullable(),
+  spawned: z.boolean(),
+  launched_by: z.string().nullable(),
+  groups: z.array(z.string()),
+  effective: z.object({
+    binding_id: z.string().nullable(),
+    role: z.string(),
+    source: z.string(),
+    grant_id: z.string().nullable(),
+  }),
+});
+export type DelegationAgent = z.infer<typeof delegationAgentSchema>;
+export const delegationAgentsSchema = z.object({ agents: z.array(delegationAgentSchema) });

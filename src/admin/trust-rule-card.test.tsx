@@ -40,6 +40,11 @@ function respond(call: Call): Reply {
     return [200, state];
   }
   if (call.path.endsWith("/delegates/policy")) return [200, { delegation_enabled: true, max_expiry_days: 30 }];
+  // Agent permissions (the bindings contract) under the toggle: nothing set up yet.
+  if (call.path.endsWith("/delegates/roles")) return [200, { presets: [], classes: [], pr_ops_ops: [] }];
+  if (call.path.endsWith("/delegates/bindings")) return [200, { bindings: [], recommendation: null }];
+  if (call.path.endsWith("/delegates/groups")) return [200, { groups: [] }];
+  if (call.path.endsWith("/delegates/agents")) return [200, { agents: [] }];
   if (call.path.endsWith("/delegates")) return [200, { grants: [] }];
   return [404, { error: "not_found", message: "no fake" }];
 }
@@ -298,8 +303,10 @@ it("re-reads the rule after a grant is revoked under Delegates, so the shadowed 
   };
   render(<DelegationSection workspaceId="w1" canManage />);
   expect(await screen.findByText(/1 bot uses its own grant/)).toBeInTheDocument();
-  fireEvent.click(await screen.findByRole("button", { name: "Revoke bot-2" }));
-  fireEvent.click(within(screen.getByRole("group", { name: "Confirm revocation" })).getByRole("button", { name: "Revoke" }));
+  // The explicit-grant table sits under Agent permissions › Advanced.
+  fireEvent.click(await screen.findByRole("button", { name: "Advanced" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Remove bot-2" }));
+  fireEvent.click(within(screen.getByRole("group", { name: "Confirm revocation" })).getByRole("button", { name: "Remove" }));
   await waitFor(() => expect(screen.queryByText(/1 bot uses its own grant/)).not.toBeInTheDocument());
 });
 
@@ -317,10 +324,11 @@ it("re-reads the Delegates list after the rule is revoked, since revoking it end
     return undefined;
   };
   render(<DelegationSection workspaceId="w1" canManage />);
-  expect(await screen.findByRole("button", { name: "Revoke bot-1" })).toBeInTheDocument();
+  fireEvent.click(await screen.findByRole("button", { name: "Advanced" }));
+  expect(await screen.findByRole("button", { name: "Remove bot-1" })).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Revoke trust rule" }));
-  await waitFor(() => expect(screen.queryByRole("button", { name: "Revoke bot-1" })).not.toBeInTheDocument());
-  expect(screen.getByText(/^revoked, expires/)).toBeInTheDocument();
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Remove bot-1" })).not.toBeInTheDocument());
+  expect(screen.getByRole("table", { name: "Explicit grants" })).toHaveTextContent("revoked");
 });
 
 it("re-reads the rule after revoke-all under Delegates, which also ends the rule", async () => {
@@ -335,9 +343,11 @@ it("re-reads the rule after revoke-all under Delegates, which also ends the rule
   };
   render(<DelegationSection workspaceId="w1" canManage />);
   expect(await screen.findByRole("button", { name: "Revoke trust rule" })).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Revoke all my grants and approvals" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Advanced" }));
+  fireEvent.click(await screen.findByRole("button", { name: "More actions" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "Revoke everything" }));
   expect(screen.getByText(/your trust rule are revoked/)).toBeInTheDocument();
-  fireEvent.click(within(screen.getByRole("group", { name: "Confirm revocation" })).getByRole("button", { name: "Revoke" }));
+  fireEvent.click(within(screen.getByRole("group", { name: "Confirm revocation" })).getByRole("button", { name: "Revoke everything" }));
   expect(await screen.findByRole("button", { name: "Trust my connected assistants" })).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Revoke trust rule" })).not.toBeInTheDocument();
 });

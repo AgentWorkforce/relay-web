@@ -10,12 +10,12 @@ import type { DelegationPolicy } from "./contracts";
 import { delegationError } from "./delegation-errors";
 import { useLoad } from "./use-load";
 import { Button, Card, CardContent, CardHeader, CardTitle, Switch } from "../shell/ui";
-import { DelegatesSection } from "./delegates-section";
+import { AgentPermissions } from "./agent-permissions";
 import { TrustRuleCard } from "./trust-rule-card";
 
 /**
  * Reads the workspace's stored delegation policy and shows the switch for it,
- * the caller's trust rule, then the Delegates section, which follows the policy (claims and new grants
+ * the caller's trust rule, then Agent permissions (bindings, with the explicit grants under Advanced), which follow the policy (claims and new grants
  * need delegation on; grants cannot outlive its maximum). Render it keyed by
  * workspace id: a workspace switch then starts fresh, and a request still in
  * flight for the old workspace is dropped.
@@ -40,6 +40,8 @@ export function DelegationSection(props: { workspaceId: string; canManage: boole
   const [ruleChanged, setRuleChanged] = useState(0);
   // A saved policy change re-reads the trust rule card too (what it covers follows delegation on or off).
   const [policyChanged, setPolicyChanged] = useState(0);
+  // A binding is a trust-rule row that decides grants: a binding change re-reads the trust rule card and the grants.
+  const [bindingsChanged, setBindingsChanged] = useState(0);
   // A failed first read hides the card rather than show a state relay-control
   // did not confirm. A failed re-read keeps the last confirmed state.
   if (!data) return null;
@@ -66,15 +68,17 @@ export function DelegationSection(props: { workspaceId: string; canManage: boole
         workspaceId={props.workspaceId}
         delegationEnabled={policy.delegation_enabled}
         // Both counters only grow, so their sum changes whenever either does.
-        refreshKey={grantsChanged + policyChanged}
+        refreshKey={grantsChanged + policyChanged + bindingsChanged}
         onChanged={() => setRuleChanged((value) => value + 1)}
       />
-      <DelegatesSection
+      <AgentPermissions
         workspaceId={props.workspaceId}
         delegationEnabled={policy.delegation_enabled}
         maxExpiryDays={policy.max_expiry_days}
         isAdmin={props.canManage}
-        refreshKey={ruleChanged}
+        refreshKey={grantsChanged + ruleChanged}
+        onChanged={() => setBindingsChanged((value) => value + 1)}
+        grantsRefreshKey={ruleChanged + bindingsChanged}
         onGrantsChanged={() => setGrantsChanged((value) => value + 1)}
       />
     </>
