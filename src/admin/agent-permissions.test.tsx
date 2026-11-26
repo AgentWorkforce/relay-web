@@ -166,6 +166,8 @@ it("explains a duplicate row (binding_exists) in the contract's error shape, and
   render(panel());
   await loaded();
   fireEvent.click(screen.getByRole("button", { name: "Add permission" }));
+  // Not Relay agents (that conflict offers converting the old rule): one agent.
+  fireEvent.change(within(screen.getByRole("form", { name: "Add permission" })).getByLabelText("Who"), { target: { value: "agent:agt_1" } });
   fireEvent.click(within(screen.getByRole("form", { name: "Add permission" })).getByRole("button", { name: "Add" }));
   expect(await screen.findByText("There is already a row for this. Change its role in the table instead.")).toBeInTheDocument();
   expect(screen.getByRole("form", { name: "Add permission" })).toBeInTheDocument();
@@ -335,4 +337,28 @@ it("closes an open add form when delegation is turned off", async () => {
   expect(screen.getByRole("form", { name: "Add permission" })).toBeInTheDocument();
   rerender(panel({ delegationEnabled: false }));
   expect(screen.queryByRole("form", { name: "Add permission" })).not.toBeInTheDocument();
+});
+
+it("offers to convert a rule from before roles instead of adding Relay agents", async () => {
+  routes["GET /bindings"] = () => [200, { bindings: [binding({ binding_id: "dtr_legacy", role: "legacy" })],
+    recommendation: { principal: { kind: "relay_agents" }, role: "trusted", label: "Give your Relay agents Trusted" } }];
+  routes["PATCH /bindings/dtr_legacy"] = () => [200, { binding: binding({ binding_id: "dtr_legacy", role: "trusted" }) }];
+  render(panel());
+  await loaded();
+  expect(screen.queryByRole("button", { name: "Apply" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Convert your existing rule to Trusted" }));
+  await waitFor(() => expect(writes()).toEqual([{ method: "PATCH", path: "/bindings/dtr_legacy", body: { role: "trusted" } }]));
+  expect(await screen.findByText("Your existing rule is now Trusted.")).toBeInTheDocument();
+});
+
+it("turns a binding_exists on adding Relay agents into the convert offer", async () => {
+  routes["POST /bindings"] = () => [409, { error: "A binding for this principal already exists", code: "binding_exists", binding_id: "dtr_legacy" }];
+  routes["PATCH /bindings/dtr_legacy"] = () => [200, { binding: binding({ binding_id: "dtr_legacy", role: "trusted" }) }];
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Add permission" }));
+  fireEvent.click(within(screen.getByRole("form", { name: "Add permission" })).getByRole("button", { name: "Add" }));
+  const offer = await screen.findByRole("group", { name: "Convert existing rule" });
+  fireEvent.click(within(offer).getByRole("button", { name: "Convert your existing rule to Trusted" }));
+  await waitFor(() => expect(writes()[1]).toEqual({ method: "PATCH", path: "/bindings/dtr_legacy", body: { role: "trusted" } }));
 });

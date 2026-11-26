@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { adminApi, ApiError } from "./api";
 import type { TrustRuleCovered, TrustRuleState } from "./contracts";
-import { delegationError } from "./delegation-errors";
+import { delegationCode, delegationError } from "./delegation-errors";
 import { useLoad } from "./use-load";
 import { Button, Card, CardContent, CardHeader, CardTitle } from "../shell/ui";
 
@@ -87,7 +87,11 @@ export function TrustRuleCard({
       reload();
       onChanged?.();
     } catch (failure) {
-      if (mounted.current) setError(delegationError(failure, fallback));
+      if (!mounted.current) return;
+      // Turning the rule on while a Relay agents permission row exists is refused: that row is the rule now.
+      setError(delegationCode(failure) === "binding_exists"
+        ? "Your Relay agents already have a permission row under Agent permissions. Change its role there."
+        : delegationError(failure, fallback));
     } finally {
       if (mounted.current) {
         setPending(false);

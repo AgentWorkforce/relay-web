@@ -368,3 +368,12 @@ it("re-reads the rule after a Trusted delegates change is saved", async () => {
   expect(await screen.findByText("Delegation is off")).toBeInTheDocument();
   await waitFor(() => expect(ruleReads()).toBeGreaterThan(before));
 });
+
+it("explains a refusal to turn the rule on while a Relay agents permission row exists", async () => {
+  reply = (call) => (call.method === "PUT" && call.path === ROUTE
+    ? [409, { error: "A binding for this principal already exists", code: "binding_exists", binding_id: "dtr_1" }] : undefined);
+  render(<TrustRuleCard workspaceId="w1" delegationEnabled />);
+  fireEvent.click(await screen.findByRole("button", { name: "Trust my connected assistants" }));
+  fireEvent.click(screen.getByRole("button", { name: "Turn on the trust rule" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Your Relay agents already have a permission row under Agent permissions.");
+});

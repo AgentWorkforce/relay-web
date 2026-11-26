@@ -4,7 +4,7 @@
 // GET|POST|PATCH|DELETE delegates/bindings and delegates/groups, and
 // GET delegates/agents (v1 contract, the twin of Cloud's).
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { adminApi } from "./api";
+import { adminApi, ApiError } from "./api";
 import type { Binding, DelegationAgent, DelegationGroup, Preset, PrincipalKind, Recommendation } from "./contracts";
 import { delegationCode, delegationError } from "./delegation-errors";
 import { useLoad } from "./use-load";
@@ -38,6 +38,9 @@ export function principalFor(who: string): { kind: PrincipalKind; ref?: string }
   if (who.startsWith("connector:")) return { kind: "connector_kind", ref: who.slice("connector:".length) };
   return { kind: "group", ref: who };
 }
+
+/** A refused Relay agents add that the panel answers with a conversion offer. */
+class ConvertOffer extends Error {}
 
 /** A small disclosure: a button that shows or hides what follows it. */
 function Disclosure(props: { open: boolean; onToggle: () => void; children: ReactNode; className?: string }) {
@@ -107,6 +110,9 @@ export function AgentPermissions(props: {
   const [pending, setPending] = useState(false);
   const [feedback, setFeedback] = useState<{ area: Area; text: string; error: boolean } | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  // While a rule from before roles is live, adding Relay agents answers binding_exists with that rule's id:
+  // offer to convert it (a PATCH to Trusted) instead.
+  const [convertId, setConvertId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<{ kind: "binding"; binding: Binding } | { kind: "group"; group: DelegationGroup } | null>(null);
   const [adding, setAdding] = useState(false);
   const [who, setWho] = useState("relay_agents");
@@ -148,6 +154,7 @@ export function AgentPermissions(props: {
       )
     ) : null;
   const failure = (error: unknown, fallback: string) => {
+    if (error instanceof ConvertOffer) return error.message;
     const code = delegationCode(error);
     if (code === "binding_exists") return "There is already a row for this. Change its role in the table instead.";
     if (code === "not_owned") return "That agent is not one of yours. Connect it first (Advanced › Explicit grants).";
@@ -177,9 +184,26 @@ export function AgentPermissions(props: {
   };
   const create = (area: Area, body: Record<string, unknown>, done: string) =>
     run(area, async () => {
-      const answer = await adminApi.createDelegationBinding(workspaceId, body);
-      return answer.skipped.length ? `${done} Skipped ${answer.skipped.length} workspace(s) where it could not be added.` : done;
+      try {
+        const answer = await adminApi.createDelegationBinding(workspaceId, body);
+        return answer.skipped.length ? `${done} Skipped ${answer.skipped.length} workspace(s) where it could not be added.` : done;
+      } catch (error) {
+        const conflict = error instanceof ApiError ? (error.body as { binding_id?: unknown } | null)?.binding_id : undefined;
+        if (delegationCode(error) === "binding_exists" && (body.principal as { kind?: string })?.kind === "relay_agents" && typeof conflict === "string") {
+          setConvertId(conflict);
+          throw new ConvertOffer("Your existing trust rule already covers your Relay agents. Convert it to Trusted instead.");
+        }
+        throw error;
+      }
     }, area === "add" ? "top" : area);
+  /** Converts a rule from before roles to Trusted (it already covers the Relay agents). */
+  const convert = (bindingId: string) =>
+    run("top", async () => {
+      await adminApi.updateDelegationBinding(workspaceId, bindingId, { role: "trusted" });
+      setConvertId(null);
+      return "Your existing rule is now Trusted.";
+    });
+  const legacyRelay = view?.bindings.find((binding) => binding.principal.kind === "relay_agents" && binding.role === "legacy");
   const patch = (area: Area, binding: Binding, body: Record<string, unknown>, done: string) =>
     run(area, async () => {
       await adminApi.updateDelegationBinding(workspaceId, binding.binding_id, body);
@@ -375,18 +399,36 @@ export function AgentPermissions(props: {
                 </div>
                 <div className="flex gap-2">
                   <Button type="button" size="sm" variant="ghost" onClick={() => setDismissed(true)}>Not now</Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={pending}
-                    onClick={() => {
-                      const recommendation = view.recommendation!;
-                      void create("top", { principal: recommendation.principal, role: recommendation.role }, `Applied: ${recommendation.label}.`);
-                    }}
-                  >
-                    Apply
-                  </Button>
+                  {legacyRelay ? (
+                    <Button type="button" size="sm" disabled={pending} onClick={() => void convert(legacyRelay.binding_id)}>
+                      Convert your existing rule to Trusted
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={pending}
+                      onClick={() => {
+                        const recommendation = view.recommendation!;
+                        void create("top", { principal: recommendation.principal, role: recommendation.role }, `Applied: ${recommendation.label}.`);
+                      }}
+                    >
+                      Apply
+                    </Button>
+                  )}
                 </div>
+              </div>
+            ) : null}
+            {convertId && delegationEnabled ? (
+              <div
+                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--border-default)] p-3"
+                role="group"
+                aria-label="Convert existing rule"
+              >
+                <p className="text-sm">Your existing trust rule already covers your Relay agents.</p>
+                <Button type="button" size="sm" disabled={pending} onClick={() => void convert(convertId)}>
+                  Convert your existing rule to Trusted
+                </Button>
               </div>
             ) : null}
 
