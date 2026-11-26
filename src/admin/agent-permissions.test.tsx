@@ -630,3 +630,45 @@ it("does not claim no access when it could not check for a newer grant", async (
   expect(screen.queryByText(/has no access now/)).not.toBeInTheDocument();
   expect(writes()).toEqual([{ method: "POST", path: "/bindings", body: { principal: { kind: "agent", ref: "agt_1" }, role: "excluded" } }]);
 });
+
+it("adds an agent to an existing custom group (PATCH add)", async () => {
+  routes["GET /agents"] = () => [200, { agents: [agent(), agent({ agent_id: "agt_2", name: "second" })] }];
+  routes["PATCH /groups/grp_ops"] = () => [200, { group: GROUPS[2] }];
+  render(panel());
+  await loaded();
+  openAdvanced();
+  fireEvent.change(screen.getByLabelText("Add an agent to Ops bots"), { target: { value: "agt_2" } });
+  await waitFor(() => expect(writes()).toEqual([{ method: "PATCH", path: "/groups/grp_ops", body: { add: ["agt_2"] } }]));
+  expect(await screen.findByText("Added second to Ops bots.")).toBeInTheDocument();
+});
+
+it("edits a saved row into a custom permission with repos and expiry, as one PATCH of that row", async () => {
+  routes["PATCH /bindings/rul_1"] = () => [200, { binding: binding({ role: "custom" }) }];
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Edit Relay agents" }));
+  const form = screen.getByRole("form", { name: "Edit permission" });
+  fireEvent.change(within(form).getByLabelText("Role"), { target: { value: "custom" } });
+  fireEvent.change(within(form).getByLabelText("Edit Routine PR work"), { target: { value: "ask" } });
+  fireEvent.click(within(form).getByLabelText("Pull request work: comments only"));
+  fireEvent.change(within(form).getByLabelText("Repos"), { target: { value: "*/web" } });
+  expect(within(form).getByRole("alert")).toHaveTextContent("Use owner/repo or owner/* for repos.");
+  fireEvent.change(within(form).getByLabelText("Repos"), { target: { value: "acme/web acme/*" } });
+  fireEvent.change(within(form).getByLabelText("Expires"), { target: { value: "never" } });
+  fireEvent.click(within(form).getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(writes()).toHaveLength(1));
+  expect(writes()[0]).toEqual({ method: "PATCH", path: "/bindings/rul_1", body: { role: "custom", classes: ["merge", "pr_ops"],
+    require_tier_o: ["pr_ops"], pr_ops_limit: ["comment"], targets: ["acme/web", "acme/*"], expires_at: null } });
+  await waitFor(() => expect(screen.queryByRole("form", { name: "Edit permission" })).not.toBeInTheDocument());
+});
+
+it("edits a preset row's repos and keeps its expiry unless changed", async () => {
+  routes["PATCH /bindings/rul_1"] = () => [200, { binding: binding() }];
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Edit Relay agents" }));
+  const form = screen.getByRole("form", { name: "Edit permission" });
+  fireEvent.change(within(form).getByLabelText("Repos"), { target: { value: "acme/web" } });
+  fireEvent.click(within(form).getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(writes()).toEqual([{ method: "PATCH", path: "/bindings/rul_1", body: { role: "trusted", targets: ["acme/web"] } }]));
+});

@@ -156,6 +156,15 @@ export function AgentPermissions(props: {
   const [targetChips, setTargetChips] = useState<string[]>([]);
   const [targetDraft, setTargetDraft] = useState("");
   const [newGroup, setNewGroup] = useState<{ name: string; agents: string[] }>({ name: "", agents: [] });
+  // Editing a saved row in place: its role, or (for Custom) each action; its repos and expiry.
+  const [editing, setEditing] = useState<{
+    binding: Binding;
+    role: string;
+    access: Record<string, Access>;
+    commentsOnly: boolean;
+    repos: string;
+    expiry: string;
+  } | null>(null);
 
   const presets: Preset[] = view?.roles.presets ?? [];
   const advancedShown = advancedOpen || (!view && Boolean(loadError));
@@ -313,6 +322,48 @@ export function AgentPermissions(props: {
     setTargetDraft("");
     setCustomExpiry(null);
     setCustomAllWorkspaces(false);
+  };
+
+  /** Opens the editor on a saved row, filled from what it allows now. */
+  const startEdit = (binding: Binding) => {
+    const access: Record<string, Access> = {};
+    for (const item of binding.classes) access[item] = binding.require_tier_o.includes(item) ? "ask" : "allow";
+    setConfirm(null);
+    setFeedback(null);
+    setEditing({
+      binding,
+      role: binding.role === "legacy" || binding.role === "excluded" ? presets[0]?.role ?? "trusted" : binding.role,
+      access,
+      commentsOnly: Boolean(binding.pr_ops_limit?.length),
+      repos: (binding.targets ?? []).join(" "),
+      expiry: "keep",
+    });
+  };
+  const editRepos = (editing?.repos ?? "").split(/\s+/u).filter(Boolean);
+  const editProblem = !editing
+    ? null
+    : editRepos.some((target) => target.endsWith(","))
+      ? "Separate repos with spaces, not commas: a comma is kept as part of the repo."
+      : editRepos.some(badRepoPattern)
+        ? REPO_HINT
+        : editing.role === "custom" && !Object.values(editing.access).some((access) => access !== "never")
+          ? "Choose at least one action."
+          : null;
+  /** Saves the editor as a PATCH of the same row (no new row, so no broader setting applies in between). */
+  const saveEdit = async () => {
+    if (!editing || editProblem) return;
+    const allowed = Object.entries(editing.access).filter(([, access]) => access === "allow").map(([item]) => item);
+    const asked = Object.entries(editing.access).filter(([, access]) => access === "ask").map(([item]) => item);
+    const prWork = allowed.includes("pr_ops") || asked.includes("pr_ops");
+    const body: Record<string, unknown> = {
+      role: editing.role,
+      ...(editing.role === "custom"
+        ? { classes: [...allowed, ...asked], require_tier_o: asked, pr_ops_limit: editing.commentsOnly && prWork ? ["comment"] : null }
+        : {}),
+      targets: editRepos.length ? editRepos : null,
+      ...(editing.expiry === "keep" ? {} : { expires_at: editing.expiry === "never" ? null : expiresAt(editing.expiry) }),
+    };
+    if (await patch("top", editing.binding, body, `Saved ${editing.binding.principal.name}.`)) setEditing(null);
   };
 
   const remove = () => {
@@ -639,16 +690,30 @@ export function AgentPermissions(props: {
                         </td>
                         <td>{binding.expires_at ? new Date(binding.expires_at).toLocaleDateString() : "Never"}</td>
                         <td className="text-right">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={pending}
-                            aria-label={`Remove ${binding.principal.name}`}
-                            onClick={() => setConfirm({ kind: "binding", binding })}
-                          >
-                            Remove
-                          </Button>
+                          <div className="flex justify-end gap-2">
+                            {delegationEnabled ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                disabled={pending}
+                                aria-label={`Edit ${binding.principal.name}`}
+                                onClick={() => startEdit(binding)}
+                              >
+                                Edit
+                              </Button>
+                            ) : null}
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={pending}
+                              aria-label={`Remove ${binding.principal.name}`}
+                              onClick={() => setConfirm({ kind: "binding", binding })}
+                            >
+                              Remove
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -660,6 +725,101 @@ export function AgentPermissions(props: {
                   </tbody>
                 </table>
               </div>
+              {editing && delegationEnabled ? (
+                <form
+                  className="flex flex-col gap-3 rounded-lg border border-[var(--border-default)] p-3"
+                  aria-label="Edit permission"
+                  noValidate
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void saveEdit();
+                  }}
+                >
+                  <p className="text-sm font-medium">{`Edit ${editing.binding.principal.name}`}</p>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="flex flex-col gap-1.5">
+                      <label htmlFor={id("edit-role")} className="text-sm font-medium">Role</label>
+                      <select
+                        id={id("edit-role")}
+                        className={selectClass}
+                        value={editing.role}
+                        disabled={pending}
+                        onChange={(event) => setEditing((current) => current && { ...current, role: event.target.value })}
+                      >
+                        {presets.map((preset) => <option key={preset.role} value={preset.role}>{preset.label}</option>)}
+                        <option value="custom">Custom</option>
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label htmlFor={id("edit-repos")} className="text-sm font-medium">Repos</label>
+                      <Input
+                        id={id("edit-repos")}
+                        value={editing.repos}
+                        disabled={pending}
+                        autoComplete="off"
+                        spellCheck={false}
+                        placeholder={`${EVERYTHING} (or owner/repo owner/*)`}
+                        onChange={(event) => setEditing((current) => current && { ...current, repos: event.target.value })}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label htmlFor={id("edit-expiry")} className="text-sm font-medium">Expires</label>
+                      <select
+                        id={id("edit-expiry")}
+                        className={selectClass}
+                        value={editing.expiry}
+                        disabled={pending}
+                        onChange={(event) => setEditing((current) => current && { ...current, expiry: event.target.value })}
+                      >
+                        <option value="keep">
+                          {editing.binding.expires_at ? `Keep (${new Date(editing.binding.expires_at).toLocaleDateString()})` : "Keep (never)"}
+                        </option>
+                        <option value="never">Never</option>
+                        {EXPIRY_PRESETS.map((days) => <option key={days} value={String(days)}>{`${days} days from now`}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  {editing.role === "custom" ? (
+                    <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+                      {view.roles.classes.map((item) => (
+                        <label key={item.class} className="flex items-center justify-between gap-3 text-sm">
+                          <span>{item.description}</span>
+                          <select
+                            className={`${selectBase} w-36`}
+                            aria-label={`Edit ${item.description}`}
+                            value={editing.access[item.class] ?? "never"}
+                            disabled={pending}
+                            onChange={(event) =>
+                              setEditing((current) => current && { ...current, access: { ...current.access, [item.class]: event.target.value as Access } })
+                            }
+                          >
+                            <option value="never">Never</option>
+                            <option value="allow">Allowed</option>
+                            <option value="ask">Ask me first</option>
+                          </select>
+                        </label>
+                      ))}
+                      {editing.access.pr_ops && editing.access.pr_ops !== "never" ? (
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            className="size-4"
+                            checked={editing.commentsOnly}
+                            disabled={pending}
+                            onChange={(event) => setEditing((current) => current && { ...current, commentsOnly: event.target.checked })}
+                          />
+                          Pull request work: comments only
+                        </label>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {editProblem ? <p role="alert" className="text-xs text-destructive">{editProblem}</p> : null}
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setEditing(null)}>Cancel</Button>
+                    <Button type="submit" size="sm" disabled={pending || Boolean(editProblem)}>Save</Button>
+                  </div>
+                </form>
+              ) : null}
               {confirm ? (
                 <div className="flex flex-col gap-2 rounded-lg border border-[var(--border-default)] p-3" role="group" aria-label="Confirm removal">
                   <p className="text-sm">
@@ -864,6 +1024,30 @@ export function AgentPermissions(props: {
                             ))}
                             {group.members?.length === 0 ? <span className="text-xs text-muted-foreground">No agents yet</span> : null}
                           </div>
+                          {group.kind === "custom" && delegationEnabled
+                            && view.agents.some((agent) => !group.members?.some((member) => member.agent_id === agent.agent_id)) ? (
+                            <div>
+                              <select
+                                className={`${selectBase} w-56`}
+                                aria-label={`Add an agent to ${group.name}`}
+                                value=""
+                                disabled={pending}
+                                onChange={(event) => {
+                                  const agentId = event.target.value;
+                                  const name = view.agents.find((agent) => agent.agent_id === agentId)?.name ?? agentId;
+                                  void run("groups", async () => {
+                                    await adminApi.updateDelegationGroup(workspaceId, group.group_id, { add: [agentId] });
+                                    return `Added ${name} to ${group.name}.`;
+                                  });
+                                }}
+                              >
+                                <option value="" disabled>Add an agent</option>
+                                {view.agents
+                                  .filter((agent) => !group.members?.some((member) => member.agent_id === agent.agent_id))
+                                  .map((agent) => <option key={agent.agent_id} value={agent.agent_id}>{`${agent.name} (${agent.agent_id})`}</option>)}
+                              </select>
+                            </div>
+                          ) : null}
                         </li>
                       ))}
                     </ul>
