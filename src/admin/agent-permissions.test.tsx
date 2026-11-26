@@ -637,7 +637,11 @@ it("adds an agent to an existing custom group (PATCH add)", async () => {
   render(panel());
   await loaded();
   openAdvanced();
+  expect(screen.getByRole("button", { name: "Add to Ops bots" })).toBeDisabled();
+  // Choosing (as arrow keys do on a closed select) adds nothing until Add.
   fireEvent.change(screen.getByLabelText("Add an agent to Ops bots"), { target: { value: "agt_2" } });
+  expect(writes()).toEqual([]);
+  fireEvent.click(screen.getByRole("button", { name: "Add to Ops bots" }));
   await waitFor(() => expect(writes()).toEqual([{ method: "PATCH", path: "/groups/grp_ops", body: { add: ["agt_2"] } }]));
   expect(await screen.findByText("Added second to Ops bots.")).toBeInTheDocument();
 });
@@ -770,4 +774,63 @@ it("shows conditions as kept only for actions still chosen", async () => {
   expect(within(form).getByText("Conditions kept: merge only when checks pass.")).toBeInTheDocument();
   fireEvent.change(within(form).getByLabelText("Edit Merge PRs once checks pass"), { target: { value: "never" } });
   expect(within(form).queryByText(/Conditions kept/)).not.toBeInTheDocument();
+});
+
+it("closes the editor when another control changes the row, so the old draft can't be saved over it", async () => {
+  let role = "trusted";
+  routes["GET /bindings"] = () => [200, { bindings: [binding({ role, required_conditions: {} })], recommendation: null }];
+  routes["PATCH /bindings/rul_1"] = () => {
+    role = "standard";
+    return [200, { binding: binding({ role: "standard" }) }];
+  };
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Edit Relay agents" }));
+  fireEvent.change(within(screen.getByRole("form", { name: "Edit permission" })).getByLabelText("Repos"), { target: { value: "acme/web" } });
+  fireEvent.change(screen.getByRole("combobox", { name: "Role for Relay agents" }), { target: { value: "standard" } });
+  expect(await screen.findByText("That row changed while you were editing it. Open Edit again to change it.")).toBeInTheDocument();
+  expect(screen.queryByRole("form", { name: "Edit permission" })).not.toBeInTheDocument();
+  expect(writes()).toEqual([{ method: "PATCH", path: "/bindings/rul_1", body: { role: "standard" } }]);
+});
+
+it("keeps the editor's own save from counting as someone else's change", async () => {
+  let targets: string[] = [];
+  routes["GET /bindings"] = () => [200, { bindings: [binding({ targets })], recommendation: null }];
+  routes["PATCH /bindings/rul_1"] = () => {
+    targets = ["acme/web"];
+    return [200, { binding: binding({ targets }) }];
+  };
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Edit Relay agents" }));
+  const form = screen.getByRole("form", { name: "Edit permission" });
+  fireEvent.change(within(form).getByLabelText("Repos"), { target: { value: "acme/web" } });
+  fireEvent.click(within(form).getByRole("button", { name: "Save" }));
+  expect(await screen.findByText("Saved Relay agents.")).toBeInTheDocument();
+  expect(screen.queryByText(/That row changed while you were editing it/)).not.toBeInTheDocument();
+});
+
+it("treats a repeated repo as one, so removing a repo by repeating another still saves", async () => {
+  routes["GET /bindings"] = () => [200, { bindings: [binding({ targets: ["acme/web", "acme/api"] })], recommendation: null }];
+  routes["PATCH /bindings/rul_1"] = () => [200, { binding: binding({ targets: ["acme/web"] }) }];
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Edit Relay agents" }));
+  const form = screen.getByRole("form", { name: "Edit permission" });
+  fireEvent.change(within(form).getByLabelText("Repos"), { target: { value: "acme/web acme/web" } });
+  fireEvent.click(within(form).getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(writes()).toEqual([{ method: "PATCH", path: "/bindings/rul_1", body: { targets: ["acme/web"] } }]));
+});
+
+it("leaves a custom row's unreadable conditions to the server instead of sending none", async () => {
+  routes["GET /bindings"] = () => [200, { bindings: [binding({ binding_id: "rul_c", role: "custom", classes: ["pr_ops"] })], recommendation: null }];
+  routes["PATCH /bindings/rul_c"] = () => [200, { binding: binding({ binding_id: "rul_c", role: "custom" }) }];
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Edit Relay agents" }));
+  const form = screen.getByRole("form", { name: "Edit permission" });
+  fireEvent.change(within(form).getByLabelText("Edit Deploy"), { target: { value: "ask" } });
+  fireEvent.click(within(form).getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(writes()).toHaveLength(1));
+  expect(writes()[0]!.body).not.toHaveProperty("required_conditions");
 });

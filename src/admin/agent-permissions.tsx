@@ -156,6 +156,10 @@ export function AgentPermissions(props: {
   const [targetChips, setTargetChips] = useState<string[]>([]);
   const [targetDraft, setTargetDraft] = useState("");
   const [newGroup, setNewGroup] = useState<{ name: string; agents: string[] }>({ name: "", agents: [] });
+  // The agent picked to add to each custom group, added only on the Add button (not on every keyboard step).
+  const [groupPick, setGroupPick] = useState<Record<string, string>>({});
+  // The row the editor is saving now: its own reload must not count as someone else changing the row.
+  const [savingEdit, setSavingEdit] = useState<string | null>(null);
   // Editing a saved row in place: its role, or (for Custom) each action; its repos and expiry.
   const [editing, setEditing] = useState<{
     binding: Binding;
@@ -347,11 +351,32 @@ export function AgentPermissions(props: {
     });
   };
   const editable = (binding: Binding) => binding.role !== "excluded" && binding.role !== "legacy";
-  const editRepos = (editing?.repos ?? "").split(/\s+/u).filter(Boolean);
+  // Repos as a set: a repeated entry is one repo.
+  const editRepos = [...new Set((editing?.repos ?? "").split(/\s+/u).filter(Boolean))];
   const editAllowed = Object.entries(editing?.access ?? {}).filter(([, access]) => access === "allow").map(([item]) => item);
   const editAsked = Object.entries(editing?.access ?? {}).filter(([, access]) => access === "ask").map(([item]) => item);
   const editClasses = [...editAllowed, ...editAsked];
-  const sameSet = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((item) => b.includes(item));
+  const sameSet = (a: readonly string[], b: readonly string[]) => {
+    const left = new Set(a);
+    const right = new Set(b);
+    return left.size === right.size && [...left].every((item) => right.has(item));
+  };
+  // Another control changed (or removed) the row being edited: the draft is stale, so it is closed rather
+  // than saved back over the newer row.
+  const editedNow = editing && view ? view.bindings.find((item) => item.binding_id === editing.binding.binding_id) : undefined;
+  if (
+    editing && view && savingEdit !== editing.binding.binding_id
+    && (!editedNow
+      || editedNow.role !== editing.binding.role
+      || !sameSet(editedNow.classes, editing.binding.classes)
+      || !sameSet(editedNow.require_tier_o, editing.binding.require_tier_o)
+      || !sameSet(editedNow.targets ?? [], editing.binding.targets ?? [])
+      || (editedNow.expires_at ?? null) !== (editing.binding.expires_at ?? null)
+      || JSON.stringify(editedNow.pr_ops_limit ?? null) !== JSON.stringify(editing.binding.pr_ops_limit ?? null))
+  ) {
+    setEditing(null);
+    setNotice("top", "That row changed while you were editing it. Open Edit again to change it.");
+  }
   // The row's own conditions (merge needs checks to pass): carried along, never dropped silently.
   const editConditions = editing?.binding.required_conditions ?? null;
   // Shown as kept only for actions still chosen (a Custom edit can set an action to Never).
@@ -388,7 +413,11 @@ export function AgentPermissions(props: {
     const limitChanged = custom && editing.commentsOnly !== editing.startCommentsOnly;
     const body: Record<string, unknown> = {
       ...(roleChanged ? { role: editing.role } : {}),
-      ...(classesChanged ? { classes: editClasses, require_tier_o: editAsked, required_conditions: conditions } : {}),
+      // Conditions the server didn't send are left to it (an existing Custom row keeps them), never sent as none.
+      ...(classesChanged
+        ? { classes: editClasses, require_tier_o: editAsked,
+          ...(binding.required_conditions === undefined ? {} : { required_conditions: conditions }) }
+        : {}),
       // Whenever the actions change (a switch to Custom included) the limit is sent too, or the server would
       // store none: the box's choice when it changed, else the row's own limit while PR work stays on.
       ...(classesChanged || limitChanged
@@ -402,7 +431,10 @@ export function AgentPermissions(props: {
       setNotice("top", "Nothing changed.");
       return;
     }
-    if (await patch("top", binding, body, `Saved ${binding.principal.name}.`)) setEditing(null);
+    setSavingEdit(binding.binding_id);
+    const saved = await patch("top", binding, body, `Saved ${binding.principal.name}.`);
+    setSavingEdit(null);
+    if (saved) setEditing(null);
   };
 
   const remove = () => {
@@ -1072,19 +1104,15 @@ export function AgentPermissions(props: {
                           </div>
                           {group.kind === "custom" && delegationEnabled
                             && view.agents.some((agent) => !group.members?.some((member) => member.agent_id === agent.agent_id)) ? (
-                            <div>
+                            <div className="flex items-center gap-2">
                               <select
                                 className={`${selectBase} w-56`}
                                 aria-label={`Add an agent to ${group.name}`}
-                                value=""
+                                value={groupPick[group.group_id] ?? ""}
                                 disabled={pending}
                                 onChange={(event) => {
                                   const agentId = event.target.value;
-                                  const name = view.agents.find((agent) => agent.agent_id === agentId)?.name ?? agentId;
-                                  void run("groups", async () => {
-                                    await adminApi.updateDelegationGroup(workspaceId, group.group_id, { add: [agentId] });
-                                    return `Added ${name} to ${group.name}.`;
-                                  });
+                                  setGroupPick((picks) => ({ ...picks, [group.group_id]: agentId }));
                                 }}
                               >
                                 <option value="" disabled>Add an agent</option>
@@ -1092,6 +1120,25 @@ export function AgentPermissions(props: {
                                   .filter((agent) => !group.members?.some((member) => member.agent_id === agent.agent_id))
                                   .map((agent) => <option key={agent.agent_id} value={agent.agent_id}>{`${agent.name} (${agent.agent_id})`}</option>)}
                               </select>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                aria-label={`Add to ${group.name}`}
+                                disabled={pending || !groupPick[group.group_id]}
+                                onClick={() => {
+                                  const agentId = groupPick[group.group_id];
+                                  if (!agentId) return;
+                                  const name = view.agents.find((agent) => agent.agent_id === agentId)?.name ?? agentId;
+                                  void run("groups", async () => {
+                                    await adminApi.updateDelegationGroup(workspaceId, group.group_id, { add: [agentId] });
+                                    setGroupPick((picks) => ({ ...picks, [group.group_id]: "" }));
+                                    return `Added ${name} to ${group.name}.`;
+                                  });
+                                }}
+                              >
+                                Add
+                              </Button>
                             </div>
                           ) : null}
                         </li>
