@@ -40,6 +40,7 @@ function parseCan(value: string): { actionClass: DelegationClass; askFirst: bool
 
 /** Expiry presets, capped by the policy's maximum. No preset chosen sends no expiry: the server then uses min(30, max). */
 const EXPIRY_PRESETS = [7, 30, 90] as const;
+const CONDITION_NAMES: Record<string, string> = { ci_green: "checks pass", mergeable: "mergeable" };
 export function expiryOptions(maxExpiryDays: number): number[] {
   const presets = EXPIRY_PRESETS.filter((days) => days <= maxExpiryDays);
   return presets.length ? [...presets] : [maxExpiryDays];
@@ -248,13 +249,23 @@ export function DelegatesSection({
         <p role="status" className="text-sm text-muted-foreground">{feedback.text}</p>
       )
     ) : null;
+  // A system grant (from a permission row) carries its binding's scopes; one with no scopes is a rule from before roles.
+  const legacy = (grant: DelegateGrant) => Boolean(grant.trust_rule_id) && grant.scopes.length === 0;
+  const scopeText = (grant: DelegateGrant, scope: DelegateGrant["scopes"][number]) =>
+    [
+      scope.class,
+      scope.ops?.length ? ` (only: ${scope.ops.join(", ")})` : "",
+      scope.conditions?.length
+        ? ` (when ${scope.conditions.map((condition) => CONDITION_NAMES[condition.type] ?? condition.type).join(" and ")})`
+        : "",
+      grant.require_tier_o.includes(scope.class) ? ", ask me first" : "",
+    ].join("");
   const canText = (grant: DelegateGrant) =>
-    grant.trust_rule_id
-      ? "all (trust rule)"
-      : grant.scopes
-          .map((scope) => (grant.require_tier_o.includes(scope.class) ? `${scope.class}, ask me first` : scope.class))
-          .join("; ");
-  const onText = (grant: DelegateGrant) => (grant.trust_rule_id ? "all" : grant.scopes.flatMap((scope) => scope.targets).join(" "));
+    legacy(grant) ? "All actions (set before roles)" : grant.scopes.map((scope) => scopeText(grant, scope)).join("; ");
+  const onText = (grant: DelegateGrant) => {
+    const targets = grant.scopes.flatMap((scope) => scope.targets);
+    return targets.length ? targets.join(" ") : "Everything I own";
+  };
   const openAdd = () => {
     setAdding(true);
     setFeedback(null);
@@ -535,9 +546,9 @@ export function DelegatesSection({
           <div className="flex flex-col gap-2 rounded-lg border border-[var(--border-default)] p-3" role="group" aria-label="Confirm revocation">
             <p className="text-sm">
               {confirm.ruled
-                ? "Revoke this agent's trust-rule grant? Its unredeemed approvals stop working at once, and the trust rule " +
-                  "will not cover this agent again. To let it act again, " +
-                  (all ? "its owner must give it a grant here." : "give it a grant here.")
+                ? "Revoke this agent's grant from a permission row? Its unredeemed approvals stop working at once, and the agent " +
+                  "is excluded: it gets nothing until " +
+                  (all ? "its owner gives it its own setting." : "you give it its own setting.")
                 : "Revoke this grant? Its unredeemed approvals stop working at once."}
             </p>
             {confirmButtons}

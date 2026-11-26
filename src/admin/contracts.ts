@@ -500,7 +500,13 @@ export const delegateGrantSchema = z.object({
   grant_id: z.string(),
   owner_id: z.string(),
   delegate_agent_id: z.string(),
-  scopes: z.array(z.object({ class: z.string(), targets: z.array(z.string()) })),
+  // A system grant's scopes follow its binding: `ops` limits pr_ops, `conditions` must hold, empty targets mean everything I own.
+  scopes: z.array(z.object({
+    class: z.string(),
+    targets: z.array(z.string()),
+    ops: z.array(z.string()).optional(),
+    conditions: z.array(z.object({ type: z.string() })).optional(),
+  })),
   require_tier_o: z.array(z.string()),
   expires_at: z.string(),
   status: z.string(),

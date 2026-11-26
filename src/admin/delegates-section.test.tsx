@@ -49,12 +49,21 @@ it("shows one row per grant: agent, can (with ask me first), on, expires; inacti
     grant({ scopes: [{ class: "release", targets: ["acme/web", "acme/*"] }], require_tier_o: ["release"] }),
     grant({ grant_id: "grt_old", delegate_agent_id: "old-agent", status: "revoked" }),
     grant({ grant_id: "grt_rule", delegate_agent_id: "rule-agent", scopes: [], trust_rule_id: "rul_1" }),
+    grant({ grant_id: "grt_ro", delegate_agent_id: "reader-bot", trust_rule_id: "rul_2",
+      scopes: [{ class: "pr_ops", targets: [], ops: ["comment"] }] }),
+    grant({ grant_id: "grt_tr", delegate_agent_id: "trusted-bot", trust_rule_id: "rul_3", require_tier_o: ["deploy"],
+      scopes: [{ class: "merge", targets: [], conditions: [{ type: "ci_green" }, { type: "mergeable" }] }, { class: "deploy", targets: [] }] }),
   ] }] };
   render(section());
   expect(await screen.findByText("assistant-1")).toBeInTheDocument();
   expect(screen.getByText("release, ask me first")).toBeInTheDocument();
   expect(screen.getByText("acme/web acme/*")).toBeInTheDocument();
-  expect(screen.getByText("all (trust rule)")).toBeInTheDocument();
+  // A rule from before roles (no scopes) reads as every action; a system grant shows its binding's scopes, never "all".
+  expect(screen.getByText("All actions (set before roles)")).toBeInTheDocument();
+  expect(screen.getByText("pr_ops (only: comment)")).toBeInTheDocument();
+  expect(screen.getByText("merge (when checks pass and mergeable); deploy, ask me first")).toBeInTheDocument();
+  expect(screen.getAllByText("Everything I own").length).toBeGreaterThan(0);
+  expect(screen.queryByText("all (trust rule)")).not.toBeInTheDocument();
   expect(screen.getByText("revoked")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Remove assistant-1" })).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Remove old-agent" })).not.toBeInTheDocument();
@@ -118,7 +127,7 @@ it("removes a grant after a confirmation; a trust-rule grant's confirmation says
   };
   render(section());
   fireEvent.click(await screen.findByRole("button", { name: "Remove rule-agent" }));
-  expect(confirmGroup()).toHaveTextContent("the trust rule will not cover this agent again");
+  expect(confirmGroup()).toHaveTextContent("the agent is excluded: it gets nothing until you give it its own setting");
   fireEvent.click(screen.getByRole("button", { name: "Remove assistant-1" }));
   expect(confirmGroup()).toHaveTextContent("Revoke this grant?");
   fireEvent.click(within(confirmGroup()).getByRole("button", { name: "Remove" }));

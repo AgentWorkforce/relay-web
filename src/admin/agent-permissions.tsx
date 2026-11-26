@@ -125,11 +125,12 @@ export function AgentPermissions(props: {
   const [newGroup, setNewGroup] = useState<{ name: string; agents: string[] }>({ name: "", agents: [] });
 
   const presets: Preset[] = view?.roles.presets ?? [];
+  const advancedShown = advancedOpen || (!view && Boolean(loadError));
   const presetLabel = (value: string) =>
     value === "custom" ? "Custom"
       : value === "excluded" ? "Excluded: no access"
         // A rule from before roles existed reads as "legacy" (every class) until it is seeded; changing it must name a role.
-        : value === "legacy" ? "Trusted (pending seed)"
+        : value === "legacy" ? "All actions (set before roles)"
           : presets.find((preset) => preset.role === value)?.label ?? value;
   const classDescription = (value: string) => view?.roles.classes.find((item) => item.class === value)?.description ?? value;
   const chosenRole = role || presets[0]?.role || "";
@@ -540,12 +541,19 @@ export function AgentPermissions(props: {
               </ul>
             </div>
 
+          </>
+        )}
+
+        {/* Always rendered, outside the binding reads: the explicit grants and Revoke everything must stay
+            reachable while roles, bindings or groups fail. An outage opens it. */}
             <div className="flex flex-col gap-4">
-              <Disclosure open={advancedOpen} onToggle={() => setAdvancedOpen(!advancedOpen)} className="text-sm font-medium text-muted-foreground">
+              <Disclosure open={advancedShown} onToggle={() => setAdvancedOpen(!advancedShown)} className="text-sm font-medium text-muted-foreground">
                 Advanced
               </Disclosure>
-              {advancedOpen ? (
+              {advancedShown ? (
                 <div className="flex flex-col gap-6">
+                  {view ? (
+                    <>
                   {delegationEnabled ? (
                     <section className="flex flex-col gap-3" aria-labelledby={id("custom-heading")}>
                       <h4 id={id("custom-heading")} className="text-sm font-semibold">Custom permission</h4>
@@ -821,6 +829,13 @@ export function AgentPermissions(props: {
                     {message("agents")}
                   </section>
 
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Permission rows can&apos;t be read right now. Explicit grants and Revoke everything below still work.
+                    </p>
+                  )}
+
                   <section aria-label="Explicit grants">
                     <DelegatesSection
                       workspaceId={workspaceId}
@@ -834,8 +849,6 @@ export function AgentPermissions(props: {
                 </div>
               ) : null}
             </div>
-          </>
-        )}
       </CardContent>
     </Card>
   );
