@@ -362,3 +362,18 @@ it("turns a binding_exists on adding Relay agents into the convert offer", async
   fireEvent.click(within(offer).getByRole("button", { name: "Convert your existing rule to Trusted" }));
   await waitFor(() => expect(writes()[1]).toEqual({ method: "PATCH", path: "/bindings/dtr_legacy", body: { role: "trusted" } }));
 });
+
+it("a failed exclusion after its grant was revoked still re-reads and says what happened", async () => {
+  routes["GET /agents"] = () => [200, { agents: [agent({ effective: { binding_id: null, role: "custom", source: "explicit_grant", grant_id: "grt_9" } })] }];
+  routes["DELETE /grt_9"] = () => [200, { grant_id: "grt_9", owner_id: "u1", delegate_agent_id: "helper", scopes: [], require_tier_o: [],
+    expires_at: "2099-01-01T00:00:00.000Z", status: "revoked" }];
+  routes["POST /bindings"] = () => [503, { error: "Delegation is unavailable", code: "unavailable" }];
+  const grantsChanged = vi.fn();
+  render(panel({ onGrantsChanged: grantsChanged }));
+  await loaded();
+  openAdvanced();
+  fireEvent.click(within(screen.getByRole("table", { name: "Your agents" })).getByRole("button", { name: "Exclude" }));
+  expect(await screen.findByText(/own grant was revoked, but excluding it failed: Delegation is unavailable/)).toBeInTheDocument();
+  await waitFor(() => expect(reads("/bindings")).toBe(2));
+  expect(grantsChanged).toHaveBeenCalledTimes(1);
+});

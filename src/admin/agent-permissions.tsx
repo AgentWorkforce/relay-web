@@ -39,8 +39,8 @@ export function principalFor(who: string): { kind: PrincipalKind; ref?: string }
   return { kind: "group", ref: who };
 }
 
-/** A refused Relay agents add that the panel answers with a conversion offer. */
-class ConvertOffer extends Error {}
+/** An error whose message the panel shows as is (a conversion offer, a half-done exclusion). */
+class ShownError extends Error {}
 
 /** A small disclosure: a button that shows or hides what follows it. */
 function Disclosure(props: { open: boolean; onToggle: () => void; children: ReactNode; className?: string }) {
@@ -154,7 +154,7 @@ export function AgentPermissions(props: {
       )
     ) : null;
   const failure = (error: unknown, fallback: string) => {
-    if (error instanceof ConvertOffer) return error.message;
+    if (error instanceof ShownError) return error.message;
     const code = delegationCode(error);
     if (code === "binding_exists") return "There is already a row for this. Change its role in the table instead.";
     if (code === "not_owned") return "That agent is not one of yours. Connect it first (Advanced › Explicit grants).";
@@ -191,7 +191,7 @@ export function AgentPermissions(props: {
         const conflict = error instanceof ApiError ? (error.body as { binding_id?: unknown } | null)?.binding_id : undefined;
         if (delegationCode(error) === "binding_exists" && (body.principal as { kind?: string })?.kind === "relay_agents" && typeof conflict === "string") {
           setConvertId(conflict);
-          throw new ConvertOffer("Your existing trust rule already covers your Relay agents. Convert it to Trusted instead.");
+          throw new ShownError("Your existing trust rule already covers your Relay agents. Convert it to Trusted instead.");
         }
         throw error;
       }
@@ -283,8 +283,19 @@ export function AgentPermissions(props: {
       const grantId = agent.effective.source === "explicit_grant" ? agent.effective.grant_id : null;
       if (grantId) await adminApi.revokeDelegateGrant(workspaceId, grantId);
       const own = view?.bindings.find((binding) => binding.principal.kind === "agent" && binding.principal.ref === agent.agent_id);
-      if (own) await adminApi.updateDelegationBinding(workspaceId, own.binding_id, { role: "excluded" });
-      else await adminApi.createDelegationBinding(workspaceId, { principal: { kind: "agent", ref: agent.agent_id }, role: "excluded" });
+      try {
+        if (own) await adminApi.updateDelegationBinding(workspaceId, own.binding_id, { role: "excluded" });
+        else await adminApi.createDelegationBinding(workspaceId, { principal: { kind: "agent", ref: agent.agent_id }, role: "excluded" });
+      } catch (error) {
+        // The grant is already revoked: still re-read and tell the page, keeping the error on screen.
+        if (grantId && mounted.current) {
+          reload();
+          props.onChanged?.();
+          props.onGrantsChanged?.();
+          throw new ShownError(`${agent.name}'s own grant was revoked, but excluding it failed: ${failure(error, "Could not save. Try again.")}`);
+        }
+        throw error;
+      }
       // The grant table re-reads too when a grant was revoked.
       if (grantId) props.onGrantsChanged?.();
       return grantId ? `${agent.name} has no access now; its own grant was revoked.` : `${agent.name} has no access now.`;
