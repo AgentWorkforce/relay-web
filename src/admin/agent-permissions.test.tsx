@@ -291,3 +291,48 @@ it("with delegation off, offers no adding or role changes but keeps Remove", asy
   openAdvanced();
   expect(screen.queryByRole("form", { name: "Add a custom permission" })).not.toBeInTheDocument();
 });
+
+it("excluding an agent decided by its own grant revokes that grant too", async () => {
+  routes["GET /agents"] = () => [200, { agents: [agent({ effective: { binding_id: null, role: "custom", source: "explicit_grant", grant_id: "grt_9" } })] }];
+  routes["DELETE /grt_9"] = () => [200, { grant_id: "grt_9", owner_id: "u1", delegate_agent_id: "helper", scopes: [], require_tier_o: [],
+    expires_at: "2099-01-01T00:00:00.000Z", status: "revoked" }];
+  routes["POST /bindings"] = () => [201, { binding: binding({ binding_id: "rul_x", role: "excluded" }) }];
+  const grantsChanged = vi.fn();
+  render(panel({ onGrantsChanged: grantsChanged }));
+  await loaded();
+  openAdvanced();
+  fireEvent.click(within(screen.getByRole("table", { name: "Your agents" })).getByRole("button", { name: "Exclude" }));
+  await waitFor(() => expect(writes()).toHaveLength(2));
+  expect(writes()).toEqual([
+    { method: "DELETE", path: "/grt_9", body: {} },
+    { method: "POST", path: "/bindings", body: { principal: { kind: "agent", ref: "agt_1" }, role: "excluded" } },
+  ]);
+  expect(await screen.findByText(/its own grant was revoked/)).toBeInTheDocument();
+  expect(grantsChanged).toHaveBeenCalledTimes(1);
+});
+
+it("the custom form keeps its own expiry and workspace choice", async () => {
+  routes["POST /bindings"] = () => [201, { binding: binding({ role: "custom" }) }];
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Add permission" }));
+  const draft = screen.getByRole("form", { name: "Add permission" });
+  fireEvent.click(within(draft).getByRole("button", { name: "Set expiry" }));
+  fireEvent.click(within(draft).getByLabelText("Apply to all my workspaces"));
+  fireEvent.click(within(draft).getByRole("button", { name: "Cancel" }));
+  openAdvanced();
+  const form = screen.getByRole("form", { name: "Add a custom permission" });
+  fireEvent.change(within(form).getByLabelText("Merge PRs once checks pass"), { target: { value: "allow" } });
+  fireEvent.click(within(form).getByRole("button", { name: "Add custom permission" }));
+  await waitFor(() => expect(writes()).toHaveLength(1));
+  expect(writes()[0]!.body).toEqual({ principal: { kind: "relay_agents" }, role: "custom", classes: ["merge"], require_tier_o: [] });
+});
+
+it("closes an open add form when delegation is turned off", async () => {
+  const { rerender } = render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Add permission" }));
+  expect(screen.getByRole("form", { name: "Add permission" })).toBeInTheDocument();
+  rerender(panel({ delegationEnabled: false }));
+  expect(screen.queryByRole("form", { name: "Add permission" })).not.toBeInTheDocument();
+});

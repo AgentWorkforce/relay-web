@@ -241,6 +241,8 @@ export function DelegatesSection({
   };
 
   const id = (name: string) => `delegates-${name}-${workspaceId}`;
+  // With no expiry chosen none is sent, and the server sets min(30, the policy's maximum) days.
+  const defaultDays = Math.min(30, maxExpiryDays);
   const message = (area: Area) =>
     feedback?.area === area ? (
       feedback.error ? (
@@ -260,12 +262,13 @@ export function DelegatesSection({
         : "",
       grant.require_tier_o.includes(scope.class) ? ", ask me first" : "",
     ].join("");
-  const canText = (grant: DelegateGrant) =>
-    legacy(grant) ? "All actions (set before roles)" : grant.scopes.map((scope) => scopeText(grant, scope)).join("; ");
-  const onText = (grant: DelegateGrant) => {
-    const targets = grant.scopes.flatMap((scope) => scope.targets);
-    return targets.length ? targets.join(" ") : "Everything I own";
-  };
+  /** One line per scope, so each action stays beside its own repos (the On column lines up with these). */
+  const canLines = (grant: DelegateGrant): string[] =>
+    legacy(grant)
+      ? [`All actions (set before roles)${grant.require_tier_o.length ? `; ask me first: ${grant.require_tier_o.join(", ")}` : ""}`]
+      : grant.scopes.map((scope) => scopeText(grant, scope));
+  const onLines = (grant: DelegateGrant): string[] =>
+    legacy(grant) ? ["Everything I own"] : grant.scopes.map((scope) => (scope.targets.length ? scope.targets.join(" ") : "Everything I own"));
   const openAdd = () => {
     setAdding(true);
     setFeedback(null);
@@ -363,7 +366,7 @@ export function DelegatesSection({
           </div>
         ) : null}
 
-        {adding ? (
+        {adding && delegationEnabled ? (
           <form
             className="grid gap-3 rounded-lg border border-[var(--border-default)] p-3 sm:grid-cols-[1fr_1fr_1.4fr]"
             aria-label="Add grant"
@@ -447,7 +450,7 @@ export function DelegatesSection({
                   disabled={pending}
                   onClick={() => setExpiryDays(String(expiryOptions(maxExpiryDays).at(-1)))}
                 >
-                  Set expiry
+                  {`Expires in ${defaultDays} days. Set expiry`}
                 </Button>
               ) : (
                 <div className="flex items-center gap-2">
@@ -464,7 +467,7 @@ export function DelegatesSection({
                     ))}
                   </select>
                   <Button type="button" variant="link" size="sm" className="h-auto px-0" disabled={pending} onClick={() => setExpiryDays(null)}>
-                    No expiry
+                    {`Use default (${defaultDays} days)`}
                   </Button>
                 </div>
               )}
@@ -519,8 +522,16 @@ export function DelegatesSection({
                 {grants.map((grant) => (
                   <tr key={grant.grant_id} className={grant.status === "active" ? undefined : "text-muted-foreground"}>
                     <td><code className="font-mono">{grant.delegate_agent_id}</code></td>
-                    <td>{canText(grant)}</td>
-                    <td className="font-mono text-xs">{onText(grant)}</td>
+                    <td>
+                      {canLines(grant).map((line, index) => (
+                        <span key={index} className="block">{line}</span>
+                      ))}
+                    </td>
+                    <td className="font-mono text-xs">
+                      {onLines(grant).map((line, index) => (
+                        <span key={index} className="block">{line}</span>
+                      ))}
+                    </td>
                     <td>{grant.status === "active" ? new Date(grant.expires_at).toLocaleDateString() : grant.status}</td>
                     <td className="text-right">
                       {grant.status === "active" ? (

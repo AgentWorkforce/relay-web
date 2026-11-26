@@ -113,6 +113,9 @@ export function AgentPermissions(props: {
   const [role, setRole] = useState("");
   const [expiry, setExpiry] = useState<string | null>(null);
   const [allWorkspaces, setAllWorkspaces] = useState(false);
+  // The custom form has its own expiry and workspace choice, so a cancelled simple draft never carries over.
+  const [customExpiry, setCustomExpiry] = useState<string | null>(null);
+  const [customAllWorkspaces, setCustomAllWorkspaces] = useState(false);
   const [openRole, setOpenRole] = useState<string | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [custom, setCustom] = useState<{ who: string; access: Record<string, Access>; commentsOnly: boolean }>({
@@ -220,8 +223,8 @@ export function AgentPermissions(props: {
         require_tier_o: customAsk,
         ...(custom.commentsOnly ? { pr_ops_limit: ["comment"] } : {}),
         ...(targetList.length ? { targets: targetList } : {}),
-        ...(expiry ? { expires_at: expiresAt(expiry) } : {}),
-        ...(allWorkspaces ? { all_workspaces: true } : {}),
+        ...(customExpiry ? { expires_at: expiresAt(customExpiry) } : {}),
+        ...(customAllWorkspaces ? { all_workspaces: true } : {}),
       },
       "Added a custom permission.",
     );
@@ -229,6 +232,8 @@ export function AgentPermissions(props: {
     setCustom((current) => ({ ...current, access: {}, commentsOnly: false }));
     setTargetChips([]);
     setTargetDraft("");
+    setCustomExpiry(null);
+    setCustomAllWorkspaces(false);
   };
 
   const remove = () => {
@@ -245,15 +250,21 @@ export function AgentPermissions(props: {
     });
   };
 
-  const exclude = (agent: DelegationAgent) => {
-    const own =
-      agent.effective.source === "agent" && agent.effective.binding_id
-        ? view?.bindings.find((binding) => binding.binding_id === agent.effective.binding_id)
-        : undefined;
-    return own
-      ? patch("agents", own, { role: "excluded" }, `${agent.name} has no access now.`)
-      : create("agents", { principal: { kind: "agent", ref: agent.agent_id }, role: "excluded" }, `${agent.name} has no access now.`);
-  };
+  /**
+   * No access for one agent: its own setting becomes "excluded". An explicit grant wins over every
+   * setting, so an agent decided by its own grant has that grant revoked first.
+   */
+  const exclude = (agent: DelegationAgent) =>
+    run("agents", async () => {
+      const grantId = agent.effective.source === "explicit_grant" ? agent.effective.grant_id : null;
+      if (grantId) await adminApi.revokeDelegateGrant(workspaceId, grantId);
+      const own = view?.bindings.find((binding) => binding.principal.kind === "agent" && binding.principal.ref === agent.agent_id);
+      if (own) await adminApi.updateDelegationBinding(workspaceId, own.binding_id, { role: "excluded" });
+      else await adminApi.createDelegationBinding(workspaceId, { principal: { kind: "agent", ref: agent.agent_id }, role: "excluded" });
+      // The grant table re-reads too when a grant was revoked.
+      if (grantId) props.onGrantsChanged?.();
+      return grantId ? `${agent.name} has no access now; its own grant was revoked.` : `${agent.name} has no access now.`;
+    });
 
   const typeTargets = (text: string) => {
     const { done, draft } = splitTargets(text);
@@ -290,25 +301,25 @@ export function AgentPermissions(props: {
       ))}
     </>
   );
-  const expiryControl =
-    expiry === null ? (
-      <Button type="button" variant="link" size="sm" className="h-auto px-0" disabled={pending} onClick={() => setExpiry("30")}>
+  const expiryControl = (value: string | null, set: (next: string | null) => void, name: string) =>
+    value === null ? (
+      <Button type="button" variant="link" size="sm" className="h-auto px-0" disabled={pending} onClick={() => set("30")}>
         Set expiry
       </Button>
     ) : (
       <span className="flex items-center gap-2">
-        <label htmlFor={id("expiry")} className="text-sm">Expires after</label>
-        <select id={id("expiry")} className={`${selectBase} w-28`} value={expiry} disabled={pending} onChange={(event) => setExpiry(event.target.value)}>
+        <label htmlFor={id(name)} className="text-sm">Expires after</label>
+        <select id={id(name)} className={`${selectBase} w-28`} value={value} disabled={pending} onChange={(event) => set(event.target.value)}>
           {EXPIRY_PRESETS.map((days) => (
             <option key={days} value={String(days)}>{`${days} days`}</option>
           ))}
         </select>
-        <Button type="button" variant="link" size="sm" className="h-auto px-0" onClick={() => setExpiry(null)}>Never</Button>
+        <Button type="button" variant="link" size="sm" className="h-auto px-0" onClick={() => set(null)}>Never</Button>
       </span>
     );
-  const allWorkspacesControl = (
+  const allWorkspacesControl = (value: boolean, set: (next: boolean) => void) => (
     <label className="flex items-center gap-2 text-sm">
-      <input type="checkbox" className="size-4" checked={allWorkspaces} disabled={pending} onChange={(event) => setAllWorkspaces(event.target.checked)} />
+      <input type="checkbox" className="size-4" checked={value} disabled={pending} onChange={(event) => set(event.target.checked)} />
       Apply to all my workspaces
     </label>
   );
@@ -388,7 +399,7 @@ export function AgentPermissions(props: {
                   </Button>
                 ) : null}
               </div>
-              {adding ? (
+              {adding && delegationEnabled ? (
                 <form
                   className="grid gap-3 rounded-lg border border-[var(--border-default)] p-3 sm:grid-cols-[1.4fr_1fr_1fr]"
                   aria-label="Add permission"
@@ -417,7 +428,7 @@ export function AgentPermissions(props: {
                     <p className="text-xs text-muted-foreground">Specific repos: Advanced</p>
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-3 sm:col-span-3">
-                    <div className="flex flex-wrap items-center gap-4">{expiryControl}{allWorkspacesControl}</div>
+                    <div className="flex flex-wrap items-center gap-4">{expiryControl(expiry, setExpiry, "expiry")}{allWorkspacesControl(allWorkspaces, setAllWorkspaces)}</div>
                     <div className="flex items-center gap-2">
                       {message("add")}
                       <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => { setAdding(false); setFeedback(null); }}>
@@ -646,7 +657,7 @@ export function AgentPermissions(props: {
                           {targetProblem ? <p role="alert" className="text-xs text-destructive">{targetProblem}</p> : null}
                         </div>
                         <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div className="flex flex-wrap items-center gap-4">{expiryControl}{allWorkspacesControl}</div>
+                          <div className="flex flex-wrap items-center gap-4">{expiryControl(customExpiry, setCustomExpiry, "custom-expiry")}{allWorkspacesControl(customAllWorkspaces, setCustomAllWorkspaces)}</div>
                           <div className="flex items-center gap-2">
                             {message("custom")}
                             <Button type="submit" size="sm" disabled={pending || !customValid}>Add custom permission</Button>

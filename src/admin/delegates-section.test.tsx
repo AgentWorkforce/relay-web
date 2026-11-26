@@ -61,7 +61,8 @@ it("shows one row per grant: agent, can (with ask me first), on, expires; inacti
   // A rule from before roles (no scopes) reads as every action; a system grant shows its binding's scopes, never "all".
   expect(screen.getByText("All actions (set before roles)")).toBeInTheDocument();
   expect(screen.getByText("pr_ops (only: comment)")).toBeInTheDocument();
-  expect(screen.getByText("merge (when checks pass and mergeable); deploy, ask me first")).toBeInTheDocument();
+  expect(screen.getByText("merge (when checks pass and mergeable)")).toBeInTheDocument();
+  expect(screen.getByText("deploy, ask me first")).toBeInTheDocument();
   expect(screen.getAllByText("Everything I own").length).toBeGreaterThan(0);
   expect(screen.queryByText("all (trust rule)")).not.toBeInTheDocument();
   expect(screen.getByText("revoked")).toBeInTheDocument();
@@ -92,7 +93,7 @@ it("adds a grant: disabled until valid, ask-me-first maps to require_tier_o, exp
   fireEvent.change(screen.getByLabelText("Agent"), { target: { value: "agt_1" } });
   fireEvent.change(screen.getByLabelText("On"), { target: { value: "acme/*" } });
   expect(expiryOptions(30)).toEqual([7, 30]);
-  fireEvent.click(screen.getByRole("button", { name: "Set expiry" }));
+  fireEvent.click(screen.getByRole("button", { name: /Set expiry/ }));
   fireEvent.change(screen.getByLabelText("Expires after"), { target: { value: "7" } });
   fireEvent.click(submitButton());
   await waitFor(() => expect(writes()).toHaveLength(2));
@@ -270,4 +271,29 @@ it("starting a new claim while a code is shown replaces it, and turning delegati
   rerender(section({ delegationEnabled: true }));
   expect(screen.queryByTestId("claim-code")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Get a code" })).toBeInTheDocument();
+});
+
+it("keeps each action beside its own repos, and a pre-roles rule grant keeps its ask-first list", async () => {
+  routes = { "GET /": () => [200, { grants: [
+    grant({ scopes: [{ class: "merge", targets: ["acme/web"] }, { class: "deploy", targets: ["acme/api"] }] }),
+    grant({ grant_id: "grt_old_rule", delegate_agent_id: "old-rule", scopes: [], trust_rule_id: "rul_9", require_tier_o: ["deploy", "release"] }),
+  ] }] };
+  render(section());
+  const row = (await screen.findByText("assistant-1")).closest("tr")!;
+  const cells = within(row).getAllByRole("cell");
+  expect([...cells[1]!.querySelectorAll("span")].map((line) => line.textContent)).toEqual(["merge", "deploy"]);
+  expect([...cells[2]!.querySelectorAll("span")].map((line) => line.textContent)).toEqual(["acme/web", "acme/api"]);
+  expect(screen.getByText("All actions (set before roles); ask me first: deploy, release")).toBeInTheDocument();
+});
+
+it("says what the default expiry is instead of promising none, and closes the add form when delegation turns off", async () => {
+  routes = { "GET /": () => [200, { grants: [] }] };
+  const { rerender } = render(section({ maxExpiryDays: 14 }));
+  fireEvent.click(await screen.findByRole("button", { name: "Add grant" }));
+  expect(screen.getByRole("button", { name: "Expires in 14 days. Set expiry" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Expires in 14 days. Set expiry" }));
+  expect(screen.getByRole("button", { name: "Use default (14 days)" })).toBeInTheDocument();
+  expect(screen.queryByText("No expiry")).not.toBeInTheDocument();
+  rerender(section({ maxExpiryDays: 14, delegationEnabled: false }));
+  expect(screen.queryByRole("form", { name: "Add grant" })).not.toBeInTheDocument();
 });
