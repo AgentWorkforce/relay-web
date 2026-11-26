@@ -162,6 +162,7 @@ export function AgentPermissions(props: {
     role: string;
     access: Record<string, Access>;
     commentsOnly: boolean;
+    startCommentsOnly: boolean;
     repos: string;
     expiry: string;
   } | null>(null);
@@ -324,46 +325,82 @@ export function AgentPermissions(props: {
     setCustomAllWorkspaces(false);
   };
 
-  /** Opens the editor on a saved row, filled from what it allows now. */
+  /**
+   * Opens the editor on a saved row, filled from what it allows now. Excluded and legacy rows are not
+   * edited here (removing the row, or the convert offer, covers them), so nothing is lifted by accident.
+   */
   const startEdit = (binding: Binding) => {
     const access: Record<string, Access> = {};
     for (const item of binding.classes) access[item] = binding.require_tier_o.includes(item) ? "ask" : "allow";
+    // Comments-only means exactly ["comment"]; any other PR work limit is kept as it is unless changed.
+    const commentsOnly = binding.pr_ops_limit?.length === 1 && binding.pr_ops_limit[0] === "comment";
     setConfirm(null);
     setFeedback(null);
     setEditing({
       binding,
-      role: binding.role === "legacy" || binding.role === "excluded" ? presets[0]?.role ?? "trusted" : binding.role,
+      role: binding.role,
       access,
-      commentsOnly: Boolean(binding.pr_ops_limit?.length),
+      commentsOnly,
+      startCommentsOnly: commentsOnly,
       repos: (binding.targets ?? []).join(" "),
       expiry: "keep",
     });
   };
+  const editable = (binding: Binding) => binding.role !== "excluded" && binding.role !== "legacy";
   const editRepos = (editing?.repos ?? "").split(/\s+/u).filter(Boolean);
+  const editAllowed = Object.entries(editing?.access ?? {}).filter(([, access]) => access === "allow").map(([item]) => item);
+  const editAsked = Object.entries(editing?.access ?? {}).filter(([, access]) => access === "ask").map(([item]) => item);
+  const editClasses = [...editAllowed, ...editAsked];
+  const sameSet = (a: readonly string[], b: readonly string[]) => a.length === b.length && a.every((item) => b.includes(item));
+  // The row's own conditions (merge needs checks to pass): carried along, never dropped silently.
+  const editConditions = editing?.binding.required_conditions ?? null;
+  const conditionsShown = Object.entries(editConditions ?? {}).filter(([, list]) => list.length);
   const editProblem = !editing
     ? null
     : editRepos.some((target) => target.endsWith(","))
       ? "Separate repos with spaces, not commas: a comma is kept as part of the repo."
       : editRepos.some(badRepoPattern)
         ? REPO_HINT
-        : editing.role === "custom" && !Object.values(editing.access).some((access) => access !== "never")
+        : editing.role === "custom" && !editClasses.length
           ? "Choose at least one action."
-          : null;
-  /** Saves the editor as a PATCH of the same row (no new row, so no broader setting applies in between). */
+          : editing.role === "custom" && editing.binding.role !== "custom" && editing.binding.required_conditions === undefined
+            ? "This row's conditions can't be read here, so switching it to Custom would drop them. Remove it and add a custom permission instead."
+            : null;
+  /**
+   * Saves the editor as one PATCH of the same row, sending only what changed: the role only when it
+   * changes (re-sending a preset would re-resolve it from today's presets), the actions with their
+   * conditions only when they change, the PR work limit only when its checkbox changed.
+   */
   const saveEdit = async () => {
     if (!editing || editProblem) return;
-    const allowed = Object.entries(editing.access).filter(([, access]) => access === "allow").map(([item]) => item);
-    const asked = Object.entries(editing.access).filter(([, access]) => access === "ask").map(([item]) => item);
-    const prWork = allowed.includes("pr_ops") || asked.includes("pr_ops");
+    const binding = editing.binding;
+    const roleChanged = editing.role !== binding.role;
+    const custom = editing.role === "custom";
+    const classesChanged = custom && (roleChanged || !sameSet(editClasses, binding.classes) || !sameSet(editAsked, binding.require_tier_o));
+    const prWork = editClasses.includes("pr_ops");
+    const conditions = Object.fromEntries(Object.entries(editConditions ?? {}).filter(([item]) => editClasses.includes(item)));
+    const targets = editRepos.length ? editRepos : null;
+    // Null and an empty list both mean everything I own.
+    const targetsChanged = !sameSet(targets ?? [], binding.targets ?? []);
+    const limitChanged = custom && editing.commentsOnly !== editing.startCommentsOnly;
     const body: Record<string, unknown> = {
-      role: editing.role,
-      ...(editing.role === "custom"
-        ? { classes: [...allowed, ...asked], require_tier_o: asked, pr_ops_limit: editing.commentsOnly && prWork ? ["comment"] : null }
-        : {}),
-      targets: editRepos.length ? editRepos : null,
+      ...(roleChanged ? { role: editing.role } : {}),
+      ...(classesChanged ? { classes: editClasses, require_tier_o: editAsked, required_conditions: conditions } : {}),
+      ...(limitChanged
+        ? { pr_ops_limit: editing.commentsOnly && prWork ? ["comment"] : null }
+        : // A limit cannot stay once PR work is gone from the actions.
+          classesChanged && !prWork && binding.pr_ops_limit
+          ? { pr_ops_limit: null }
+          : {}),
+      ...(targetsChanged ? { targets } : {}),
       ...(editing.expiry === "keep" ? {} : { expires_at: editing.expiry === "never" ? null : expiresAt(editing.expiry) }),
     };
-    if (await patch("top", editing.binding, body, `Saved ${editing.binding.principal.name}.`)) setEditing(null);
+    if (!Object.keys(body).length) {
+      setEditing(null);
+      setNotice("top", "Nothing changed.");
+      return;
+    }
+    if (await patch("top", binding, body, `Saved ${binding.principal.name}.`)) setEditing(null);
   };
 
   const remove = () => {
@@ -691,7 +728,7 @@ export function AgentPermissions(props: {
                         <td>{binding.expires_at ? new Date(binding.expires_at).toLocaleDateString() : "Never"}</td>
                         <td className="text-right">
                           <div className="flex justify-end gap-2">
-                            {delegationEnabled ? (
+                            {delegationEnabled && editable(binding) ? (
                               <Button
                                 type="button"
                                 size="sm"
@@ -812,6 +849,13 @@ export function AgentPermissions(props: {
                         </label>
                       ) : null}
                     </div>
+                  ) : null}
+                  {conditionsShown.length ? (
+                    <p className="text-xs text-muted-foreground">
+                      {`Conditions kept: ${conditionsShown
+                        .map(([item, list]) => `${item} only when ${list.map((condition) => (condition.type === "ci_green" ? "checks pass" : condition.type)).join(" and ")}`)
+                        .join("; ")}.`}
+                    </p>
                   ) : null}
                   {editProblem ? <p role="alert" className="text-xs text-destructive">{editProblem}</p> : null}
                   <div className="flex justify-end gap-2">
