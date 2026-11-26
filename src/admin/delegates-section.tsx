@@ -357,10 +357,12 @@ export function DelegatesSection({
           <div className="flex flex-col gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3" role="group" aria-label="Confirm revocation">
             <p className="text-sm">
               {all
-                ? "Revoke every grant and approval in this workspace? Every grant and every trust rule is revoked, and every unredeemed " +
-                  "approval from anyone stops working at once, including approvals given without a grant."
-                : "Revoke all your grants and approvals? Every grant you made and your trust rule are revoked, and every unredeemed " +
-                  "approval you gave stops working at once, including approvals given without a grant."}
+                ? "Revoke everything in this workspace? Every grant and every permission row (Relay agents, connector and group " +
+                  "rows, single agents and exclusions, and the old trust rules) is removed, and every unredeemed approval from anyone " +
+                  "stops working at once, including approvals given without a grant. Groups themselves are kept."
+                : "Revoke everything of yours? Every grant you made and every permission row of yours (Relay agents, connector and " +
+                  "group rows, single agents and exclusions, and your old trust rule) is removed, and every unredeemed approval you " +
+                  "gave stops working at once, including approvals given without a grant. Your groups themselves are kept."}
             </p>
             {confirmButtons}
           </div>
@@ -519,36 +521,39 @@ export function DelegatesSection({
                 </tr>
               </thead>
               <tbody>
-                {grants.map((grant) => (
-                  <tr key={grant.grant_id} className={grant.status === "active" ? undefined : "text-muted-foreground"}>
-                    <td><code className="font-mono">{grant.delegate_agent_id}</code></td>
-                    <td>
-                      {canLines(grant).map((line, index) => (
-                        <span key={index} className="block">{line}</span>
-                      ))}
-                    </td>
-                    <td className="font-mono text-xs">
-                      {onLines(grant).map((line, index) => (
-                        <span key={index} className="block">{line}</span>
-                      ))}
-                    </td>
-                    <td>{grant.status === "active" ? new Date(grant.expires_at).toLocaleDateString() : grant.status}</td>
-                    <td className="text-right">
-                      {grant.status === "active" ? (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={pending}
-                          aria-label={`Remove ${grant.delegate_agent_id}`}
-                          onClick={() => setConfirm({ kind: "one", grantId: grant.grant_id, ruled: Boolean(grant.trust_rule_id) })}
-                        >
-                          Remove
-                        </Button>
+                {grants.map((grant) => {
+                  // One table row per scope, so each action stays beside its own repos even when they wrap;
+                  // the agent, expiry and Remove span the grant's rows.
+                  const can = canLines(grant);
+                  const on = onLines(grant);
+                  const span = can.length;
+                  return can.map((line, index) => (
+                    <tr key={`${grant.grant_id}-${index}`} className={grant.status === "active" ? undefined : "text-muted-foreground"}>
+                      {index === 0 ? <td rowSpan={span}><code className="font-mono">{grant.delegate_agent_id}</code></td> : null}
+                      <td>{line}</td>
+                      <td className="font-mono text-xs">{on[index]}</td>
+                      {index === 0 ? (
+                        <td rowSpan={span}>{grant.status === "active" ? new Date(grant.expires_at).toLocaleDateString() : grant.status}</td>
                       ) : null}
-                    </td>
-                  </tr>
-                ))}
+                      {index === 0 ? (
+                        <td rowSpan={span} className="text-right">
+                          {grant.status === "active" ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={pending}
+                              aria-label={`Remove ${grant.delegate_agent_id}`}
+                              onClick={() => setConfirm({ kind: "one", grantId: grant.grant_id, ruled: Boolean(grant.trust_rule_id) })}
+                            >
+                              Remove
+                            </Button>
+                          ) : null}
+                        </td>
+                      ) : null}
+                    </tr>
+                  ));
+                })}
               </tbody>
             </table>
           </div>

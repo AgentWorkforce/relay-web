@@ -389,3 +389,12 @@ it("a policy read issued before a successful save never replaces the saved state
   expect(screen.getByText("Delegation is on")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Add permission" })).toBeInTheDocument();
 });
+
+it("turning delegation on re-reads Agent permissions, so the recommendation can appear", async () => {
+  render(<DelegationSection workspaceId="w1" canManage />);
+  fireEvent.click(await screen.findByRole("switch", { name: /^Delegation is/ }));
+  const bindingReads = () => calls.filter((call) => call.method === "GET" && call.path.endsWith("/delegates/bindings")).length;
+  const before = bindingReads();
+  fireEvent.click(screen.getByRole("button", { name: "Turn on delegation" }));
+  await waitFor(() => expect(bindingReads()).toBeGreaterThan(before));
+});

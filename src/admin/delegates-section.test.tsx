@@ -120,7 +120,7 @@ it("keeps a literal comma inside a resource, refuses one used as a separator, an
   expect(screen.getByLabelText("Agent")).toHaveValue("agt_1");
 });
 
-it("removes a grant after a confirmation; a trust-rule grant's confirmation says the rule will not cover it again", async () => {
+it("removes a grant after a confirmation; a permission-row grant's confirmation says the agent is excluded", async () => {
   let grants = [grant(), grant({ grant_id: "grt_rule", delegate_agent_id: "rule-agent", scopes: [], trust_rule_id: "rul_1" })];
   routes = {
     "GET /": () => [200, { grants }],
@@ -147,14 +147,14 @@ it("revoke everything sits in the overflow menu, asks first, and covers the view
   expect(screen.queryByText("Revoke everything")).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "More actions" }));
   fireEvent.click(screen.getByRole("menuitem", { name: "Revoke everything" }));
-  expect(confirmGroup()).toHaveTextContent("your trust rule are revoked");
+  expect(confirmGroup()).toHaveTextContent("every permission row of yours (Relay agents, connector and group rows, single agents and exclusions, and your old trust rule) is removed");
   fireEvent.click(within(confirmGroup()).getByRole("button", { name: "Revoke everything" }));
   await waitFor(() => expect(writes()).toEqual([{ method: "POST", path: `${BASE}/revoke-all`, body: {} }]));
   fireEvent.click(screen.getByRole("switch", { name: "Show every grant in the workspace" }));
   await screen.findByText("assistant-1");
   fireEvent.click(screen.getByRole("button", { name: "More actions" }));
   fireEvent.click(screen.getByRole("menuitem", { name: "Revoke everything" }));
-  expect(confirmGroup()).toHaveTextContent("Revoke every grant and approval in this workspace?");
+  expect(confirmGroup()).toHaveTextContent("Revoke everything in this workspace?");
   fireEvent.click(within(confirmGroup()).getByRole("button", { name: "Revoke everything" }));
   await waitFor(() => expect(writes()[1]).toEqual({ method: "POST", path: `${BASE}/revoke-all`, body: { all: true } }));
 });
@@ -279,10 +279,11 @@ it("keeps each action beside its own repos, and a pre-roles rule grant keeps its
     grant({ grant_id: "grt_old_rule", delegate_agent_id: "old-rule", scopes: [], trust_rule_id: "rul_9", require_tier_o: ["deploy", "release"] }),
   ] }] };
   render(section());
-  const row = (await screen.findByText("assistant-1")).closest("tr")!;
-  const cells = within(row).getAllByRole("cell");
-  expect([...cells[1]!.querySelectorAll("span")].map((line) => line.textContent)).toEqual(["merge", "deploy"]);
-  expect([...cells[2]!.querySelectorAll("span")].map((line) => line.textContent)).toEqual(["acme/web", "acme/api"]);
+  // One table row per scope: each action shares its row with its own repos.
+  const first = (await screen.findByText("assistant-1")).closest("tr")!;
+  const second = first.nextElementSibling as HTMLElement;
+  expect(within(first).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(expect.arrayContaining(["merge", "acme/web"]));
+  expect(within(second).getAllByRole("cell").map((cell) => cell.textContent)).toEqual(["deploy", "acme/api"]);
   expect(screen.getByText("All actions (set before roles); ask me first: deploy, release")).toBeInTheDocument();
 });
 

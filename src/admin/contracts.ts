@@ -526,33 +526,6 @@ export type DelegateClaim = z.infer<typeof delegateClaimSchema>;
 export const revokedGrantsSchema = z.object({ revoked: z.array(z.string()) });
 
 /**
- * relay-control GET|PUT|DELETE /workspaces/{id}/delegates/trust-rule (the
- * twin of Cloud's route): the caller's own set-once trust rule, the agents it
- * covers now with the root they were proven through, and the bots whose own
- * grant wins over it.
- */
-export const trustRuleSchema = z.object({
-  trust_rule_id: z.string(),
-  created_at: z.string(),
-});
-export const trustRuleStateSchema = z.object({
-  rule: trustRuleSchema.nullable(),
-  covered: z.array(z.object({
-    grant_id: z.string(),
-    delegate_agent_id: z.string(),
-    root_kind: z.enum(["claim", "connector"]).nullable(),
-    connector: z.string().nullable(),
-    root_agent_id: z.string().nullable(),
-    launched_by: z.string().nullable(),
-    hops: z.number().int().nonnegative(),
-  })).default([]),
-  shadowed: z.array(z.object({ grant_id: z.string(), delegate_agent_id: z.string() })).default([]),
-});
-export type TrustRuleState = z.infer<typeof trustRuleStateSchema>;
-export type TrustRuleCovered = TrustRuleState["covered"][number];
-export const trustRulePutSchema = z.object({ rule: trustRuleSchema });
-
-/**
  * Delegation bindings, groups and roles (v1 contract: GET delegates/roles,
  * GET|POST|PATCH|DELETE delegates/bindings, delegates/groups, GET
  * delegates/agents). A binding is a trust-rule row: who (a principal) has
@@ -632,7 +605,8 @@ export const delegationGroupSchema = z.object({
   kind: z.enum(["builtin", "custom"]),
   name: z.string(),
   // Built-in groups answer null (membership follows the connected agents); `proven` is null while messaging is down.
-  members: z.array(z.object({ agent_id: z.string(), name: z.string(), proven: z.boolean().nullable(), added_at: z.string().nullable() })).nullable(),
+  // A member's name is null when it can't be proven (a disconnected connector): show its id.
+  members: z.array(z.object({ agent_id: z.string(), name: z.string().nullable(), proven: z.boolean().nullable(), added_at: z.string().nullable() })).nullable(),
 });
 export type DelegationGroup = z.infer<typeof delegationGroupSchema>;
 export const delegationGroupsSchema = z.object({ groups: z.array(delegationGroupSchema) });
@@ -644,12 +618,16 @@ export const delegationAgentSchema = z.object({
   spawned: z.boolean(),
   launched_by: z.string().nullable(),
   groups: z.array(z.string()),
-  effective: z.object({
-    binding_id: z.string().nullable(),
-    role: z.string(),
-    source: z.string(),
-    grant_id: z.string().nullable(),
-  }),
+  // A proven agent with no applicable setting has no role (or no effective block at all): no access.
+  effective: z
+    .object({
+      binding_id: z.string().nullable(),
+      role: z.string().nullable(),
+      source: z.string(),
+      grant_id: z.string().nullable(),
+    })
+    .nullable()
+    .transform((effective) => effective ?? { binding_id: null, role: null, source: "none", grant_id: null }),
 });
 export type DelegationAgent = z.infer<typeof delegationAgentSchema>;
 export const delegationAgentsSchema = z.object({ agents: z.array(delegationAgentSchema) });

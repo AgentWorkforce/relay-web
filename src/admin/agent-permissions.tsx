@@ -159,8 +159,9 @@ export function AgentPermissions(props: {
 
   const presets: Preset[] = view?.roles.presets ?? [];
   const advancedShown = advancedOpen || (!view && Boolean(loadError));
-  const presetLabel = (value: string) =>
-    value === "custom" ? "Custom"
+  const presetLabel = (value: string | null) =>
+    value === null || value === "none" ? "No access"
+      : value === "custom" ? "Custom"
       : value === "excluded" ? "Excluded: no access"
         // A rule from before roles existed reads as "legacy" (every class) until it is seeded; changing it must name a role.
         : value === "legacy" ? "All actions (set before roles)"
@@ -210,11 +211,17 @@ export function AgentPermissions(props: {
     run(area, async () => {
       try {
         const answer = await adminApi.createDelegationBinding(workspaceId, body);
+        // Every workspace skipped: nothing was added, so keep the draft and say why.
+        if (!answer.binding && !answer.bindings?.length && answer.skipped.length) {
+          throw new ShownError(`Nothing was added. ${skippedNote(answer.skipped)}`);
+        }
         // Some workspaces of an all-workspaces add can be skipped (one may even have failed) while the rest were added.
         return answer.skipped.length ? `${done} ${skippedNote(answer.skipped)}` : done;
       } catch (error) {
         const conflict = error instanceof ApiError ? (error.body as { binding_id?: unknown } | null)?.binding_id : undefined;
-        if (delegationCode(error) === "binding_exists" && (body.principal as { kind?: string })?.kind === "relay_agents" && typeof conflict === "string") {
+        // Offer converting only a rule from before roles; any other existing row is an ordinary duplicate.
+        const conflictRow = typeof conflict === "string" ? view?.bindings.find((binding) => binding.binding_id === conflict) : undefined;
+        if (delegationCode(error) === "binding_exists" && conflictRow?.role === "legacy" && typeof conflict === "string") {
           setConvertId(conflict);
           throw new ShownError("Your existing trust rule already covers your Relay agents. Convert it to Trusted instead.");
         }
@@ -225,7 +232,6 @@ export function AgentPermissions(props: {
         if (bad400 && body.all_workspaces) {
           throw new ShownError("Adding to every workspace in this organization needs you signed in here in the browser. Untick it to add it to this workspace only.");
         }
-        if (bad400 && targets.length) throw new ShownError(REPO_HINT);
         throw error;
       }
     }, area === "add" ? "top" : area);
@@ -244,6 +250,18 @@ export function AgentPermissions(props: {
       return done;
     });
 
+  /** "All workspaces" covers built-in groups only (Relay agents, a connector group). */
+  const bulkEligible = (value: string) => value === "relay_agents" || value.startsWith("connector:");
+  /** The Who values offered now; a draft whose principal disappeared (a deleted group) must be chosen again. */
+  const whoValues = (withConnectors: boolean) => new Set([
+    ...(view?.groups.some((group) => group.group_id === "relay_agents") ? ["relay_agents"] : []),
+    ...(withConnectors ? (view?.groups ?? []).filter((group) => group.group_id.startsWith("connector:")).map((group) => group.group_id) : []),
+    ...(view?.groups ?? []).filter((group) => group.kind === "custom").map((group) => group.group_id),
+    ...(view?.agents ?? []).map((agent) => `agent:${agent.agent_id}`),
+  ]);
+  const whoOk = whoValues(false).has(who);
+  const customWhoOk = whoValues(true).has(custom.who);
+
   const addSimple = async () => {
     const added = await create(
       "add",
@@ -251,7 +269,7 @@ export function AgentPermissions(props: {
         principal: principalFor(who),
         role: chosenRole,
         ...(expiry ? { expires_at: expiresAt(expiry) } : {}),
-        ...(allWorkspaces ? { all_workspaces: true } : {}),
+        ...(allWorkspaces && bulkEligible(who) ? { all_workspaces: true } : {}),
       },
       "Added.",
     );
@@ -272,7 +290,7 @@ export function AgentPermissions(props: {
       : null;
   const customAllowed = Object.entries(custom.access).filter(([, access]) => access === "allow").map(([item]) => item);
   const customAsk = Object.entries(custom.access).filter(([, access]) => access === "ask").map(([item]) => item);
-  const customValid = customAllowed.length + customAsk.length > 0 && !targetProblem;
+  const customValid = customAllowed.length + customAsk.length > 0 && !targetProblem && customWhoOk;
   const addCustom = async () => {
     const added = await create(
       "custom",
@@ -281,10 +299,11 @@ export function AgentPermissions(props: {
         role: "custom",
         classes: [...customAllowed, ...customAsk],
         require_tier_o: customAsk,
-        ...(custom.commentsOnly ? { pr_ops_limit: ["comment"] } : {}),
+        // The comments-only limit applies only while PR work is allowed or asks first.
+        ...(custom.commentsOnly && (customAllowed.includes("pr_ops") || customAsk.includes("pr_ops")) ? { pr_ops_limit: ["comment"] } : {}),
         ...(targetList.length ? { targets: targetList } : {}),
         ...(customExpiry ? { expires_at: expiresAt(customExpiry) } : {}),
-        ...(customAllWorkspaces ? { all_workspaces: true } : {}),
+        ...(customAllWorkspaces && bulkEligible(custom.who) ? { all_workspaces: true } : {}),
       },
       "Added a custom permission.",
     );
@@ -318,7 +337,10 @@ export function AgentPermissions(props: {
    */
   const exclude = (agent: DelegationAgent) =>
     run("agents", async () => {
-      const grantId = agent.effective.source === "explicit_grant" ? agent.effective.grant_id : null;
+      // Read what decides the agent now: a grant added since the table rendered must be revoked too.
+      const fresh = await adminApi.delegationAgents(workspaceId).catch(() => null);
+      const current = fresh?.find((item) => item.agent_id === agent.agent_id) ?? agent;
+      const grantId = current.effective.source === "explicit_grant" ? current.effective.grant_id : null;
       const own = view?.bindings.find((binding) => binding.principal.kind === "agent" && binding.principal.ref === agent.agent_id);
       if (own) await adminApi.updateDelegationBinding(workspaceId, own.binding_id, { role: "excluded" });
       else await adminApi.createDelegationBinding(workspaceId, { principal: { kind: "agent", ref: agent.agent_id }, role: "excluded" });
@@ -362,9 +384,16 @@ export function AgentPermissions(props: {
   const whoHint = (binding: Binding) => {
     const count = `${binding.covered} agent${binding.covered === 1 ? "" : "s"}`;
     if (binding.principal.kind === "agent") return "One agent";
-    return binding.principal.kind === "relay_agents" || binding.principal.kind === "connector_kind"
-      ? `${count} · new connected agents join automatically`
-      : count;
+    if (binding.principal.kind === "relay_agents") return `${count} · new connected agents join automatically · your trust rule`;
+    if (binding.role === "legacy") return "Your trust rule, set before roles";
+    return binding.principal.kind === "connector_kind" ? `${count} · new connected agents join automatically` : count;
+  };
+  /** What a custom row allows, asks first for, and how PR work is limited. */
+  const customSummary = (binding: Binding) => {
+    const allowed = binding.classes.filter((item) => !binding.require_tier_o.includes(item))
+      .map((item) => (item === "pr_ops" && binding.pr_ops_limit ? `pr_ops (only: ${binding.pr_ops_limit.join(", ")})` : item));
+    return [allowed.length ? `Does: ${allowed.join(", ")}` : null,
+      binding.require_tier_o.length ? `asks first: ${binding.require_tier_o.join(", ")}` : null].filter(Boolean).join("; ");
   };
   const whoOptions = (withConnectors: boolean) => (
     <>
@@ -512,12 +541,13 @@ export function AgentPermissions(props: {
                   noValidate
                   onSubmit={(event) => {
                     event.preventDefault();
-                    if (chosenRole) void addSimple();
+                    if (chosenRole && whoOk) void addSimple();
                   }}
                 >
                   <div className="flex flex-col gap-1.5">
                     <label htmlFor={id("who")} className="text-sm font-medium">Who</label>
-                    <select id={id("who")} className={selectClass} value={who} disabled={pending} onChange={(event) => setWho(event.target.value)}>
+                    <select id={id("who")} className={selectClass} value={whoOk ? who : ""} disabled={pending} onChange={(event) => setWho(event.target.value)}>
+                      <option value="" disabled>Choose who</option>
                       {whoOptions(false)}
                     </select>
                   </div>
@@ -534,13 +564,13 @@ export function AgentPermissions(props: {
                     <p className="text-xs text-muted-foreground">Specific repos: Advanced</p>
                   </div>
                   <div className="flex flex-wrap items-center justify-between gap-3 sm:col-span-3">
-                    <div className="flex flex-wrap items-center gap-4">{expiryControl(expiry, setExpiry, "expiry")}{allWorkspacesControl(allWorkspaces, setAllWorkspaces)}</div>
+                    <div className="flex flex-wrap items-center gap-4">{expiryControl(expiry, setExpiry, "expiry")}{bulkEligible(who) ? allWorkspacesControl(allWorkspaces, setAllWorkspaces) : null}</div>
                     <div className="flex items-center gap-2">
                       {message("add")}
                       <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => { setAdding(false); setFeedback(null); }}>
                         Cancel
                       </Button>
-                      <Button type="submit" size="sm" disabled={pending || !chosenRole}>Add</Button>
+                      <Button type="submit" size="sm" disabled={pending || !chosenRole || !whoOk}>Add</Button>
                     </div>
                   </div>
                 </form>
@@ -584,6 +614,9 @@ export function AgentPermissions(props: {
                           ) : (
                             presetLabel(binding.role)
                           )}
+                          {binding.role === "custom" ? (
+                            <span className="block text-xs text-muted-foreground">{customSummary(binding)}</span>
+                          ) : null}
                           {binding.clipped_by_policy.length ? (
                             <span className="block text-xs text-muted-foreground">{`Workspace policy blocks: ${binding.clipped_by_policy.join(", ")}`}</span>
                           ) : null}
@@ -622,8 +655,10 @@ export function AgentPermissions(props: {
                 <div className="flex flex-col gap-2 rounded-lg border border-[var(--border-default)] p-3" role="group" aria-label="Confirm removal">
                   <p className="text-sm">
                     {confirm.kind === "binding"
-                      ? `Remove ${confirm.binding.principal.name}? Approvals it made under this row stop working at once.`
-                      : `Delete ${confirm.group.name}? Its permission rows are removed and approvals made under them stop working.`}
+                      ? confirm.binding.role === "excluded"
+                        ? `Remove the exclusion for ${confirm.binding.principal.name}? Its broader setting (a group or Relay agents) applies again, so it can act for you again.`
+                        : `Remove ${confirm.binding.principal.name}? Approvals it made under this row stop working at once. The agents it covered fall back to their next setting (a group or Relay agents), which can give them access again.`
+                      : `Delete ${confirm.group.name}? Its permission rows are removed and approvals made under them stop working. Its agents fall back to their next setting (another group or Relay agents), which can give them access again.`}
                   </p>
                   <div className="flex gap-2">
                     <Button type="button" size="sm" variant="destructive" disabled={pending} onClick={() => void remove()}>
@@ -688,10 +723,11 @@ export function AgentPermissions(props: {
                           <select
                             id={id("custom-who")}
                             className={selectClass}
-                            value={custom.who}
+                            value={customWhoOk ? custom.who : ""}
                             disabled={pending}
                             onChange={(event) => setCustom((current) => ({ ...current, who: event.target.value }))}
                           >
+                            <option value="" disabled>Choose who</option>
                             {whoOptions(true)}
                           </select>
                         </div>
@@ -763,7 +799,7 @@ export function AgentPermissions(props: {
                           {targetProblem ? <p role="alert" className="text-xs text-destructive">{targetProblem}</p> : null}
                         </div>
                         <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div className="flex flex-wrap items-center gap-4">{expiryControl(customExpiry, setCustomExpiry, "custom-expiry")}{allWorkspacesControl(customAllWorkspaces, setCustomAllWorkspaces)}</div>
+                          <div className="flex flex-wrap items-center gap-4">{expiryControl(customExpiry, setCustomExpiry, "custom-expiry")}{bulkEligible(custom.who) ? allWorkspacesControl(customAllWorkspaces, setCustomAllWorkspaces) : null}</div>
                           <div className="flex items-center gap-2">
                             {message("custom")}
                             <Button type="submit" size="sm" disabled={pending || !customValid}>Add custom permission</Button>
@@ -798,17 +834,17 @@ export function AgentPermissions(props: {
                                 className="inline-flex items-center gap-1 rounded bg-[var(--surface-soft)] px-2 py-0.5 text-xs"
                                 title={member.proven === false ? "No longer proven yours: it gets nothing from this group" : undefined}
                               >
-                                {`${member.name}${member.proven === false ? " (not proven)" : ""}`}
+                                {`${member.name ?? member.agent_id}${member.proven === false ? " (not proven)" : ""}`}
                                 {group.kind === "custom" ? (
                                   <button
                                     type="button"
-                                    aria-label={`Remove ${member.name} from ${group.name}`}
+                                    aria-label={`Remove ${member.name ?? member.agent_id} from ${group.name}`}
                                     disabled={pending}
                                     className="border-0 bg-transparent p-0 leading-none text-muted-foreground shadow-none hover:text-foreground"
                                     onClick={() =>
                                       void run("groups", async () => {
                                         await adminApi.updateDelegationGroup(workspaceId, group.group_id, { remove: [member.agent_id] });
-                                        return `Removed ${member.name} from ${group.name}.`;
+                                        return `Removed ${member.name ?? member.agent_id} from ${group.name}.`;
                                       })
                                     }
                                   >
@@ -954,7 +990,10 @@ export function AgentPermissions(props: {
                     </p>
                   )}
 
-                  <section aria-label="Explicit grants">
+                </div>
+              ) : null}
+              {/* Kept mounted while Advanced is closed: a grant change in flight still finishes, re-reads and tells the page. */}
+                  <section aria-label="Explicit grants" hidden={!advancedShown}>
                     <DelegatesSection
                       workspaceId={workspaceId}
                       delegationEnabled={delegationEnabled}
@@ -964,8 +1003,6 @@ export function AgentPermissions(props: {
                       onGrantsChanged={props.onGrantsChanged}
                     />
                   </section>
-                </div>
-              ) : null}
             </div>
       </CardContent>
     </Card>

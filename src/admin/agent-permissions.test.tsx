@@ -79,7 +79,7 @@ it("shows each binding as who, role, scope and expiry, with role labels and desc
   render(panel());
   const table = await loaded();
   expect(within(table).getByText("Relay agents")).toBeInTheDocument();
-  expect(within(table).getByText("5 agents · new connected agents join automatically")).toBeInTheDocument();
+  expect(within(table).getByText("5 agents · new connected agents join automatically · your trust rule")).toBeInTheDocument();
   expect(within(table).getByRole("combobox", { name: "Role for Relay agents" })).toHaveValue("trusted");
   expect(within(table).getAllByRole("option", { name: "Trusted (server)" }).length).toBeGreaterThan(0);
   expect(within(table).getByText("Everything I own")).toBeInTheDocument();
@@ -352,7 +352,9 @@ it("offers to convert a rule from before roles instead of adding Relay agents", 
   expect(await screen.findByText("Your existing rule is now Trusted.")).toBeInTheDocument();
 });
 
-it("turns a binding_exists on adding Relay agents into the convert offer", async () => {
+it("turns a binding_exists on adding Relay agents into the convert offer only when that row is a legacy rule", async () => {
+  routes["GET /bindings"] = () => [200, { bindings: [binding({ binding_id: "dtr_legacy", role: "legacy",
+    principal: { kind: "all_agents", ref: null, name: "All my agents" } })], recommendation: null }];
   routes["POST /bindings"] = () => [409, { error: "A binding for this principal already exists", code: "binding_exists", binding_id: "dtr_legacy" }];
   routes["PATCH /bindings/dtr_legacy"] = () => [200, { binding: binding({ binding_id: "dtr_legacy", role: "trusted" }) }];
   render(panel());
@@ -449,7 +451,6 @@ it("says plainly when every workspace in the organization needs a browser sessio
   await loaded();
   fireEvent.click(screen.getByRole("button", { name: "Add permission" }));
   const form = screen.getByRole("form", { name: "Add permission" });
-  fireEvent.change(within(form).getByLabelText("Who"), { target: { value: "agent:agt_1" } });
   fireEvent.click(within(form).getByLabelText("Apply to all workspaces in this organization"));
   fireEvent.click(within(form).getByRole("button", { name: "Add" }));
   expect(await screen.findByText(/Adding to every workspace in this organization needs you signed in here in the browser\./)).toBeInTheDocument();
@@ -470,7 +471,8 @@ it("refuses a repo pattern with a wildcard owner before sending, and maps the se
   fireEvent.change(within(form).getByLabelText("Repos"), { target: { value: "acme/* " } });
   fireEvent.click(within(form).getByRole("button", { name: "Add custom permission" }));
   await waitFor(() => expect(writes()).toHaveLength(1));
-  expect(await within(form).findByText("Use owner/repo or owner/* for repos.")).toBeInTheDocument();
+  // The patterns are fine, so the server's own message is shown, not the repo hint.
+  expect(await within(form).findByText("Invalid targets")).toBeInTheDocument();
 });
 
 it("lists the workspaces an all-workspaces add skipped, with each reason in words", async () => {
@@ -486,4 +488,132 @@ it("lists the workspaces an all-workspaces add skipped, with each reason in word
   fireEvent.click(within(form).getByLabelText("Apply to all workspaces in this organization"));
   fireEvent.click(within(form).getByRole("button", { name: "Add" }));
   expect(await screen.findByText("Added. Not added in 1 workspace: w9 (it couldn't be reached; try that one again).")).toBeInTheDocument();
+});
+
+it("an ordinary duplicate says the row exists and offers no conversion", async () => {
+  routes["GET /bindings"] = () => [200, { bindings: [binding({ binding_id: "rul_ro", role: "read_only" })], recommendation: null }];
+  routes["POST /bindings"] = () => [409, { error: "A binding for this principal already exists", code: "binding_exists", binding_id: "rul_ro" }];
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Add permission" }));
+  fireEvent.click(within(screen.getByRole("form", { name: "Add permission" })).getByRole("button", { name: "Add" }));
+  expect(await screen.findByText("There is already a row for this. Change its role in the table instead.")).toBeInTheDocument();
+  expect(screen.queryByRole("group", { name: "Convert existing rule" })).not.toBeInTheDocument();
+});
+
+it("accepts an agent with no setting yet and a group member with no name", async () => {
+  routes["GET /agents"] = () => [200, { agents: [agent({ effective: { binding_id: null, role: null, source: "none", grant_id: null } }),
+    { ...agent({ agent_id: "agt_2", name: "second" }), effective: null }] }];
+  routes["GET /groups"] = () => [200, { groups: [{ ...GROUPS[2]!, members: [{ agent_id: "agt_gone", name: null, proven: null, added_at: null }] }] }];
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Add permission" }));
+  expect(within(screen.getByRole("form", { name: "Add permission" })).getByRole("option", { name: "helper (agt_1)" })).toBeInTheDocument();
+  openAdvanced();
+  expect(within(screen.getByRole("table", { name: "Your agents" })).getAllByText("No access")).toHaveLength(2);
+  expect(screen.getByText("agt_gone")).toBeInTheDocument();
+});
+
+it("offers all workspaces only for built-in groups, and asks again for a principal that disappeared", async () => {
+  let groups = GROUPS;
+  routes["GET /groups"] = () => [200, { groups }];
+  routes["DELETE /groups/grp_ops"] = () => { groups = GROUPS.filter((group) => group.group_id !== "grp_ops"); return [200, { revoked: "grp_ops", revoked_bindings: 0, revoked_grants: 0 }]; };
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Add permission" }));
+  const form = () => screen.getByRole("form", { name: "Add permission" });
+  expect(within(form()).getByLabelText("Apply to all workspaces in this organization")).toBeInTheDocument();
+  fireEvent.change(within(form()).getByLabelText("Who"), { target: { value: "agent:agt_1" } });
+  expect(within(form()).queryByLabelText("Apply to all workspaces in this organization")).not.toBeInTheDocument();
+  fireEvent.change(within(form()).getByLabelText("Who"), { target: { value: "grp_ops" } });
+  openAdvanced();
+  fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+  fireEvent.click(within(screen.getByRole("group", { name: "Confirm removal" })).getByRole("button", { name: "Delete group" }));
+  await waitFor(() => expect(within(form()).getByLabelText("Who")).toHaveValue(""));
+  expect(within(form()).getByRole("button", { name: "Add" })).toBeDisabled();
+});
+
+it("omits the comments-only limit once PR work is Never, and shows a custom row's actions", async () => {
+  routes["GET /bindings"] = () => [200, { bindings: [binding({ binding_id: "rul_c", role: "custom", classes: ["merge", "pr_ops", "deploy"],
+    require_tier_o: ["deploy"], pr_ops_limit: ["comment"] })], recommendation: null }];
+  routes["POST /bindings"] = () => [201, { binding: binding({ role: "custom" }) }];
+  render(panel());
+  const table = await loaded();
+  expect(within(table).getByText("Does: merge, pr_ops (only: comment); asks first: deploy")).toBeInTheDocument();
+  openAdvanced();
+  const form = screen.getByRole("form", { name: "Add a custom permission" });
+  fireEvent.change(within(form).getByLabelText("Routine PR work"), { target: { value: "allow" } });
+  fireEvent.click(within(form).getByLabelText("Pull request work: comments only"));
+  fireEvent.change(within(form).getByLabelText("Routine PR work"), { target: { value: "never" } });
+  fireEvent.change(within(form).getByLabelText("Deploy"), { target: { value: "allow" } });
+  fireEvent.click(within(form).getByRole("button", { name: "Add custom permission" }));
+  await waitFor(() => expect(writes()).toHaveLength(1));
+  expect(writes()[0]!.body).not.toHaveProperty("pr_ops_limit");
+});
+
+it("keeps the draft and says nothing was added when every workspace was skipped", async () => {
+  routes["POST /bindings"] = () => [201, { bindings: [], skipped: [{ workspace_id: "w1", reason: "binding_exists" }] }];
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Add permission" }));
+  const form = screen.getByRole("form", { name: "Add permission" });
+  fireEvent.click(within(form).getByLabelText("Apply to all workspaces in this organization"));
+  fireEvent.click(within(form).getByRole("button", { name: "Add" }));
+  expect(await screen.findByText("Nothing was added. Not added in 1 workspace: w1 (it already has a row for this).")).toBeInTheDocument();
+  expect(screen.getByRole("form", { name: "Add permission" })).toBeInTheDocument();
+  expect(screen.queryByText(/^Added\./)).not.toBeInTheDocument();
+});
+
+it("Exclude reads what decides the agent now, so a grant added since render is revoked too", async () => {
+  let reads = 0;
+  routes["GET /agents"] = () => { reads += 1; return [200, { agents: [reads === 1 ? agent()
+    : agent({ effective: { binding_id: null, role: "custom", source: "explicit_grant", grant_id: "grt_new" } })] }]; };
+  routes["POST /bindings"] = () => [201, { binding: binding({ binding_id: "rul_x", role: "excluded" }) }];
+  routes["DELETE /grt_new"] = () => [200, { grant_id: "grt_new", owner_id: "u1", delegate_agent_id: "helper", scopes: [], require_tier_o: [],
+    expires_at: "2099-01-01T00:00:00.000Z", status: "revoked" }];
+  render(panel());
+  await loaded();
+  openAdvanced();
+  fireEvent.click(within(screen.getByRole("table", { name: "Your agents" })).getByRole("button", { name: "Exclude" }));
+  await waitFor(() => expect(writes()).toEqual([
+    { method: "POST", path: "/bindings", body: { principal: { kind: "agent", ref: "agt_1" }, role: "excluded" } },
+    { method: "DELETE", path: "/grt_new", body: {} },
+  ]));
+});
+
+it("keeps the grant table mounted while Advanced is closed, so a grant change in flight still tells the page", async () => {
+  let finish!: () => void;
+  routes["GET /"] = () => [200, { grants: [{ grant_id: "grt_1", owner_id: "u1", delegate_agent_id: "assistant-1",
+    scopes: [{ class: "merge", targets: ["acme/*"] }], require_tier_o: [], expires_at: "2099-01-01T00:00:00.000Z", status: "active" }] }];
+  routes["DELETE /grt_1"] = () => new Promise((resolve) => { finish = () => resolve([200, { grant_id: "grt_1", owner_id: "u1",
+    delegate_agent_id: "assistant-1", scopes: [], require_tier_o: [], expires_at: "2099-01-01T00:00:00.000Z", status: "revoked" }]); });
+  const grantsChanged = vi.fn();
+  render(panel({ onGrantsChanged: grantsChanged }));
+  await loaded();
+  openAdvanced();
+  fireEvent.click(await screen.findByRole("button", { name: "Remove assistant-1" }));
+  fireEvent.click(within(screen.getByRole("group", { name: "Confirm revocation" })).getByRole("button", { name: "Remove" }));
+  openAdvanced();
+  finish();
+  await waitFor(() => expect(grantsChanged).toHaveBeenCalledTimes(1));
+});
+
+it("the Relay agents row is the trust rule: adding it turns trust on, Remove turns it off", async () => {
+  let on = false;
+  routes["GET /bindings"] = () => [200, { bindings: on ? [binding()] : [], recommendation: null }];
+  routes["POST /bindings"] = () => { on = true; return [201, { binding: binding() }]; };
+  routes["DELETE /bindings/rul_1"] = () => { on = false; return [200, { revoked: "rul_1", revoked_grants: 0 }]; };
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Add permission" }));
+  fireEvent.change(within(screen.getByRole("form", { name: "Add permission" })).getByLabelText("Role"), { target: { value: "trusted" } });
+  fireEvent.click(within(screen.getByRole("form", { name: "Add permission" })).getByRole("button", { name: "Add" }));
+  expect(await screen.findByText(/your trust rule/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Remove Relay agents" }));
+  fireEvent.click(within(screen.getByRole("group", { name: "Confirm removal" })).getByRole("button", { name: "Remove" }));
+  await waitFor(() => expect(screen.queryByText(/your trust rule/)).not.toBeInTheDocument());
+  expect(writes()).toEqual([
+    { method: "POST", path: "/bindings", body: { principal: { kind: "relay_agents" }, role: "trusted" } },
+    { method: "DELETE", path: "/bindings/rul_1", body: {} },
+  ]);
 });

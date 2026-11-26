@@ -3,7 +3,8 @@
 // relay-control's GET|PUT /workspaces/{id}/delegates/policy. Hosted reads the
 // stored state on the server; here DelegationSection reads it with the GET and
 // renders nothing until it has an answer, or at all when the read fails.
-// Under the card sits the Delegates section (delegates-section.tsx).
+// Under the card sits Agent permissions (agent-permissions.tsx); its Relay agents
+// row is the trust rule.
 import { useEffect, useRef, useState } from "react";
 import { adminApi } from "./api";
 import type { DelegationPolicy } from "./contracts";
@@ -11,11 +12,10 @@ import { delegationError } from "./delegation-errors";
 import { useLoad } from "./use-load";
 import { Button, Card, CardContent, CardHeader, CardTitle, Switch } from "../shell/ui";
 import { AgentPermissions } from "./agent-permissions";
-import { TrustRuleCard } from "./trust-rule-card";
 
 /**
  * Reads the workspace's stored delegation policy and shows the switch for it,
- * the caller's trust rule, then Agent permissions (bindings, with the explicit grants under Advanced), which follow the policy (claims and new grants
+ * then Agent permissions (bindings, with the explicit grants under Advanced; the Relay agents row is the trust rule), which follow the policy (claims and new grants
  * need delegation on; grants cannot outlive its maximum). Render it keyed by
  * workspace id: a workspace switch then starts fresh, and a request still in
  * flight for the old workspace is dropped.
@@ -33,14 +33,12 @@ export function DelegationSection(props: { workspaceId: string; canManage: boole
   // completes after the save, or when the re-read fails); a read issued after
   // the save replaces it.
   const [saved, setSaved] = useState<{ policy: DelegationPolicy; through: number } | null>(null);
-  // The trust rule and the grants depend on each other: revoking a bot's own
-  // grant can put it under the rule (the shadowed count), and revoking the
-  // rule ends the grants it created. A change in one re-reads the other.
+  // Permission rows and grants depend on each other: a grant change can change what decides an agent,
+  // and a permission row (the Relay agents row is the trust rule) ends the grants it decided. A change
+  // in one re-reads the other; a saved policy change re-reads the permissions (the recommendation is
+  // only offered while delegation is on).
   const [grantsChanged, setGrantsChanged] = useState(0);
-  const [ruleChanged, setRuleChanged] = useState(0);
-  // A saved policy change re-reads the trust rule card too (what it covers follows delegation on or off).
   const [policyChanged, setPolicyChanged] = useState(0);
-  // A binding is a trust-rule row that decides grants: a binding change re-reads the trust rule card and the grants.
   const [bindingsChanged, setBindingsChanged] = useState(0);
   // A failed first read hides the card rather than show a state relay-control
   // did not confirm. A failed re-read keeps the last confirmed state.
@@ -63,22 +61,15 @@ export function DelegationSection(props: { workspaceId: string; canManage: boole
         }}
         onSaveFailed={reload}
       />
-      {/* Shown with delegation off too: a rule stays revocable while delegation is off. */}
-      <TrustRuleCard
-        workspaceId={props.workspaceId}
-        delegationEnabled={policy.delegation_enabled}
-        // Both counters only grow, so their sum changes whenever either does.
-        refreshKey={grantsChanged + policyChanged + bindingsChanged}
-        onChanged={() => setRuleChanged((value) => value + 1)}
-      />
       <AgentPermissions
         workspaceId={props.workspaceId}
         delegationEnabled={policy.delegation_enabled}
         maxExpiryDays={policy.max_expiry_days}
         isAdmin={props.canManage}
-        refreshKey={grantsChanged + ruleChanged}
+        // Both counters only grow, so their sum changes whenever either does.
+        refreshKey={grantsChanged + policyChanged}
         onChanged={() => setBindingsChanged((value) => value + 1)}
-        grantsRefreshKey={ruleChanged + bindingsChanged}
+        grantsRefreshKey={bindingsChanged}
         onGrantsChanged={() => setGrantsChanged((value) => value + 1)}
       />
     </>
