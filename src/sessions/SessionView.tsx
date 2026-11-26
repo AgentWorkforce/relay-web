@@ -297,8 +297,8 @@ export function SessionView({
     }
   }, [initial, event]);
 
-  const loadMore = useCallback(async () => {
-    if (!data || (!data.nextCursor && !data.turnsNextCursor && !data.turnsError) || moreRequest.current) return;
+  const loadMore = useCallback(async (retryTurns = false) => {
+    if (!data || (!data.nextCursor && !data.turnsNextCursor && !(retryTurns && data.turnsError)) || moreRequest.current) return;
     const controller = new AbortController();
     moreRequest.current = controller;
     setMore(true);
@@ -307,7 +307,9 @@ export function SessionView({
     try {
       const [eventPage, turnPage] = await Promise.allSettled([
         data.nextCursor ? sessionEvents(workspaceId, { sessionId, source }, data.nextCursor, controller.signal) : Promise.resolve(null),
-        data.turnsNextCursor || data.turnsError ? sessionTurns(workspaceId, { sessionId, source }, controller.signal, data.turnsNextCursor) : Promise.resolve(null),
+        (data.turnsNextCursor || data.turnsError) && (retryTurns || !data.turnsError)
+          ? sessionTurns(workspaceId, { sessionId, source }, controller.signal, data.turnsNextCursor)
+          : Promise.resolve(null),
       ]);
       if (controller.signal.aborted) return;
       for (const result of [eventPage, turnPage]) if (result.status === "rejected" && result.reason instanceof SignedOut) throw result.reason;
@@ -318,7 +320,6 @@ export function SessionView({
       setAppended({ key, events: [...(extra?.events ?? []), ...(events?.events ?? [])], turns: [...(extra?.turns ?? []), ...(turns?.turns ?? [])], nextCursor, turnsNextCursor,
         turnsError: turnPage.status === "rejected" ? "Some recorded messages could not be loaded." : turns ? null : data.turnsError });
       if (eventPage.status === "rejected") throw eventPage.reason;
-      if (turnPage.status === "rejected") throw turnPage.reason;
       visitedPairs.values.add(pair);
       if ((nextCursor || turnsNextCursor) && visitedPairs.values.has(JSON.stringify([nextCursor, turnsNextCursor]))) throw new Error("History pagination did not advance.");
     } catch (reason) {
@@ -329,11 +330,11 @@ export function SessionView({
   }, [data, extra, key, sessionId, source, workspaceId, visitedPairs]);
   const historyPending = Boolean(data?.nextCursor || data?.turnsNextCursor);
   useEffect(() => {
-    if (visibleView === "conversation" || !historyPending || more || moreError || data?.turnsError || visitedPairs.values.size >= MAX_TURN_PAGES) return;
+    if (visibleView === "conversation" || (!data?.nextCursor && (!data?.turnsNextCursor || data.turnsError)) || more || moreError || visitedPairs.values.size >= MAX_TURN_PAGES) return;
     let cancelled = false;
     queueMicrotask(() => { if (!cancelled) void loadMore(); });
     return () => { cancelled = true; };
-  }, [visibleView, historyPending, more, moreError, data?.turnsError, visitedPairs, loadMore]);
+  }, [visibleView, historyPending, more, moreError, data?.nextCursor, data?.turnsNextCursor, data?.turnsError, visitedPairs, loadMore]);
 
   function jumpToNextActivity() {
     // The shell's content region scrolls, below the topbar.
@@ -657,7 +658,7 @@ export function SessionView({
             </aside>
             {visibleView !== "conversation" ? <section className="min-w-0 flex-1 px-5 py-5 md:px-9" aria-label={visibleView === "timeline" ? "Timeline" : "Decision tree"}>
               {visibleView === "timeline" ? <TraceWaterfall historyLoading={historyPending && !moreError && !data.turnsError && visitedPairs.values.size < MAX_TURN_PAGES} events={replay} transcript={cells} source={source} owners={data.members} partial={Boolean(historyPending || data.turnsError || moreError)} onOpenTranscript={openTranscript} /> : <SessionDecisionTree events={replay} transcript={cells} source={source} owners={data.members} partial={Boolean(historyPending || data.turnsError || moreError)} onOpenTranscript={openTranscript} />}
-              {(historyPending || data.turnsError) && <Button variant="ghost" size="sm" onClick={() => void loadMore()} disabled={more}>{more ? "Loading…" : moreError || data.turnsError ? "Retry loading history" : "Load later events"}</Button>}
+              {(historyPending || data.turnsError) && <Button variant="ghost" size="sm" onClick={() => void loadMore(true)} disabled={more}>{more ? "Loading…" : moreError || data.turnsError ? "Retry loading history" : "Load later events"}</Button>}
             </section> : (
             <section
               aria-label="Conversation"
@@ -697,7 +698,7 @@ export function SessionView({
                     variant="ghost"
                     size="sm"
                     className="more"
-                    onClick={() => void loadMore()}
+                    onClick={() => void loadMore(true)}
                     disabled={more}
                   >
                     {more ? "Loading…" : moreError || data.turnsError ? "Retry loading history" : "Load later events"}

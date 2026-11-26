@@ -851,6 +851,22 @@ it("progressively loads both trace streams and stops completed cursors", async (
   expect(calls.filter((url) => url.pathname.endsWith("/turns")).map((url) => url.searchParams.get("cursor"))).toEqual([null, "turn-next"]);
 });
 
+it("continues event pages when a large session's turn projection is unavailable", async () => {
+  window.__AGENT_RELAY_DASHBOARD_CONFIG__ = { sessionVisualizations: true };
+  window.history.replaceState(null, "", "/?session=s%2F1&source=codex");
+  respond(/\/sessions\/s%2F1\/events$/, (url) => ({
+    events: url.searchParams.get("cursor") ? [{ ...transcript[4], eventId: "later-event" }] : transcript,
+    members,
+    nextCursor: url.searchParams.get("cursor") ? null : "event-next",
+  }));
+  respond(/\/sessions\/s%2F1\/turns$/, () => new Response("scope_too_large", { status: 501 }));
+  render(<Dashboard />);
+  await screen.findByRole("group", { name: "Session view" });
+  await waitFor(() => expect(calls.filter((url) => url.pathname.endsWith("/events"))).toHaveLength(2));
+  expect(calls.filter((url) => url.pathname.endsWith("/turns"))).toHaveLength(1);
+  expect(await screen.findByRole("button", { name: "Retry loading history" })).toBeInTheDocument();
+});
+
 it("pauses trace loading on failure and resumes from the failed cursor after retry", async () => {
   window.__AGENT_RELAY_DASHBOARD_CONFIG__ = { sessionVisualizations: true };
   window.history.replaceState(null, "", "/?session=s%2F1&source=codex");
@@ -962,6 +978,18 @@ describe("session links without a source", () => {
     render(<Dashboard />);
     expect((await screen.findAllByText("Please fix the loader")).length).toBeGreaterThan(0);
     expect(window.location.search).toBe("?session=s%2F1&source=codex");
+  });
+
+  it("opens a confirmed source without probing a transcript that is too large", async () => {
+    respond(/\/sessions\/s%2F1\/events$/, (url) =>
+      url.searchParams.get("source") === "codex" && url.searchParams.get("limit") === "1"
+        ? new Response("scope_too_large", { status: 501 })
+        : { events: url.searchParams.get("source") === "codex" ? transcript : [], members, nextCursor: null, error: false });
+    window.history.replaceState(null, "", "/?session=s%2F1");
+    render(<Dashboard />);
+    expect((await screen.findAllByText("Please fix the loader")).length).toBeGreaterThan(0);
+    expect(window.location.search).toBe("?session=s%2F1&source=codex");
+    expect(probes().some((url) => url.searchParams.get("source") === "codex")).toBe(false);
   });
 
   it("finds an unlisted session's source with one event read per known or active source", async () => {

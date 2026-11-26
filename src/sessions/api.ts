@@ -655,8 +655,12 @@ export async function findSessionSources(
     ...(active.status === "fulfilled" ? active.value : []),
     ...found.keys(),
   ]);
+  // A list or direct read already proves that this session exists under that
+  // source. Probing it again can fail on large transcripts even though the
+  // source is known, leaving an otherwise valid deep link stuck at discovery.
+  const unconfirmed = [...candidates].filter((source) => !found.has(source));
   const probes = await Promise.allSettled(
-    [...candidates].map((source) => probeSource(workspace, sessionId, source, signal)),
+    unconfirmed.map((source) => probeSource(workspace, sessionId, source, signal)),
   );
   if (signal.aborted) throw new DOMException("Aborted", "AbortError");
   const failures: unknown[] = [];
