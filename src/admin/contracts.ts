@@ -561,10 +561,32 @@ export const presetSchema = z.object({
   pr_ops_limit: z.array(z.string()).nullable(),
 });
 export type Preset = z.infer<typeof presetSchema>;
+/**
+ * Plain names for the action classes, used only when GET roles lists a class without a description
+ * (the routes answer `classes` as bare names). Server descriptions win.
+ */
+export const CLASS_NAMES: Record<string, string> = {
+  merge: "Merge pull requests once checks pass",
+  pr_ops: "Routine pull request work",
+  external_comms: "Reply and post updates (Slack, email)",
+  deploy: "Deploy",
+  release: "Publish releases",
+  destructive: "Delete branches or data",
+  secret_change: "Change secrets and access",
+  spend: "Spend money",
+  prompt_approval: "Answer permission prompts",
+  config_change: "Change an agent's own settings",
+};
 export const rolesInfoSchema = z.object({
   presets: z.array(presetSchema),
-  classes: z.array(z.object({ class: z.string(), description: z.string() })),
+  classes: z.array(z.union([
+    z.object({ class: z.string(), description: z.string() }),
+    z.string().transform((name) => ({ class: name, description: CLASS_NAMES[name] ?? name })),
+  ])),
   pr_ops_ops: z.array(z.string()).default([]),
+  principal_kinds: z.array(z.string()).optional(),
+  connector_kinds: z.array(z.string()).optional(),
+  required_condition_types: z.array(z.string()).optional(),
 });
 export type RolesInfo = z.infer<typeof rolesInfoSchema>;
 export const principalKindSchema = z.enum(["relay_agents", "connector_kind", "group", "agent", "all_agents"]);
@@ -599,7 +621,8 @@ export const delegationGroupSchema = z.object({
   group_id: z.string(),
   kind: z.enum(["builtin", "custom"]),
   name: z.string(),
-  members: z.array(z.object({ agent_id: z.string(), name: z.string(), proven: z.boolean(), added_at: z.string().nullable() })),
+  // Built-in groups answer null (membership follows the connected agents); `proven` is null while messaging is down.
+  members: z.array(z.object({ agent_id: z.string(), name: z.string(), proven: z.boolean().nullable(), added_at: z.string().nullable() })).nullable(),
 });
 export type DelegationGroup = z.infer<typeof delegationGroupSchema>;
 export const delegationGroupsSchema = z.object({ groups: z.array(delegationGroupSchema) });

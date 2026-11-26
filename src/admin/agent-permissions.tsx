@@ -90,9 +90,14 @@ export function AgentPermissions(props: {
       adminApi.delegationRoles(workspaceId, signal),
       adminApi.delegationBindings(workspaceId, signal),
       adminApi.delegationGroups(workspaceId, signal),
-      adminApi.delegationAgents(workspaceId, signal),
+      // The agent list needs messaging (it can answer 503 while messaging is down): without it the rest still works.
+      adminApi.delegationAgents(workspaceId, signal).then(
+        (list) => ({ list, unavailable: null as string | null }),
+        (failure: unknown) => ({ list: [] as DelegationAgent[], unavailable: delegationError(failure, "Could not list your agents.") }),
+      ),
     ]);
-    return { roles, bindings: bindings.bindings, recommendation: bindings.recommendation as Recommendation, groups, agents };
+    return { roles, bindings: bindings.bindings, recommendation: bindings.recommendation as Recommendation, groups,
+      agents: agents.list, agentsUnavailable: agents.unavailable };
   });
   const [seenRefresh, setSeenRefresh] = useState(refreshKey);
   if (seenRefresh !== refreshKey) {
@@ -121,7 +126,11 @@ export function AgentPermissions(props: {
 
   const presets: Preset[] = view?.roles.presets ?? [];
   const presetLabel = (value: string) =>
-    value === "custom" ? "Custom" : value === "excluded" ? "Excluded: no access" : presets.find((preset) => preset.role === value)?.label ?? value;
+    value === "custom" ? "Custom"
+      : value === "excluded" ? "Excluded: no access"
+        // A rule from before roles existed reads as "legacy" (every class) until it is seeded; changing it must name a role.
+        : value === "legacy" ? "Trusted (pending seed)"
+          : presets.find((preset) => preset.role === value)?.label ?? value;
   const classDescription = (value: string) => view?.roles.classes.find((item) => item.class === value)?.description ?? value;
   const chosenRole = role || presets[0]?.role || "";
   const setError = (area: Area, text: string) => setFeedback({ area, text, error: true });
@@ -450,7 +459,7 @@ export function AgentPermissions(props: {
                               }
                             >
                               {presets.map((preset) => <option key={preset.role} value={preset.role}>{preset.label}</option>)}
-                              {binding.role === "custom" || binding.role === "excluded" ? (
+                              {binding.role === "custom" || binding.role === "excluded" || binding.role === "legacy" ? (
                                 <option value={binding.role} disabled>{presetLabel(binding.role)}</option>
                               ) : null}
                             </select>
@@ -655,9 +664,16 @@ export function AgentPermissions(props: {
                             )}
                           </div>
                           <div className="flex flex-wrap gap-1.5">
-                            {group.members.map((member) => (
-                              <span key={member.agent_id} className="inline-flex items-center gap-1 rounded bg-[var(--surface-soft)] px-2 py-0.5 text-xs">
-                                {member.name}
+                            {group.members === null ? (
+                              <span className="text-xs text-muted-foreground">Everyone it covers; see Your agents below.</span>
+                            ) : null}
+                            {(group.members ?? []).map((member) => (
+                              <span
+                                key={member.agent_id}
+                                className="inline-flex items-center gap-1 rounded bg-[var(--surface-soft)] px-2 py-0.5 text-xs"
+                                title={member.proven === false ? "No longer proven yours: it gets nothing from this group" : undefined}
+                              >
+                                {`${member.name}${member.proven === false ? " (not proven)" : ""}`}
                                 {group.kind === "custom" ? (
                                   <button
                                     type="button"
@@ -676,7 +692,7 @@ export function AgentPermissions(props: {
                                 ) : null}
                               </span>
                             ))}
-                            {group.members.length === 0 ? <span className="text-xs text-muted-foreground">No agents yet</span> : null}
+                            {group.members?.length === 0 ? <span className="text-xs text-muted-foreground">No agents yet</span> : null}
                           </div>
                         </li>
                       ))}
@@ -799,6 +815,9 @@ export function AgentPermissions(props: {
                         </tbody>
                       </table>
                     </div>
+                    {view.agentsUnavailable ? (
+                      <p role="status" className="text-sm text-muted-foreground">{`Your agents can't be listed right now: ${view.agentsUnavailable}`}</p>
+                    ) : null}
                     {message("agents")}
                   </section>
 

@@ -238,9 +238,25 @@ it("re-reads on a new refresh key (a grant or the trust rule changed elsewhere)"
   await waitFor(() => expect(reads("/bindings")).toBe(2));
 });
 
+it("shows a legacy rule as Trusted (pending seed), built-ins without a member list, bare-name classes, and works without the agent list", async () => {
+  routes["GET /roles"] = () => [200, { ...ROLES, classes: ["merge", "pr_ops", "deploy", "spend"], principal_kinds: ["relay_agents"] }];
+  routes["GET /bindings"] = () => [200, { bindings: [binding({ role: "legacy" })], recommendation: null }];
+  routes["GET /groups"] = () => [200, { groups: [{ ...GROUPS[0], members: null }, { ...GROUPS[2], members: [
+    { agent_id: "agt_1", name: "helper", proven: false, added_at: "x" }] }] }];
+  routes["GET /agents"] = () => [503, { error: "Messaging is not provisioned for this workspace", code: "unavailable" }];
+  render(panel());
+  const table = await loaded();
+  expect(within(table).getAllByRole("option", { name: "Trusted (pending seed)" }).length).toBeGreaterThan(0);
+  openAdvanced();
+  expect(screen.getByText("Everyone it covers; see Your agents below.")).toBeInTheDocument();
+  expect(screen.getByText("helper (not proven)")).toBeInTheDocument();
+  expect(screen.getByLabelText("Spend money")).toBeInTheDocument();
+  expect(screen.getByText(/Your agents can't be listed right now: Messaging is not provisioned/)).toBeInTheDocument();
+});
+
 it("shows a failed read with a retry", async () => {
   let fail = true;
-  routes["GET /agents"] = () => (fail ? [503, { error: "Delegation is unavailable", code: "unavailable" }] : [200, { agents: [] }]);
+  routes["GET /roles"] = () => (fail ? [503, { error: "Delegation is unavailable", code: "unavailable" }] : [200, ROLES]);
   render(panel());
   expect(await screen.findByRole("alert")).toHaveTextContent("Delegation is unavailable");
   fail = false;
