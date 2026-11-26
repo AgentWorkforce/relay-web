@@ -617,3 +617,16 @@ it("the Relay agents row is the trust rule: adding it turns trust on, Remove tur
     { method: "DELETE", path: "/bindings/rul_1", body: {} },
   ]);
 });
+
+it("does not claim no access when it could not check for a newer grant", async () => {
+  let agentReads = 0;
+  routes["GET /agents"] = () => { agentReads += 1; return agentReads === 1 ? [200, { agents: [agent()] }] : [503, { error: "Delegation is unavailable", code: "unavailable" }]; };
+  routes["POST /bindings"] = () => [201, { binding: binding({ binding_id: "rul_x", role: "excluded" }) }];
+  render(panel());
+  await loaded();
+  openAdvanced();
+  fireEvent.click(within(screen.getByRole("table", { name: "Your agents" })).getByRole("button", { name: "Exclude" }));
+  expect(await screen.findByText(/whether it still has its own grant couldn.t be checked/)).toBeInTheDocument();
+  expect(screen.queryByText(/has no access now/)).not.toBeInTheDocument();
+  expect(writes()).toEqual([{ method: "POST", path: "/bindings", body: { principal: { kind: "agent", ref: "agt_1" }, role: "excluded" } }]);
+});

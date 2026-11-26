@@ -339,6 +339,7 @@ export function AgentPermissions(props: {
     run("agents", async () => {
       // Read what decides the agent now: a grant added since the table rendered must be revoked too.
       const fresh = await adminApi.delegationAgents(workspaceId).catch(() => null);
+      const unchecked = fresh === null;
       const current = fresh?.find((item) => item.agent_id === agent.agent_id) ?? agent;
       const grantId = current.effective.source === "explicit_grant" ? current.effective.grant_id : null;
       const own = view?.bindings.find((binding) => binding.principal.kind === "agent" && binding.principal.ref === agent.agent_id);
@@ -358,6 +359,14 @@ export function AgentPermissions(props: {
           );
         }
         props.onGrantsChanged?.();
+      }
+      // Without a fresh read a grant added since render may still apply: never claim access is gone.
+      if (unchecked && !grantId) {
+        if (mounted.current) {
+          reload();
+          props.onChanged?.();
+        }
+        throw new ShownError(`${agent.name} is excluded, but whether it still has its own grant couldn't be checked. Look under Explicit grants.`);
       }
       return grantId ? `${agent.name} has no access now; its own grant was revoked.` : `${agent.name} has no access now.`;
     });
