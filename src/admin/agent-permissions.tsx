@@ -15,6 +15,11 @@ type Access = "never" | "allow" | "ask";
 type Area = "top" | "add" | "custom" | "groups" | "agents";
 
 const EXPIRY_PRESETS = [7, 30, 90];
+/**
+ * Self-hosted relay-control reads no GitHub state, so an action whose role requires GitHub conditions
+ * (merge needs checks to pass) is refused here (fail closed). Say so instead of promising it.
+ */
+const NEEDS_GITHUB = " (needs GitHub checks; not available on self-hosted)";
 const EVERYTHING = "Everything I own";
 const SOURCE_LABELS: Record<string, string> = {
   explicit_grant: "Its own grant",
@@ -364,10 +369,13 @@ export function AgentPermissions(props: {
     </label>
   );
   const roleLists = (preset: Preset) => {
+    const needsGithub = (item: string) => (preset.required_conditions?.[item]?.length ? NEEDS_GITHUB : "");
     const allowed = preset.classes
       .filter((item) => !preset.require_tier_o.includes(item))
-      .map((item) => (item === "pr_ops" && preset.pr_ops_limit ? `${classDescription(item)} (only: ${preset.pr_ops_limit.join(", ")})` : classDescription(item)));
-    const asked = preset.require_tier_o.map(classDescription);
+      .map((item) =>
+        (item === "pr_ops" && preset.pr_ops_limit ? `${classDescription(item)} (only: ${preset.pr_ops_limit.join(", ")})` : classDescription(item)) +
+        needsGithub(item));
+    const asked = preset.require_tier_o.map((item) => classDescription(item) + needsGithub(item));
     const never = (view?.roles.classes ?? [])
       .filter((item) => !preset.classes.includes(item.class) && !preset.require_tier_o.includes(item.class))
       .map((item) => item.description);
@@ -412,6 +420,11 @@ export function AgentPermissions(props: {
                 <div className="flex flex-col gap-1">
                   <p className="text-sm font-medium">{`Recommended: ${view.recommendation.label}`}</p>
                   <p className="text-sm text-muted-foreground">{presets.find((preset) => preset.role === view.recommendation?.role)?.description}</p>
+                  {Object.values(presets.find((preset) => preset.role === view.recommendation?.role)?.required_conditions ?? {}).some((list) => list.length) ? (
+                    <p className="text-xs text-muted-foreground">
+                      Merges need GitHub checks, which this self-hosted install can&apos;t read, so delegated merges are refused here.
+                    </p>
+                  ) : null}
                 </div>
                 <div className="flex gap-2">
                   <Button type="button" size="sm" variant="ghost" onClick={() => setDismissed(true)}>Not now</Button>

@@ -407,3 +407,19 @@ it("offers converting a legacy rule the API sends as all_agents", async () => {
   await waitFor(() => expect(writes()).toEqual([{ method: "PATCH", path: "/bindings/dtr_legacy", body: { role: "trusted" } }]));
 });
 
+it("says merges that need GitHub checks are not available on self-hosted, and lists every connector group from GET groups", async () => {
+  routes["GET /roles"] = () => [200, { ...ROLES, presets: [{ ...ROLES.presets[0]!, required_conditions: { merge: [{ type: "ci_green" }, { type: "mergeable" }] } },
+    ...ROLES.presets.slice(1)], required_condition_types: ["ci_green", "mergeable"] }];
+  routes["GET /bindings"] = () => [200, { bindings: [], recommendation: { principal: { kind: "relay_agents" }, role: "trusted", label: "Give your Relay agents Trusted" } }];
+  routes["GET /groups"] = () => [200, { groups: [{ ...GROUPS[0]!, members: null },
+    { group_id: "connector:cursor-cloud", kind: "builtin", name: "Cursor cloud agents", members: null }] }];
+  render(panel());
+  await loaded();
+  expect(screen.getByText(/delegated merges are refused here/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /Trusted \(server\)/ }));
+  expect(screen.getByText("Merge PRs once checks pass (needs GitHub checks; not available on self-hosted)")).toBeInTheDocument();
+  openAdvanced();
+  // Listed under Groups, and offered as a Who in a custom permission.
+  expect(screen.getAllByText("Cursor cloud agents").filter((node) => node.tagName !== "OPTION")).toHaveLength(1);
+  expect(within(screen.getByRole("form", { name: "Add a custom permission" })).getByRole("option", { name: "Cursor cloud agents" })).toBeInTheDocument();
+});

@@ -565,6 +565,8 @@ export const presetSchema = z.object({
   classes: z.array(z.string()),
   require_tier_o: z.array(z.string()),
   pr_ops_limit: z.array(z.string()).nullable(),
+  /** Conditions a class needs (merge: ci_green, mergeable); relay-control cannot read GitHub, so it refuses them (fail closed). */
+  required_conditions: z.record(z.string(), z.array(z.object({ type: z.string() }))).optional(),
 });
 export type Preset = z.infer<typeof presetSchema>;
 /**
