@@ -37,7 +37,7 @@ function respond(call: Call): Reply {
 }
 
 const puts = () => calls.filter((call) => call.method === "PUT");
-const toggle = () => screen.getByRole("switch");
+const toggle = () => screen.getByRole("switch", { name: /^Delegation is/ });
 const prompt = () => screen.queryByText(/Turn on delegation for this workspace\?/);
 type CardProps = Parameters<typeof DelegationEnabledCard>[0];
 let readCounter = 0;
@@ -243,7 +243,7 @@ it("hides the card when the policy cannot be read", async () => {
 
 it("re-reads the policy after a successful save, so what depends on it follows", async () => {
   render(<DelegationSection workspaceId="w1" canManage />);
-  fireEvent.click(await screen.findByRole("switch"));
+  fireEvent.click(await screen.findByRole("switch", { name: /^Delegation is/ }));
   fireEvent.click(screen.getByRole("button", { name: "Turn on delegation" }));
   await waitFor(() => expect(calls.filter((call) => call.method === "GET" && call.path === POLICY)).toHaveLength(2));
   expect(screen.getByText("Delegation is on")).toBeInTheDocument();
@@ -267,7 +267,7 @@ it("re-reads the policy after a failed save and shows the server's value", async
     return json({ error: "Only org owners and admins can set delegation policy", code: "forbidden" }, 403);
   };
   render(<DelegationSection workspaceId="w1" canManage />);
-  fireEvent.click(await screen.findByRole("switch"));
+  fireEvent.click(await screen.findByRole("switch", { name: /^Delegation is/ }));
   fireEvent.click(screen.getByRole("button", { name: "Turn on delegation" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Only org owners and admins");
   expect(await screen.findByText("Delegation is on")).toBeInTheDocument();
@@ -280,7 +280,7 @@ it("ignores a save answer that arrives after a workspace switch", async () => {
     <DelegationSection key={`delegation-${workspaceId}`} workspaceId={workspaceId} canManage />
   );
   const { rerender } = render(section("w1"));
-  fireEvent.click(await screen.findByRole("switch"));
+  fireEvent.click(await screen.findByRole("switch", { name: /^Delegation is/ }));
   fireEvent.click(screen.getByRole("button", { name: "Turn on delegation" }));
   expect(puts()).toEqual([{ method: "PUT", path: POLICY, body: { delegation_enabled: true } }]);
   // The settings context switches to w2 (its policy is off); then the w1 answer fails.
@@ -306,7 +306,7 @@ function loseNextPutResponse() {
 
 it("on, then off: a committed off whose response is lost shows the recovery read's off (review)", async () => {
   render(<DelegationSection workspaceId="w1" canManage />);
-  fireEvent.click(await screen.findByRole("switch"));
+  fireEvent.click(await screen.findByRole("switch", { name: /^Delegation is/ }));
   fireEvent.click(screen.getByRole("button", { name: "Turn on delegation" }));
   expect(await screen.findByText("Delegation is on")).toBeInTheDocument();
   // The recovery read returns `false`, the same value as the first read.
@@ -322,7 +322,7 @@ it("on, then off: a committed off whose response is lost shows the recovery read
 it("off, then on: a committed on whose response is lost shows the recovery read's on (review)", async () => {
   stored = true;
   render(<DelegationSection workspaceId="w1" canManage />);
-  fireEvent.click(await screen.findByRole("switch"));
+  fireEvent.click(await screen.findByRole("switch", { name: /^Delegation is/ }));
   expect(await screen.findByText("Delegation is off")).toBeInTheDocument();
   // The recovery read returns `true`, the same value as the first read.
   loseNextPutResponse();
@@ -370,7 +370,7 @@ it("a policy read issued before a successful save never replaces the saved state
     return undefined;
   };
   render(<DelegationSection workspaceId="w1" canManage />);
-  fireEvent.click(await screen.findByRole("switch"));
+  fireEvent.click(await screen.findByRole("switch", { name: /^Delegation is/ }));
   fireEvent.click(screen.getByRole("button", { name: "Turn on delegation" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Could not reach the server");
   await waitFor(() => expect(policyReads).toBe(2));

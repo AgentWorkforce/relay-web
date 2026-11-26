@@ -494,6 +494,19 @@ export const DELEGATION_CLASSES = [
   "config_change",
 ] as const;
 export type DelegationClass = (typeof DELEGATION_CLASSES)[number];
+/** One line per class for the class picker (Cloud's lib/delegation/classes.ts, from the class table, §5.1). */
+export const DELEGATION_CLASS_DESCRIPTIONS: Record<DelegationClass, string> = {
+  merge: "Merge a pull request or turn on auto-merge.",
+  pr_ops: "Close, reopen, label, comment on, request review on or re-run CI for a pull request.",
+  deploy: "Deploy a service to a named environment. Each approval works once.",
+  release: "Publish a package or GitHub release, or cut a tag. Each approval works once.",
+  secret_change: "Set, rotate or delete a secret. Each approval works once.",
+  destructive: "Delete branches or data, force-push or drop tables. Each approval works once.",
+  spend: "Buy or scale up paid resources. Each approval works once.",
+  external_comms: "Post publicly or email customers.",
+  prompt_approval: "Approve or deny one pending permission request from an agent session.",
+  config_change: "Change an agent session's own permissions, instructions or settings. Each approval works once.",
+};
 
 /** relay-control DelegateGrant (GET|POST /workspaces/{id}/delegates, DELETE /delegates/{grantId}). */
 export const delegateGrantSchema = z.object({

@@ -180,7 +180,7 @@ it("stays under Trusted delegates when delegation is turned off, with revoke and
   };
   render(<DelegationSection workspaceId="w1" canManage />);
   expect(await screen.findByText("Trust rule")).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("switch"));
+  fireEvent.click(screen.getByRole("switch", { name: /^Delegation is/ }));
   expect(await screen.findByText(/the rule covers nothing until it is turned back on/)).toBeInTheDocument();
   expect(screen.getByText("Delegation is off")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Revoke trust rule" })).toBeEnabled();
@@ -271,7 +271,7 @@ it("follows a Trusted delegates change at once, even when the policy re-read fai
   };
   render(<DelegationSection workspaceId="w1" canManage />);
   expect(await screen.findByText("Turn on Trusted delegates to use the trust rule.")).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("switch"));
+  fireEvent.click(screen.getByRole("switch", { name: /^Delegation is/ }));
   fireEvent.click(screen.getByRole("button", { name: "Turn on delegation" }));
   expect(await screen.findByRole("button", { name: "Trust my connected assistants" })).toBeInTheDocument();
   await waitFor(() => expect(policyReads).toBe(2));
@@ -320,7 +320,7 @@ it("re-reads the Delegates list after the rule is revoked, since revoking it end
   expect(await screen.findByRole("button", { name: "Revoke bot-1" })).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Revoke trust rule" }));
   await waitFor(() => expect(screen.queryByRole("button", { name: "Revoke bot-1" })).not.toBeInTheDocument());
-  expect(screen.getByText(/^revoked, expires/)).toBeInTheDocument();
+  expect(screen.getByText("revoked")).toBeInTheDocument();
 });
 
 it("re-reads the rule after revoke-all under Delegates, which also ends the rule", async () => {
@@ -354,7 +354,7 @@ it("re-reads the rule after a Trusted delegates change is saved", async () => {
   expect(await screen.findByRole("button", { name: "Revoke trust rule" })).toBeInTheDocument();
   const ruleReads = () => calls.filter((call) => call.method === "GET" && call.path === ROUTE).length;
   const before = ruleReads();
-  fireEvent.click(screen.getByRole("switch"));
+  fireEvent.click(screen.getByRole("switch", { name: /^Delegation is/ }));
   expect(await screen.findByText("Delegation is off")).toBeInTheDocument();
   await waitFor(() => expect(ruleReads()).toBeGreaterThan(before));
 });
