@@ -584,6 +584,8 @@ export const bindingSchema = z.object({
   expires_at: z.string().nullable().default(null),
   covered: z.number().int().nonnegative().default(0),
   clipped_by_policy: z.array(z.string()).default([]),
+  /** Conditions a class needs (merge: ci_green, mergeable); absent from an older server's view. */
+  required_conditions: z.record(z.string(), z.array(z.object({ type: z.string() }))).nullable().optional(),
 });
 export type Binding = z.infer<typeof bindingSchema>;
 export const recommendationSchema = z.object({

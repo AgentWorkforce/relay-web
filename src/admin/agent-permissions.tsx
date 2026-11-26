@@ -156,6 +156,20 @@ export function AgentPermissions(props: {
   const [targetChips, setTargetChips] = useState<string[]>([]);
   const [targetDraft, setTargetDraft] = useState("");
   const [newGroup, setNewGroup] = useState<{ name: string; agents: string[] }>({ name: "", agents: [] });
+  // The agent picked to add to each custom group, added only on the Add button (not on every keyboard step).
+  const [groupPick, setGroupPick] = useState<Record<string, string>>({});
+  // The row the editor is saving now: its own reload must not count as someone else changing the row.
+  const [savingEdit, setSavingEdit] = useState<string | null>(null);
+  // Editing a saved row in place: its role, or (for Custom) each action; its repos and expiry.
+  const [editing, setEditing] = useState<{
+    binding: Binding;
+    role: string;
+    access: Record<string, Access>;
+    commentsOnly: boolean;
+    startCommentsOnly: boolean;
+    repos: string;
+    expiry: string;
+  } | null>(null);
 
   const presets: Preset[] = view?.roles.presets ?? [];
   const advancedShown = advancedOpen || (!view && Boolean(loadError));
@@ -313,6 +327,114 @@ export function AgentPermissions(props: {
     setTargetDraft("");
     setCustomExpiry(null);
     setCustomAllWorkspaces(false);
+  };
+
+  /**
+   * Opens the editor on a saved row, filled from what it allows now. Excluded and legacy rows are not
+   * edited here (removing the row, or the convert offer, covers them), so nothing is lifted by accident.
+   */
+  const startEdit = (binding: Binding) => {
+    const access: Record<string, Access> = {};
+    for (const item of binding.classes) access[item] = binding.require_tier_o.includes(item) ? "ask" : "allow";
+    // Comments-only means exactly ["comment"]; any other PR work limit is kept as it is unless changed.
+    const commentsOnly = binding.pr_ops_limit?.length === 1 && binding.pr_ops_limit[0] === "comment";
+    setConfirm(null);
+    setFeedback(null);
+    setEditing({
+      binding,
+      role: binding.role,
+      access,
+      commentsOnly,
+      startCommentsOnly: commentsOnly,
+      repos: (binding.targets ?? []).join(" "),
+      expiry: "keep",
+    });
+  };
+  const editable = (binding: Binding) => binding.role !== "excluded" && binding.role !== "legacy";
+  // Repos as a set: a repeated entry is one repo.
+  const editRepos = [...new Set((editing?.repos ?? "").split(/\s+/u).filter(Boolean))];
+  const editAllowed = Object.entries(editing?.access ?? {}).filter(([, access]) => access === "allow").map(([item]) => item);
+  const editAsked = Object.entries(editing?.access ?? {}).filter(([, access]) => access === "ask").map(([item]) => item);
+  const editClasses = [...editAllowed, ...editAsked];
+  const sameSet = (a: readonly string[], b: readonly string[]) => {
+    const left = new Set(a);
+    const right = new Set(b);
+    return left.size === right.size && [...left].every((item) => right.has(item));
+  };
+  // Another control changed (or removed) the row being edited: the draft is stale, so it is closed rather
+  // than saved back over the newer row.
+  const editedNow = editing && view ? view.bindings.find((item) => item.binding_id === editing.binding.binding_id) : undefined;
+  if (
+    editing && view && savingEdit !== editing.binding.binding_id
+    && (!editedNow
+      || editedNow.role !== editing.binding.role
+      || !sameSet(editedNow.classes, editing.binding.classes)
+      || !sameSet(editedNow.require_tier_o, editing.binding.require_tier_o)
+      || !sameSet(editedNow.targets ?? [], editing.binding.targets ?? [])
+      || (editedNow.expires_at ?? null) !== (editing.binding.expires_at ?? null)
+      || JSON.stringify(editedNow.pr_ops_limit ?? null) !== JSON.stringify(editing.binding.pr_ops_limit ?? null))
+  ) {
+    setEditing(null);
+    setNotice("top", "That row changed while you were editing it. Open Edit again to change it.");
+  }
+  // The row's own conditions (merge needs checks to pass): carried along, never dropped silently.
+  const editConditions = editing?.binding.required_conditions ?? null;
+  // Shown as kept only for actions still chosen (a Custom edit can set an action to Never).
+  const conditionsShown = Object.entries(editConditions ?? {}).filter(
+    ([item, list]) => list.length && (editing?.role !== "custom" || editClasses.includes(item)),
+  );
+  const editProblem = !editing
+    ? null
+    : editRepos.some((target) => target.endsWith(","))
+      ? "Separate repos with spaces, not commas: a comma is kept as part of the repo."
+      : editRepos.some(badRepoPattern)
+        ? REPO_HINT
+        : editing.role === "custom" && !editClasses.length
+          ? "Choose at least one action."
+          : editing.role === "custom" && editing.binding.role !== "custom" && editing.binding.required_conditions === undefined
+            ? "This row's conditions can't be read here, so switching it to Custom would drop them. Remove it and add a custom permission instead."
+            : null;
+  /**
+   * Saves the editor as one PATCH of the same row, sending only what changed: the role only when it
+   * changes (re-sending a preset would re-resolve it from today's presets), the actions with their
+   * conditions only when they change, the PR work limit only when its checkbox changed.
+   */
+  const saveEdit = async () => {
+    if (!editing || editProblem) return;
+    const binding = editing.binding;
+    const roleChanged = editing.role !== binding.role;
+    const custom = editing.role === "custom";
+    const classesChanged = custom && (roleChanged || !sameSet(editClasses, binding.classes) || !sameSet(editAsked, binding.require_tier_o));
+    const prWork = editClasses.includes("pr_ops");
+    const conditions = Object.fromEntries(Object.entries(editConditions ?? {}).filter(([item]) => editClasses.includes(item)));
+    const targets = editRepos.length ? editRepos : null;
+    // Null and an empty list both mean everything I own.
+    const targetsChanged = !sameSet(targets ?? [], binding.targets ?? []);
+    const limitChanged = custom && editing.commentsOnly !== editing.startCommentsOnly;
+    const body: Record<string, unknown> = {
+      ...(roleChanged ? { role: editing.role } : {}),
+      // Conditions the server didn't send are left to it (an existing Custom row keeps them), never sent as none.
+      ...(classesChanged
+        ? { classes: editClasses, require_tier_o: editAsked,
+          ...(binding.required_conditions === undefined ? {} : { required_conditions: conditions }) }
+        : {}),
+      // Whenever the actions change (a switch to Custom included) the limit is sent too, or the server would
+      // store none: the box's choice when it changed, else the row's own limit while PR work stays on.
+      ...(classesChanged || limitChanged
+        ? { pr_ops_limit: !prWork ? null : limitChanged ? (editing.commentsOnly ? ["comment"] : null) : (binding.pr_ops_limit ?? null) }
+        : {}),
+      ...(targetsChanged ? { targets } : {}),
+      ...(editing.expiry === "keep" ? {} : { expires_at: editing.expiry === "never" ? null : expiresAt(editing.expiry) }),
+    };
+    if (!Object.keys(body).length) {
+      setEditing(null);
+      setNotice("top", "Nothing changed.");
+      return;
+    }
+    setSavingEdit(binding.binding_id);
+    const saved = await patch("top", binding, body, `Saved ${binding.principal.name}.`);
+    setSavingEdit(null);
+    if (saved) setEditing(null);
   };
 
   const remove = () => {
@@ -639,16 +761,30 @@ export function AgentPermissions(props: {
                         </td>
                         <td>{binding.expires_at ? new Date(binding.expires_at).toLocaleDateString() : "Never"}</td>
                         <td className="text-right">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={pending}
-                            aria-label={`Remove ${binding.principal.name}`}
-                            onClick={() => setConfirm({ kind: "binding", binding })}
-                          >
-                            Remove
-                          </Button>
+                          <div className="flex justify-end gap-2">
+                            {delegationEnabled && editable(binding) ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                disabled={pending}
+                                aria-label={`Edit ${binding.principal.name}`}
+                                onClick={() => startEdit(binding)}
+                              >
+                                Edit
+                              </Button>
+                            ) : null}
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={pending}
+                              aria-label={`Remove ${binding.principal.name}`}
+                              onClick={() => setConfirm({ kind: "binding", binding })}
+                            >
+                              Remove
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -660,6 +796,108 @@ export function AgentPermissions(props: {
                   </tbody>
                 </table>
               </div>
+              {editing && delegationEnabled ? (
+                <form
+                  className="flex flex-col gap-3 rounded-lg border border-[var(--border-default)] p-3"
+                  aria-label="Edit permission"
+                  noValidate
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void saveEdit();
+                  }}
+                >
+                  <p className="text-sm font-medium">{`Edit ${editing.binding.principal.name}`}</p>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="flex flex-col gap-1.5">
+                      <label htmlFor={id("edit-role")} className="text-sm font-medium">Role</label>
+                      <select
+                        id={id("edit-role")}
+                        className={selectClass}
+                        value={editing.role}
+                        disabled={pending}
+                        onChange={(event) => setEditing((current) => current && { ...current, role: event.target.value })}
+                      >
+                        {presets.map((preset) => <option key={preset.role} value={preset.role}>{preset.label}</option>)}
+                        <option value="custom">Custom</option>
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label htmlFor={id("edit-repos")} className="text-sm font-medium">Repos</label>
+                      <Input
+                        id={id("edit-repos")}
+                        value={editing.repos}
+                        disabled={pending}
+                        autoComplete="off"
+                        spellCheck={false}
+                        placeholder={`${EVERYTHING} (or owner/repo owner/*)`}
+                        onChange={(event) => setEditing((current) => current && { ...current, repos: event.target.value })}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label htmlFor={id("edit-expiry")} className="text-sm font-medium">Expires</label>
+                      <select
+                        id={id("edit-expiry")}
+                        className={selectClass}
+                        value={editing.expiry}
+                        disabled={pending}
+                        onChange={(event) => setEditing((current) => current && { ...current, expiry: event.target.value })}
+                      >
+                        <option value="keep">
+                          {editing.binding.expires_at ? `Keep (${new Date(editing.binding.expires_at).toLocaleDateString()})` : "Keep (never)"}
+                        </option>
+                        <option value="never">Never</option>
+                        {EXPIRY_PRESETS.map((days) => <option key={days} value={String(days)}>{`${days} days from now`}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  {editing.role === "custom" ? (
+                    <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+                      {view.roles.classes.map((item) => (
+                        <label key={item.class} className="flex items-center justify-between gap-3 text-sm">
+                          <span>{item.description}</span>
+                          <select
+                            className={`${selectBase} w-36`}
+                            aria-label={`Edit ${item.description}`}
+                            value={editing.access[item.class] ?? "never"}
+                            disabled={pending}
+                            onChange={(event) =>
+                              setEditing((current) => current && { ...current, access: { ...current.access, [item.class]: event.target.value as Access } })
+                            }
+                          >
+                            <option value="never">Never</option>
+                            <option value="allow">Allowed</option>
+                            <option value="ask">Ask me first</option>
+                          </select>
+                        </label>
+                      ))}
+                      {editing.access.pr_ops && editing.access.pr_ops !== "never" ? (
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            className="size-4"
+                            checked={editing.commentsOnly}
+                            disabled={pending}
+                            onChange={(event) => setEditing((current) => current && { ...current, commentsOnly: event.target.checked })}
+                          />
+                          Pull request work: comments only
+                        </label>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {conditionsShown.length ? (
+                    <p className="text-xs text-muted-foreground">
+                      {`Conditions kept: ${conditionsShown
+                        .map(([item, list]) => `${item} only when ${list.map((condition) => (condition.type === "ci_green" ? "checks pass" : condition.type)).join(" and ")}`)
+                        .join("; ")}.`}
+                    </p>
+                  ) : null}
+                  {editProblem ? <p role="alert" className="text-xs text-destructive">{editProblem}</p> : null}
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" size="sm" variant="outline" disabled={pending} onClick={() => setEditing(null)}>Cancel</Button>
+                    <Button type="submit" size="sm" disabled={pending || Boolean(editProblem)}>Save</Button>
+                  </div>
+                </form>
+              ) : null}
               {confirm ? (
                 <div className="flex flex-col gap-2 rounded-lg border border-[var(--border-default)] p-3" role="group" aria-label="Confirm removal">
                   <p className="text-sm">
@@ -864,6 +1102,45 @@ export function AgentPermissions(props: {
                             ))}
                             {group.members?.length === 0 ? <span className="text-xs text-muted-foreground">No agents yet</span> : null}
                           </div>
+                          {group.kind === "custom" && delegationEnabled
+                            && view.agents.some((agent) => !group.members?.some((member) => member.agent_id === agent.agent_id)) ? (
+                            <div className="flex items-center gap-2">
+                              <select
+                                className={`${selectBase} w-56`}
+                                aria-label={`Add an agent to ${group.name}`}
+                                value={groupPick[group.group_id] ?? ""}
+                                disabled={pending}
+                                onChange={(event) => {
+                                  const agentId = event.target.value;
+                                  setGroupPick((picks) => ({ ...picks, [group.group_id]: agentId }));
+                                }}
+                              >
+                                <option value="" disabled>Add an agent</option>
+                                {view.agents
+                                  .filter((agent) => !group.members?.some((member) => member.agent_id === agent.agent_id))
+                                  .map((agent) => <option key={agent.agent_id} value={agent.agent_id}>{`${agent.name} (${agent.agent_id})`}</option>)}
+                              </select>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                aria-label={`Add to ${group.name}`}
+                                disabled={pending || !groupPick[group.group_id]}
+                                onClick={() => {
+                                  const agentId = groupPick[group.group_id];
+                                  if (!agentId) return;
+                                  const name = view.agents.find((agent) => agent.agent_id === agentId)?.name ?? agentId;
+                                  void run("groups", async () => {
+                                    await adminApi.updateDelegationGroup(workspaceId, group.group_id, { add: [agentId] });
+                                    setGroupPick((picks) => ({ ...picks, [group.group_id]: "" }));
+                                    return `Added ${name} to ${group.name}.`;
+                                  });
+                                }}
+                              >
+                                Add
+                              </Button>
+                            </div>
+                          ) : null}
                         </li>
                       ))}
                     </ul>

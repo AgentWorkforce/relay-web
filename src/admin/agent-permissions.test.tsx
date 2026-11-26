@@ -630,3 +630,207 @@ it("does not claim no access when it could not check for a newer grant", async (
   expect(screen.queryByText(/has no access now/)).not.toBeInTheDocument();
   expect(writes()).toEqual([{ method: "POST", path: "/bindings", body: { principal: { kind: "agent", ref: "agt_1" }, role: "excluded" } }]);
 });
+
+it("adds an agent to an existing custom group (PATCH add)", async () => {
+  routes["GET /agents"] = () => [200, { agents: [agent(), agent({ agent_id: "agt_2", name: "second" })] }];
+  routes["PATCH /groups/grp_ops"] = () => [200, { group: GROUPS[2] }];
+  render(panel());
+  await loaded();
+  openAdvanced();
+  expect(screen.getByRole("button", { name: "Add to Ops bots" })).toBeDisabled();
+  // Choosing (as arrow keys do on a closed select) adds nothing until Add.
+  fireEvent.change(screen.getByLabelText("Add an agent to Ops bots"), { target: { value: "agt_2" } });
+  expect(writes()).toEqual([]);
+  fireEvent.click(screen.getByRole("button", { name: "Add to Ops bots" }));
+  await waitFor(() => expect(writes()).toEqual([{ method: "PATCH", path: "/groups/grp_ops", body: { add: ["agt_2"] } }]));
+  expect(await screen.findByText("Added second to Ops bots.")).toBeInTheDocument();
+});
+
+it("edits a saved row into a custom permission with repos and expiry, as one PATCH of that row", async () => {
+  routes["GET /bindings"] = () => [200, { bindings: [binding({ required_conditions: { merge: [{ type: "ci_green" }, { type: "mergeable" }] } })], recommendation: null }];
+  routes["PATCH /bindings/rul_1"] = () => [200, { binding: binding({ role: "custom" }) }];
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Edit Relay agents" }));
+  const form = screen.getByRole("form", { name: "Edit permission" });
+  fireEvent.change(within(form).getByLabelText("Role"), { target: { value: "custom" } });
+  fireEvent.change(within(form).getByLabelText("Edit Routine PR work"), { target: { value: "ask" } });
+  fireEvent.click(within(form).getByLabelText("Pull request work: comments only"));
+  fireEvent.change(within(form).getByLabelText("Repos"), { target: { value: "*/web" } });
+  expect(within(form).getByRole("alert")).toHaveTextContent("Use owner/repo or owner/* for repos.");
+  fireEvent.change(within(form).getByLabelText("Repos"), { target: { value: "acme/web acme/*" } });
+  fireEvent.change(within(form).getByLabelText("Expires"), { target: { value: "never" } });
+  fireEvent.click(within(form).getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(writes()).toHaveLength(1));
+  // Merge's conditions are carried along with the actions.
+  expect(writes()[0]).toEqual({ method: "PATCH", path: "/bindings/rul_1", body: { role: "custom", classes: ["merge", "pr_ops"],
+    require_tier_o: ["pr_ops"], required_conditions: { merge: [{ type: "ci_green" }, { type: "mergeable" }] },
+    pr_ops_limit: ["comment"], targets: ["acme/web", "acme/*"], expires_at: null } });
+  await waitFor(() => expect(screen.queryByRole("form", { name: "Edit permission" })).not.toBeInTheDocument());
+});
+
+it("edits a preset row's repos and keeps its expiry unless changed", async () => {
+  routes["PATCH /bindings/rul_1"] = () => [200, { binding: binding() }];
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Edit Relay agents" }));
+  const form = screen.getByRole("form", { name: "Edit permission" });
+  fireEvent.change(within(form).getByLabelText("Repos"), { target: { value: "acme/web" } });
+  fireEvent.click(within(form).getByRole("button", { name: "Save" }));
+  // Only what changed: re-sending the role would re-resolve the preset from today's presets.
+  await waitFor(() => expect(writes()).toEqual([{ method: "PATCH", path: "/bindings/rul_1", body: { targets: ["acme/web"] } }]));
+});
+
+it("offers no Edit on excluded or legacy rows", async () => {
+  routes["GET /bindings"] = () => [200, { bindings: [
+    binding({ binding_id: "rul_x", role: "excluded", principal: { kind: "agent", ref: "agt_1", name: "helper" } }),
+    binding({ binding_id: "dtr_old", role: "legacy", principal: { kind: "all_agents", ref: null, name: "All my agents" } }),
+    binding({ binding_id: "rul_ok", role: "standard", principal: { kind: "group", ref: "grp_ops", name: "Ops bots" } }),
+  ], recommendation: null }];
+  render(panel());
+  await loaded();
+  expect(screen.queryByRole("button", { name: "Edit helper" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Edit All my agents" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Edit Ops bots" })).toBeInTheDocument();
+});
+
+it("drops a class's conditions only with that class, and shows them while editing", async () => {
+  routes["GET /bindings"] = () => [200, { bindings: [binding({ classes: ["merge", "pr_ops"],
+    required_conditions: { merge: [{ type: "ci_green" }, { type: "mergeable" }] } })], recommendation: null }];
+  routes["PATCH /bindings/rul_1"] = () => [200, { binding: binding({ role: "custom" }) }];
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Edit Relay agents" }));
+  const form = screen.getByRole("form", { name: "Edit permission" });
+  expect(within(form).getByText("Conditions kept: merge only when checks pass and mergeable.")).toBeInTheDocument();
+  fireEvent.change(within(form).getByLabelText("Role"), { target: { value: "custom" } });
+  fireEvent.change(within(form).getByLabelText("Edit Merge PRs once checks pass"), { target: { value: "never" } });
+  fireEvent.click(within(form).getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(writes()).toHaveLength(1));
+  expect(writes()[0]!.body).toEqual({ role: "custom", classes: ["pr_ops"], require_tier_o: [], required_conditions: {}, pr_ops_limit: null });
+});
+
+it("blocks switching to Custom when the row's conditions can't be read", async () => {
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Edit Relay agents" }));
+  const form = screen.getByRole("form", { name: "Edit permission" });
+  fireEvent.change(within(form).getByLabelText("Role"), { target: { value: "custom" } });
+  expect(within(form).getByRole("alert")).toHaveTextContent("This row's conditions can't be read here, so switching it to Custom would drop them.");
+  expect(within(form).getByRole("button", { name: "Save" })).toBeDisabled();
+});
+
+it("keeps a custom row's other PR work limit unless the comments-only box changes", async () => {
+  routes["GET /bindings"] = () => [200, { bindings: [binding({ binding_id: "rul_c", role: "custom", classes: ["pr_ops"],
+    pr_ops_limit: ["label"], required_conditions: {} })], recommendation: null }];
+  routes["PATCH /bindings/rul_c"] = () => [200, { binding: binding({ binding_id: "rul_c", role: "custom" }) }];
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Edit Relay agents" }));
+  const form = screen.getByRole("form", { name: "Edit permission" });
+  expect(within(form).getByLabelText("Pull request work: comments only")).not.toBeChecked();
+  fireEvent.change(within(form).getByLabelText("Repos"), { target: { value: "acme/web" } });
+  fireEvent.click(within(form).getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(writes()).toEqual([{ method: "PATCH", path: "/bindings/rul_c", body: { targets: ["acme/web"] } }]));
+});
+
+it("Read-only switched to Custom, keeping PR work, keeps comments only", async () => {
+  routes["GET /bindings"] = () => [200, { bindings: [binding({ role: "read_only", classes: ["pr_ops"], pr_ops_limit: ["comment"],
+    required_conditions: {} })], recommendation: null }];
+  routes["PATCH /bindings/rul_1"] = () => [200, { binding: binding({ role: "custom" }) }];
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Edit Relay agents" }));
+  const form = screen.getByRole("form", { name: "Edit permission" });
+  fireEvent.change(within(form).getByLabelText("Role"), { target: { value: "custom" } });
+  expect(within(form).getByLabelText("Pull request work: comments only")).toBeChecked();
+  fireEvent.click(within(form).getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(writes()).toHaveLength(1));
+  expect(writes()[0]!.body).toEqual({ role: "custom", classes: ["pr_ops"], require_tier_o: [], required_conditions: {}, pr_ops_limit: ["comment"] });
+});
+
+it("a custom row's own limit survives a change to its actions", async () => {
+  routes["GET /bindings"] = () => [200, { bindings: [binding({ binding_id: "rul_c", role: "custom", classes: ["pr_ops"], pr_ops_limit: ["label"],
+    required_conditions: {} })], recommendation: null }];
+  routes["PATCH /bindings/rul_c"] = () => [200, { binding: binding({ binding_id: "rul_c", role: "custom" }) }];
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Edit Relay agents" }));
+  const form = screen.getByRole("form", { name: "Edit permission" });
+  fireEvent.change(within(form).getByLabelText("Edit Deploy"), { target: { value: "ask" } });
+  fireEvent.click(within(form).getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(writes()).toHaveLength(1));
+  expect(writes()[0]!.body).toEqual({ classes: ["pr_ops", "deploy"], require_tier_o: ["deploy"], required_conditions: {}, pr_ops_limit: ["label"] });
+});
+
+it("shows conditions as kept only for actions still chosen", async () => {
+  routes["GET /bindings"] = () => [200, { bindings: [binding({ classes: ["merge", "pr_ops"], required_conditions: { merge: [{ type: "ci_green" }] } })],
+    recommendation: null }];
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Edit Relay agents" }));
+  const form = screen.getByRole("form", { name: "Edit permission" });
+  fireEvent.change(within(form).getByLabelText("Role"), { target: { value: "custom" } });
+  expect(within(form).getByText("Conditions kept: merge only when checks pass.")).toBeInTheDocument();
+  fireEvent.change(within(form).getByLabelText("Edit Merge PRs once checks pass"), { target: { value: "never" } });
+  expect(within(form).queryByText(/Conditions kept/)).not.toBeInTheDocument();
+});
+
+it("closes the editor when another control changes the row, so the old draft can't be saved over it", async () => {
+  let role = "trusted";
+  routes["GET /bindings"] = () => [200, { bindings: [binding({ role, required_conditions: {} })], recommendation: null }];
+  routes["PATCH /bindings/rul_1"] = () => {
+    role = "standard";
+    return [200, { binding: binding({ role: "standard" }) }];
+  };
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Edit Relay agents" }));
+  fireEvent.change(within(screen.getByRole("form", { name: "Edit permission" })).getByLabelText("Repos"), { target: { value: "acme/web" } });
+  fireEvent.change(screen.getByRole("combobox", { name: "Role for Relay agents" }), { target: { value: "standard" } });
+  expect(await screen.findByText("That row changed while you were editing it. Open Edit again to change it.")).toBeInTheDocument();
+  expect(screen.queryByRole("form", { name: "Edit permission" })).not.toBeInTheDocument();
+  expect(writes()).toEqual([{ method: "PATCH", path: "/bindings/rul_1", body: { role: "standard" } }]);
+});
+
+it("keeps the editor's own save from counting as someone else's change", async () => {
+  let targets: string[] = [];
+  routes["GET /bindings"] = () => [200, { bindings: [binding({ targets })], recommendation: null }];
+  routes["PATCH /bindings/rul_1"] = () => {
+    targets = ["acme/web"];
+    return [200, { binding: binding({ targets }) }];
+  };
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Edit Relay agents" }));
+  const form = screen.getByRole("form", { name: "Edit permission" });
+  fireEvent.change(within(form).getByLabelText("Repos"), { target: { value: "acme/web" } });
+  fireEvent.click(within(form).getByRole("button", { name: "Save" }));
+  expect(await screen.findByText("Saved Relay agents.")).toBeInTheDocument();
+  expect(screen.queryByText(/That row changed while you were editing it/)).not.toBeInTheDocument();
+});
+
+it("treats a repeated repo as one, so removing a repo by repeating another still saves", async () => {
+  routes["GET /bindings"] = () => [200, { bindings: [binding({ targets: ["acme/web", "acme/api"] })], recommendation: null }];
+  routes["PATCH /bindings/rul_1"] = () => [200, { binding: binding({ targets: ["acme/web"] }) }];
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Edit Relay agents" }));
+  const form = screen.getByRole("form", { name: "Edit permission" });
+  fireEvent.change(within(form).getByLabelText("Repos"), { target: { value: "acme/web acme/web" } });
+  fireEvent.click(within(form).getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(writes()).toEqual([{ method: "PATCH", path: "/bindings/rul_1", body: { targets: ["acme/web"] } }]));
+});
+
+it("leaves a custom row's unreadable conditions to the server instead of sending none", async () => {
+  routes["GET /bindings"] = () => [200, { bindings: [binding({ binding_id: "rul_c", role: "custom", classes: ["pr_ops"] })], recommendation: null }];
+  routes["PATCH /bindings/rul_c"] = () => [200, { binding: binding({ binding_id: "rul_c", role: "custom" }) }];
+  render(panel());
+  await loaded();
+  fireEvent.click(screen.getByRole("button", { name: "Edit Relay agents" }));
+  const form = screen.getByRole("form", { name: "Edit permission" });
+  fireEvent.change(within(form).getByLabelText("Edit Deploy"), { target: { value: "ask" } });
+  fireEvent.click(within(form).getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(writes()).toHaveLength(1));
+  expect(writes()[0]!.body).not.toHaveProperty("required_conditions");
+});
