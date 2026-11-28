@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { DelegateGrant } from "./contracts";
-import { APPROVER_REPOSITORIES, ApproversSection, approverExpiryOptions, approverScopes, parseLogins } from "./approvers-section";
+import { ApproversSection, approverExpiryOptions, approverScopes, parseLogins } from "./approvers-section";
 
 type Call = { method: string; path: string; body: unknown };
 type Handler = (call: Call) => [number, unknown] | Promise<[number, unknown]>;
@@ -23,8 +23,13 @@ const explicit = (overrides: Partial<DelegateGrant> = {}): DelegateGrant => ({
 });
 const CANDIDATES = [{ agent_id: "desk-1", name: "desk", address: "desk@host-1" }];
 const LANDS = (repo: string) => [`${repo}:land:*:*`, `${repo}:land:*/*:*`, `${repo}:land:*/*/*:*`];
-const candidates = (list: typeof CANDIDATES = CANDIDATES, partial = false) =>
-  [200, { approver_candidates: list, approver_candidates_partial: partial }] as [number, unknown];
+// Connected to the workspace and with an approver allow-list, as the server lists them.
+const REPOS = ["AgentWorkforce/cloud", "AgentWorkforce/relay-app"];
+const APPROVER_REPOSITORIES = REPOS;
+/** `"missing"` leaves `approver_repositories` out, as a server from before it would. */
+const candidates = (list: typeof CANDIDATES = CANDIDATES, partial = false, repositories: string[] | null | "missing" = REPOS) =>
+  [200, { approver_candidates: list, approver_candidates_partial: partial,
+    ...(repositories === "missing" ? {} : { approver_repositories: repositories }) }] as [number, unknown];
 
 beforeEach(() => {
   calls = [];
@@ -54,13 +59,69 @@ const openForm = async () => {
   fireEvent.click(await screen.findByRole("button", { name: "Add approver" }));
   await screen.findByRole("option", { name: "desk (desk@host-1)" });
 };
-const fill = (logins: string, repo: string) => {
+const fill = (logins: string, repo: string | null) => {
   fireEvent.change(screen.getByLabelText("Agent"), { target: { value: "desk-1" } });
   fireEvent.change(screen.getByLabelText("GitHub logins it acts as"), { target: { value: logins } });
-  fireEvent.click(screen.getByLabelText(repo));
+  if (repo) fireEvent.click(screen.getByLabelText(repo));
 };
 
 describe("ApproversSection", () => {
+  it("has a one-line header and no explanatory hints", async () => {
+    routes = { "GET /": () => [200, { grants: [] }], "GET /approver-candidates": () => candidates() };
+    render(section());
+    expect(await screen.findByText("No approvers.")).toBeInTheDocument();
+    expect(screen.getByText("Agents that can approve releases for you")).toBeInTheDocument();
+    await openForm();
+    for (const hint of [/pinned to/, /never approves/, /allow-list/, /Listed:/]) expect(screen.queryByText(hint)).not.toBeInTheDocument();
+  });
+
+  it("offers only the repositories the server lists, and says so when there are none or they can't be read", async () => {
+    let repositories: string[] | null | "missing" = ["AgentWorkforce/cloud"];
+    routes = { "GET /": () => [200, { grants: [] }], "GET /approver-candidates": () => candidates(CANDIDATES, false, repositories) };
+    render(section());
+    await openForm();
+    expect(screen.getByLabelText("AgentWorkforce/cloud")).toBeInTheDocument();
+    expect(screen.queryByLabelText("AgentWorkforce/relay-app")).not.toBeInTheDocument();
+    const reopen = async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      await openForm();
+    };
+    repositories = [];
+    await reopen();
+    expect(screen.getByText("No connected repository can have approvers yet.")).toBeInTheDocument();
+    expect(within(addForm()).queryAllByRole("checkbox").map((box) => box.id).filter((id) => id.startsWith("approvers-repo-"))).toEqual([]);
+    repositories = null;
+    await reopen();
+    expect(screen.getByText(/Connected repositories can't be read right now/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("AgentWorkforce/cloud")).not.toBeInTheDocument();
+    // Missing (an older server) reads like null: nothing offered, and the form says so.
+    repositories = "missing";
+    await reopen();
+    expect(screen.getByText(/Connected repositories can't be read right now/)).toBeInTheDocument();
+    fill("desk-login", null);
+    expect(submitButton()).toBeDisabled();
+  });
+
+  it("never sends a repository chosen in an earlier opening that this one doesn't offer", async () => {
+    let repositories = REPOS;
+    routes = { "GET /": () => [200, { grants: [] }], "GET /approver-candidates": () => candidates(CANDIDATES, false, repositories),
+      "POST /": () => [201, approver()] };
+    render(section());
+    await openForm();
+    fireEvent.click(screen.getByLabelText(REPOS[1]!));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    repositories = [REPOS[0]!];
+    await openForm();
+    fill("desk-login", null);
+    expect(submitButton()).toBeDisabled();
+    fireEvent.submit(addForm());
+    expect(posts()).toEqual([]);
+    fireEvent.click(screen.getByLabelText(REPOS[0]!));
+    fireEvent.click(submitButton());
+    await waitFor(() => expect(posts()).toHaveLength(1));
+    expect(posts()[0]!.scopes).toEqual([{ class: "release", targets: LANDS("AgentWorkforce/cloud") }]);
+  });
+
   it("lists only approver grants, with their pinned address, logins and targets; an explicit grant is not shown here", async () => {
     routes = { "GET /": () => [200, { grants: [approver(), explicit(),
       approver({ grant_id: "grt_appr0002", delegate_agent_id: "old-1", status: "revoked" })] }] };
@@ -74,20 +135,44 @@ describe("ApproversSection", () => {
     expect(screen.queryByRole("button", { name: "Remove approver old-1" })).not.toBeInTheDocument();
   });
 
-  it("lists every approver in the workspace behind the admin-only toggle (all=1)", async () => {
+  it("lists every approver in the workspace from the admin-only More menu (all=1)", async () => {
     routes = {
       "GET /": () => [200, { grants: [approver()] }],
       "GET /?all=1": () => [200, { grants: [approver({ grant_id: "grt_o", owner_id: "u2", delegate_agent_id: "their-1" })] }],
     };
     const { unmount } = render(section());
     await screen.findByText("desk-1");
-    expect(screen.queryByRole("switch", { name: "Show every approver in the workspace" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "More approver actions" })).not.toBeInTheDocument();
     unmount();
     render(section({ isAdmin: true }));
     await screen.findByText("desk-1");
-    fireEvent.click(screen.getByRole("switch", { name: "Show every approver in the workspace" }));
+    // A plain disclosure: no menu roles, a trigger with aria-expanded and aria-controls.
+    const trigger = screen.getByRole("button", { name: "More approver actions" });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(document.getElementById(trigger.getAttribute("aria-controls")!)).toBeInTheDocument();
+    const every = screen.getByRole("button", { name: "Show every approver" });
+    expect(every).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(every);
     expect(await screen.findByText("their-1")).toBeInTheDocument();
     expect(screen.getByText("owner: u2")).toBeInTheDocument();
+    // Toggling closes it and returns focus to the trigger.
+    expect(screen.queryByRole("button", { name: "Show only mine" })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    // Escape closes it (focus back on the trigger); so does a click outside.
+    fireEvent.click(trigger);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("button", { name: "Show only mine" })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    fireEvent.click(trigger);
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole("button", { name: "Show only mine" })).not.toBeInTheDocument();
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("button", { name: "Show only mine" }));
+    expect(await screen.findByText("desk-1")).toBeInTheDocument();
+    expect(screen.queryByText("their-1")).not.toBeInTheDocument();
   });
 
   it("removes an approver only after confirming, with DELETE /delegates/{id}, re-reads and tells the page", async () => {
@@ -180,12 +265,12 @@ describe("ApproversSection", () => {
     const { unmount } = render(section({ delegationEnabled: false }));
     expect(await screen.findByText("No approvers.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add approver" })).not.toBeInTheDocument();
-    expect(screen.getByText(/Delegation is off/)).toBeInTheDocument();
+    expect(screen.getByText("Turn on delegation to add an approver.")).toBeInTheDocument();
     unmount();
     routes["GET /approver-candidates"] = () => candidates([]);
     render(section());
     fireEvent.click(await screen.findByRole("button", { name: "Add approver" }));
-    expect(await screen.findByText(/None of your agents can be an approver/)).toBeInTheDocument();
+    expect(await screen.findByText(/None of your agents can be an approver yet/)).toBeInTheDocument();
   });
 
   it("re-reads the candidates each time the form opens, so a newly connected agent is offered", async () => {
@@ -193,7 +278,7 @@ describe("ApproversSection", () => {
     routes = { "GET /": () => [200, { grants: [] }], "GET /approver-candidates": () => candidates(list) };
     render(section());
     fireEvent.click(await screen.findByRole("button", { name: "Add approver" }));
-    expect(await screen.findByText(/None of your agents can be an approver/)).toBeInTheDocument();
+    expect(await screen.findByText(/None of your agents can be an approver yet/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     list = CANDIDATES;
     await openForm();
@@ -253,7 +338,7 @@ describe("ApproversSection", () => {
     render(section());
     fireEvent.click(await screen.findByRole("button", { name: "Add approver" }));
     expect(await screen.findByText("Some agents couldn't be checked; try again by reopening the form.")).toBeInTheDocument();
-    expect(screen.queryByText(/None of your agents can be an approver/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/None of your agents can be an approver yet/)).not.toBeInTheDocument();
   });
 
   it("says approver grants aren't available when the install has no candidates route (404), and keeps the list", async () => {
@@ -264,10 +349,15 @@ describe("ApproversSection", () => {
     render(section());
     fireEvent.click(await screen.findByRole("button", { name: "Add approver" }));
     expect(await screen.findByText("Approver grants aren't available on this install: it can't confirm code owners.")).toBeInTheDocument();
+    // No form: no picker, no fields and nothing to submit; the list and Remove still work.
     expect(screen.queryByText(/None of your agents/)).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Agent")).toBeDisabled();
-    expect(submitButton()).toBeDisabled();
+    expect(screen.queryByLabelText("Agent")).not.toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "Add approver" })).not.toBeInTheDocument();
+    expect(posts()).toEqual([]);
     expect(screen.getByRole("button", { name: "Remove approver desk-1" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByText(/Approver grants aren't available/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add approver" })).toBeInTheDocument();
   });
 
   it("shows another failed candidates read as the server's error", async () => {

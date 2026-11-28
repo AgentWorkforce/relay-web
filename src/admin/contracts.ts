@@ -649,4 +649,6 @@ export type ApproverCandidate = z.infer<typeof approverCandidateSchema>;
 export const approverCandidatesSchema = z.object({
   approver_candidates: z.array(approverCandidateSchema),
   approver_candidates_partial: z.boolean().optional(),
+  /** The repositories an approver can be granted for here (connected, with an approver allow-list); null when unreadable. */
+  approver_repositories: z.array(z.string()).nullable().optional(),
 });

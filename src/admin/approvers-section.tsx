@@ -8,24 +8,21 @@
 // relay-control reads no CODEOWNERS, so it refuses every approver grant with
 // 403 `not_code_owner`; the form shows that refusal through delegationError
 // like any other. It has no approver-candidates route either: that read
-// answers 404, and the picker says approver grants aren't available on this
-// install instead of offering agents.
+// answers 404, and the form says approver grants aren't available on this
+// install instead of offering agents; the list and Remove still work. Cloud
+// also hides the section behind a PostHog workspace flag (#owner-decisions
+// 252314445629317120); relay-web has no PostHog, so it always renders it.
 import { useEffect, useRef, useState } from "react";
 import { adminApi, ApiError } from "./api";
 import type { ApproverCandidate, DelegateGrant } from "./contracts";
 import { delegationError } from "./delegation-errors";
 import { selectBase, selectClass, tableClass } from "./delegates-section";
 import { useLoad } from "./use-load";
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Switch } from "../shell/ui";
+import { Button, Card, CardContent, CardHeader, CardTitle, Input } from "../shell/ui";
 
 /** Where an action's message is shown. */
 type Area = "table" | "add";
 
-/**
- * The only repositories an approver can be granted for: the ones with an approver allow-list.
- * The server refuses any other.
- */
-export const APPROVER_REPOSITORIES = ["AgentWorkforce/cloud", "AgentWorkforce/relay-app"] as const;
 /**
  * What an approver may approve in a repository, as release grant patterns. Approvers are release-only
  * (the server refuses any other class): a land is a release target, and Releases covers every channel
@@ -70,8 +67,9 @@ export function isApprover(grant: DelegateGrant): boolean {
 
 /**
  * Granted approvers: one of your agents, pinned to the exact Relay address it is bound at, that may
- * approve releases and lands of AgentWorkforce/cloud or AgentWorkforce/relay-app, as long as the
- * change it ships passes the approver allow-list. It is created on the same POST /delegates as an
+ * approve releases and lands of a connected repository with an approver allow-list, as long as the
+ * change it ships passes that allow-list. The form offers only the repositories GET
+ * approver-candidates lists (`approver_repositories`); the server checks them again. It is created on the same POST /delegates as an
  * explicit grant, with kind `approver`; the server also checks that you are a code owner of every
  * repository named. These rows are listed and revoked here, not under Explicit grants.
  *
@@ -117,6 +115,30 @@ export function ApproversSection({
   const [agents, setAgents] = useState<ApproverCandidate[] | null>(null);
   const [agentsError, setAgentsError] = useState<string | null>(null);
   const [agentsPartial, setAgentsPartial] = useState(false);
+  // The repositories this opening of the form may offer: null while loading or when they couldn't be read.
+  const [repoOptions, setRepoOptions] = useState<string[] | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  // A plain disclosure (not an ARIA menu): Escape or a click outside closes it, and focus returns to its trigger.
+  const menuTrigger = useRef<HTMLButtonElement | null>(null);
+  const menuPanel = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (refocus: boolean) => {
+      setMenuOpen(false);
+      if (refocus) menuTrigger.current?.focus();
+    };
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") close(true); };
+    const onPointer = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!menuPanel.current?.contains(target) && !menuTrigger.current?.contains(target)) close(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onPointer);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onPointer);
+    };
+  }, [menuOpen]);
   // The candidates read answered 404: this install has no approver grants (relay-control can't confirm code owners).
   const [agentsUnavailable, setAgentsUnavailable] = useState(false);
   const [feedback, setFeedback] = useState<{ area: Area; text: string; error: boolean } | null>(null);
@@ -158,11 +180,13 @@ export function ApproversSection({
       if (!mounted.current || request !== agentsRequest.current) return;
       setAgentsError(null);
       setAgentsPartial(answer.approver_candidates_partial === true);
+      setRepoOptions(Array.isArray(answer.approver_repositories) ? answer.approver_repositories : null);
       setAgents(answer.approver_candidates.filter((agent) => Boolean(agent.address)));
     } catch (failure) {
       if (!mounted.current || request !== agentsRequest.current) return;
       setAgents(null);
       setAgentsPartial(false);
+      setRepoOptions(null);
       if (failure instanceof ApiError && failure.status === 404) setAgentsUnavailable(true);
       else setAgentsError(delegationError(failure, "Could not list your agents."));
     }
@@ -174,7 +198,8 @@ export function ApproversSection({
   const loginsProblem = loginsText.trim() && !logins
     ? "Enter GitHub logins separated by spaces or commas, at most 10 (an app login ends in [bot])."
     : null;
-  const scopes = approverScopes(repos, kinds);
+  // Only a repository this opening offered is ever sent.
+  const scopes = approverScopes(repos.filter((repo) => repoOptions?.includes(repo)), kinds);
   const formValid = Boolean(chosen) && Boolean(logins?.length) && scopes.length > 0;
   const expiryChoices = approverExpiryOptions(maxExpiryDays);
   // With no expiry chosen none is sent, and the server sets min(30, the policy's maximum) days.
@@ -197,6 +222,8 @@ export function ApproversSection({
     setAgentsError(null);
     setAgentsPartial(false);
     setAgentsUnavailable(false);
+    setRepoOptions(null);
+    setRepos([]);
     void loadAgents();
   };
 
@@ -259,38 +286,62 @@ export function ApproversSection({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Approvers</CardTitle>
-        <CardDescription>
-          An agent that may approve releases and lands of AgentWorkforce/cloud or AgentWorkforce/relay-app for you, pinned to the
-          exact Relay address it runs at. What it ships still has to pass the approver allow-list, and it never approves a change
-          one of its GitHub logins made.
-        </CardDescription>
+        <CardTitle>Agents that can approve releases for you</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          {isAdmin ? (
-            <div className="flex items-center gap-2">
-              <Switch
-                id={id("all")}
-                checked={all}
-                disabled={pending}
-                onCheckedChange={(checked) => {
-                  setAll(checked);
-                  setConfirmId(null);
-                  reload();
-                }}
-              />
-              <label htmlFor={id("all")} className="text-sm">Show every approver in the workspace</label>
-            </div>
-          ) : (
-            <span />
-          )}
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {delegationEnabled && !adding ? (
             <Button type="button" size="sm" disabled={pending} onClick={openAdd}>Add approver</Button>
           ) : null}
+          {isAdmin ? (
+            <div className="relative">
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                aria-label="More approver actions"
+                aria-expanded={menuOpen}
+                aria-controls={id("more")}
+                ref={menuTrigger}
+                onClick={() => setMenuOpen((open) => !open)}
+              >
+                ⋯
+              </Button>
+              {menuOpen ? (
+                <div
+                  id={id("more")}
+                  ref={menuPanel}
+                  className="absolute right-0 z-10 mt-1 min-w-44 rounded-md border border-[var(--border-default)] bg-[var(--surface-card)] p-1 shadow-md"
+                >
+                  <button
+                    type="button"
+                    aria-pressed={all}
+                    id={id("all")}
+                    disabled={pending}
+                    className="w-full rounded border-0 bg-transparent px-2 py-1.5 text-left text-sm shadow-none hover:bg-[var(--surface-soft)]"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      menuTrigger.current?.focus();
+                      setAll((value) => !value);
+                      setConfirmId(null);
+                      reload();
+                    }}
+                  >
+                    {all ? "Show only mine" : "Show every approver"}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
-        {adding && delegationEnabled ? (
+        {adding && delegationEnabled && agentsUnavailable ? (
+          // relay-control has no approver-candidates route (404): no form, only why, and the list below still works.
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--border-default)] p-3" role="group" aria-label="Add approver">
+            <p className="text-sm text-muted-foreground">Approver grants aren&apos;t available on this install: it can&apos;t confirm code owners.</p>
+            <Button type="button" size="sm" variant="outline" onClick={() => setAdding(false)}>Close</Button>
+          </div>
+        ) : adding && delegationEnabled ? (
           <form
             className="flex flex-col gap-3 rounded-lg border border-[var(--border-default)] p-3"
             aria-label="Add approver"
@@ -315,17 +366,15 @@ export function ApproversSection({
                     <option key={agent.agent_id} value={agent.agent_id}>{`${agent.name} (${agent.address})`}</option>
                   ))}
                 </select>
-                <p className="text-xs text-muted-foreground">
-                  {agentsUnavailable
-                    ? "Approver grants aren't available on this install: it can't confirm code owners."
-                    : agents === null
+                {agents === null || agentsPartial || pinnable.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    {agents === null
                       ? (agentsError ?? "Loading your agents...")
                       : agentsPartial
                         ? "Some agents couldn't be checked; try again by reopening the form."
-                        : pinnable.length === 0
-                          ? "None of your agents can be an approver: it needs an address Cloud can pin and no other grant. Connect it from Agent Relay Desktop or a hosted session."
-                          : "Listed: your agents with a known address and no other grant. The grant is pinned to that address."}
-                </p>
+                        : "None of your agents can be an approver yet. Connect one from Agent Relay Desktop or a hosted session."}
+                  </p>
+                ) : null}
               </div>
               <div className="flex flex-col gap-1.5">
                 <label htmlFor={id("logins")} className="text-sm font-medium">GitHub logins it acts as</label>
@@ -336,23 +385,22 @@ export function ApproversSection({
                   autoComplete="off"
                   spellCheck={false}
                   aria-invalid={loginsProblem ? true : undefined}
-                  aria-describedby={id("logins-hint")}
+                  aria-describedby={loginsProblem ? id("logins-hint") : undefined}
                   onChange={(event) => setLoginsText(event.target.value)}
                   disabled={pending}
                 />
-                <p
-                  id={id("logins-hint")}
-                  role={loginsProblem ? "alert" : undefined}
-                  className={`text-xs ${loginsProblem ? "text-destructive" : "text-muted-foreground"}`}
-                >
-                  {loginsProblem ?? "It never approves a change one of these logins made."}
-                </p>
+                {loginsProblem ? <p id={id("logins-hint")} role="alert" className="text-xs text-destructive">{loginsProblem}</p> : null}
               </div>
             </div>
             <fieldset className="flex flex-col gap-2">
               <legend className="text-sm font-medium">Repositories</legend>
+              {agents === null ? null : repoOptions === null ? (
+                <p className="text-xs text-muted-foreground">Connected repositories can&apos;t be read right now. Reopen the form to try again.</p>
+              ) : repoOptions.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No connected repository can have approvers yet.</p>
+              ) : null}
               <div className="flex flex-wrap gap-4">
-                {APPROVER_REPOSITORIES.map((repo) => (
+                {(repoOptions ?? []).map((repo) => (
                   <div key={repo} className="flex items-center gap-2">
                     <input
                       type="checkbox"
@@ -503,7 +551,7 @@ export function ApproversSection({
         ) : null}
         {message("table")}
         {!delegationEnabled ? (
-          <p className="text-sm text-muted-foreground">Delegation is off, so no approver can be added. You can still remove them.</p>
+          <p className="text-sm text-muted-foreground">Turn on delegation to add an approver.</p>
         ) : null}
       </CardContent>
     </Card>
