@@ -118,6 +118,27 @@ export function ApproversSection({
   // The repositories this opening of the form may offer: null while loading or when they couldn't be read.
   const [repoOptions, setRepoOptions] = useState<string[] | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  // A plain disclosure (not an ARIA menu): Escape or a click outside closes it, and focus returns to its trigger.
+  const menuTrigger = useRef<HTMLButtonElement | null>(null);
+  const menuPanel = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (refocus: boolean) => {
+      setMenuOpen(false);
+      if (refocus) menuTrigger.current?.focus();
+    };
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") close(true); };
+    const onPointer = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!menuPanel.current?.contains(target) && !menuTrigger.current?.contains(target)) close(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onPointer);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onPointer);
+    };
+  }, [menuOpen]);
   // The candidates read answered 404: this install has no approver grants (relay-control can't confirm code owners).
   const [agentsUnavailable, setAgentsUnavailable] = useState(false);
   const [feedback, setFeedback] = useState<{ area: Area; text: string; error: boolean } | null>(null);
@@ -279,26 +300,28 @@ export function ApproversSection({
                 size="icon-sm"
                 variant="ghost"
                 aria-label="More approver actions"
-                aria-haspopup="menu"
                 aria-expanded={menuOpen}
+                aria-controls={id("more")}
+                ref={menuTrigger}
                 onClick={() => setMenuOpen((open) => !open)}
               >
                 ⋯
               </Button>
               {menuOpen ? (
                 <div
-                  role="menu"
+                  id={id("more")}
+                  ref={menuPanel}
                   className="absolute right-0 z-10 mt-1 min-w-44 rounded-md border border-[var(--border-default)] bg-[var(--surface-card)] p-1 shadow-md"
                 >
                   <button
                     type="button"
-                    role="menuitemcheckbox"
-                    aria-checked={all}
+                    aria-pressed={all}
                     id={id("all")}
                     disabled={pending}
                     className="w-full rounded border-0 bg-transparent px-2 py-1.5 text-left text-sm shadow-none hover:bg-[var(--surface-soft)]"
                     onClick={() => {
                       setMenuOpen(false);
+                      menuTrigger.current?.focus();
                       setAll((value) => !value);
                       setConfirmId(null);
                       reload();

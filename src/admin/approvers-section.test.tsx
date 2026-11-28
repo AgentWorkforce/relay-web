@@ -146,16 +146,31 @@ describe("ApproversSection", () => {
     unmount();
     render(section({ isAdmin: true }));
     await screen.findByText("desk-1");
-    expect(screen.queryByRole("menuitemcheckbox")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "More approver actions" }));
-    const every = screen.getByRole("menuitemcheckbox", { name: "Show every approver" });
-    expect(every).toHaveAttribute("aria-checked", "false");
+    // A plain disclosure: no menu roles, a trigger with aria-expanded and aria-controls.
+    const trigger = screen.getByRole("button", { name: "More approver actions" });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(document.getElementById(trigger.getAttribute("aria-controls")!)).toBeInTheDocument();
+    const every = screen.getByRole("button", { name: "Show every approver" });
+    expect(every).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(every);
     expect(await screen.findByText("their-1")).toBeInTheDocument();
     expect(screen.getByText("owner: u2")).toBeInTheDocument();
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "More approver actions" }));
-    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Show only mine" }));
+    // Toggling closes it and returns focus to the trigger.
+    expect(screen.queryByRole("button", { name: "Show only mine" })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    // Escape closes it (focus back on the trigger); so does a click outside.
+    fireEvent.click(trigger);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("button", { name: "Show only mine" })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    fireEvent.click(trigger);
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole("button", { name: "Show only mine" })).not.toBeInTheDocument();
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("button", { name: "Show only mine" }));
     expect(await screen.findByText("desk-1")).toBeInTheDocument();
     expect(screen.queryByText("their-1")).not.toBeInTheDocument();
   });
