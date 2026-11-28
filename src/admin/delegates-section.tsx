@@ -92,6 +92,8 @@ export function DelegatesSection({
   const { data: list, error: loadError, reload } = useLoad(async (signal) => ({
     all,
     // Granted approvers have their own section (approvers-section.tsx); this table shows explicit grants only.
+    // Cloud lists them here while its Approvers section is flagged off; relay-web always renders that section
+    // (its 404 state still lists approver rows and removes them), so they are always hidden here.
     grants: (await adminApi.delegateGrants(workspaceId, all, signal)).filter((grant) => grant.kind !== "approver"),
   }));
   const [seenRefresh, setSeenRefresh] = useState(refreshKey);
