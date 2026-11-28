@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { adminApi } from "./api";
 import { DELEGATION_CLASSES, type DelegateGrant, type DelegationClass } from "./contracts";
-import { delegationError } from "./delegation-errors";
+import { delegationCode, delegationError } from "./delegation-errors";
 import { useLoad } from "./use-load";
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Switch } from "../shell/ui";
 
@@ -188,12 +188,22 @@ export function DelegatesSection({
         return;
       }
       const { actionClass, askFirst } = parseCan(can);
-      const granted = await adminApi.createDelegateGrant(workspaceId, {
-        delegate_agent_id: agentId.trim(),
-        scopes: [{ class: actionClass, targets }],
-        ...(days !== null ? { expires_at: new Date(Date.now() + days * 86_400_000).toISOString() } : {}),
-        ...(askFirst ? { require_tier_o: [actionClass] } : {}),
-      });
+      let granted: DelegateGrant;
+      try {
+        granted = await adminApi.createDelegateGrant(workspaceId, {
+          delegate_agent_id: agentId.trim(),
+          scopes: [{ class: actionClass, targets }],
+          ...(days !== null ? { expires_at: new Date(Date.now() + days * 86_400_000).toISOString() } : {}),
+          ...(askFirst ? { require_tier_o: [actionClass] } : {}),
+        });
+      } catch (failure) {
+        // The grant in the way may be an approver, which this table doesn't list.
+        if (delegationCode(failure) !== "grant_exists") throw failure;
+        if (mounted.current) {
+          setError("add", "This agent already has a grant. Narrow or remove it in this table, or, if it's an approver, under Approvers.");
+        }
+        return;
+      }
       if (!mounted.current) return;
       resetForm();
       setAdding(false);

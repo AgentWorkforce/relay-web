@@ -43,6 +43,7 @@ const NEEDS_GITHUB = " (needs GitHub checks; not available on self-hosted)";
 const EVERYTHING = "Everything I own";
 const SOURCE_LABELS: Record<string, string> = {
   explicit_grant: "Its own grant",
+  approver: "An approver grant (see Approvers)",
   agent: "Its own setting",
   group: "A custom group",
   connector_kind: "Its connector group",
@@ -1251,6 +1252,9 @@ export function AgentPermissions(props: {
                                       <option value="" disabled>Give it a role</option>
                                       {presets.map((preset) => <option key={preset.role} value={preset.role}>{preset.label}</option>)}
                                     </select>
+                                  ) : agent.effective.source === "approver" ? (
+                                    // Its approver grant wins over any setting here, so Exclude would change nothing: it is removed under Approvers.
+                                    <span className="text-xs text-muted-foreground">Remove it under Approvers</span>
                                   ) : !excluded ? (
                                     <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => void exclude(agent)}>
                                       Exclude

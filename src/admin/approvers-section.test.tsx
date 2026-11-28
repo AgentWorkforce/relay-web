@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { DelegateGrant } from "./contracts";
 import { APPROVER_REPOSITORIES, ApproversSection, approverExpiryOptions, approverScopes, parseLogins } from "./approvers-section";
 
@@ -23,11 +23,8 @@ const explicit = (overrides: Partial<DelegateGrant> = {}): DelegateGrant => ({
 });
 const CANDIDATES = [{ agent_id: "desk-1", name: "desk", address: "desk@host-1" }];
 const LANDS = (repo: string) => [`${repo}:land:*:*`, `${repo}:land:*/*:*`, `${repo}:land:*/*/*:*`];
-// An agent in the permission rows' list with no pinnable binding: it is not an approver candidate.
-const ROW_AGENT = { agent_id: "other-1", name: "unpinned", root_kind: "connector", connector: "x", spawned: false, launched_by: null,
-  groups: [], effective: null };
-const agents = (candidates: typeof CANDIDATES = CANDIDATES) =>
-  [200, { agents: [ROW_AGENT], approver_candidates: candidates }] as [number, unknown];
+const candidates = (list: typeof CANDIDATES = CANDIDATES, partial = false) =>
+  [200, { approver_candidates: list, approver_candidates_partial: partial }] as [number, unknown];
 
 beforeEach(() => {
   calls = [];
@@ -114,12 +111,12 @@ describe("ApproversSection", () => {
   it("offers only pinnable agents, and posts kind approver pinned to the agent's address, release class only", async () => {
     routes = {
       "GET /": () => [200, { grants: [] }],
-      "GET /agents": () => agents(),
+      "GET /approver-candidates": () => candidates([...CANDIDATES, { agent_id: "other-1", name: "unpinned", address: "" }]),
       "POST /": (call) => [201, approver({ scopes: (call.body as { scopes: DelegateGrant["scopes"] }).scopes })],
     };
     render(section());
     await openForm();
-    // Only approver candidates are offered: an agent in the permission rows' list without a pinnable binding is not.
+    // A candidate with no address can't be pinned, so it isn't offered.
     expect(screen.queryByText(/unpinned/)).not.toBeInTheDocument();
     expect(submitButton()).toBeDisabled();
     fill("Desk-Login, ci-app[bot] desk-login", APPROVER_REPOSITORIES[1]);
@@ -128,7 +125,8 @@ describe("ApproversSection", () => {
     fireEvent.click(submitButton());
     expect(await screen.findByText("desk is now an approver.")).toBeInTheDocument();
     expect(posts()).toEqual([{ delegate_agent_id: "desk-1", kind: "approver", delegate_address: "desk@host-1",
-      github_logins: ["Desk-Login", "ci-app[bot]", "desk-login"],
+      // Lowercased and without repeats, as the server stores them.
+      github_logins: ["desk-login", "ci-app[bot]"],
       scopes: [{ class: "release", targets: [...LANDS("AgentWorkforce/relay-app"), "AgentWorkforce/relay-app:*:*:*:*",
         "AgentWorkforce/relay-app:*:*:*:*:*"] }] }]);
   });
@@ -136,7 +134,7 @@ describe("ApproversSection", () => {
   it("refuses malformed logins before posting, and shows the server's refusal", async () => {
     routes = {
       "GET /": () => [200, { grants: [] }],
-      "GET /agents": () => agents(),
+      "GET /approver-candidates": () => candidates(),
       "POST /": () => [403, { error: "Only a code owner can grant an approver", code: "not_code_owner" }],
     };
     render(section());
@@ -158,7 +156,9 @@ describe("ApproversSection", () => {
     expect(approverExpiryOptions(365)).toEqual([7, 30, 90]);
     expect(approverExpiryOptions(30)).toEqual([7, 30]);
     expect(approverExpiryOptions(3)).toEqual([3]);
-    routes = { "GET /": () => [200, { grants: [] }], "GET /agents": () => agents(), "POST /": () => [201, approver()] };
+    expect(approverExpiryOptions(2.5)).toEqual([2]);
+    expect(approverExpiryOptions(0)).toEqual([1]);
+    routes = { "GET /": () => [200, { grants: [] }], "GET /approver-candidates": () => candidates(), "POST /": () => [201, approver()] };
     render(section({ maxExpiryDays: 365 }));
     await openForm();
     fill("desk-login", APPROVER_REPOSITORIES[0]);
@@ -170,6 +170,8 @@ describe("ApproversSection", () => {
     fireEvent.click(submitButton());
     await waitFor(() => expect(posts()).toHaveLength(1));
     const days = (Date.parse(posts()[0]!.expires_at as string) - before) / 86_400_000;
+    // A minute short of the full 90 days, so the server's cap is never crossed in transit.
+    expect(days).toBeLessThan(90);
     expect(Math.round(days)).toBe(90);
   });
 
@@ -180,24 +182,111 @@ describe("ApproversSection", () => {
     expect(screen.queryByRole("button", { name: "Add approver" })).not.toBeInTheDocument();
     expect(screen.getByText(/Delegation is off/)).toBeInTheDocument();
     unmount();
-    // relay-control sends no approver_candidates today: missing reads as none.
-    routes["GET /agents"] = () => [200, { agents: [] }];
+    routes["GET /approver-candidates"] = () => candidates([]);
     render(section());
     fireEvent.click(await screen.findByRole("button", { name: "Add approver" }));
-    expect(await screen.findByText(/None of your agents has an address/)).toBeInTheDocument();
+    expect(await screen.findByText(/None of your agents can be an approver/)).toBeInTheDocument();
   });
 
   it("re-reads the candidates each time the form opens, so a newly connected agent is offered", async () => {
-    let candidates: typeof CANDIDATES = [];
-    routes = { "GET /": () => [200, { grants: [] }], "GET /agents": () => agents(candidates) };
+    let list: typeof CANDIDATES = [];
+    routes = { "GET /": () => [200, { grants: [] }], "GET /approver-candidates": () => candidates(list) };
     render(section());
     fireEvent.click(await screen.findByRole("button", { name: "Add approver" }));
-    expect(await screen.findByText(/None of your agents has an address/)).toBeInTheDocument();
+    expect(await screen.findByText(/None of your agents can be an approver/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    candidates = CANDIDATES;
+    list = CANDIDATES;
     await openForm();
     expect(screen.getByLabelText("Agent")).toHaveValue("");
-    expect(calls.filter((call) => call.path.endsWith("/delegates/agents"))).toHaveLength(2);
+    expect(calls.filter((call) => call.path.endsWith("/delegates/approver-candidates"))).toHaveLength(2);
+  });
+
+  it("clears the previous list on open and applies only the latest read, so a stale address is never offered", async () => {
+    let release!: () => void;
+    let reads = 0;
+    routes = {
+      "GET /": () => [200, { grants: [] }],
+      // The first read hangs until released; the second answers at once with a moved address.
+      "GET /approver-candidates": () => {
+        reads += 1;
+        const answer = candidates([{ agent_id: "desk-1", name: "desk", address: reads === 1 ? "desk@old-host" : "desk@new-host" }]);
+        return reads === 1 ? new Promise((resolve) => { release = () => resolve(answer); }) : answer;
+      },
+    };
+    render(section());
+    fireEvent.click(await screen.findByRole("button", { name: "Add approver" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add approver" }));
+    expect(await screen.findByRole("option", { name: "desk (desk@new-host)" })).toBeInTheDocument();
+    // The first opening's read lands last: dropped.
+    await act(async () => { release(); });
+    expect(screen.getByRole("option", { name: "desk (desk@new-host)" })).toBeInTheDocument();
+    expect(screen.queryByText(/old-host/)).not.toBeInTheDocument();
+  });
+
+  it("clears an earlier opening's list while the new read is in flight, so Submit stays blocked", async () => {
+    let release!: () => void;
+    let reads = 0;
+    routes = {
+      "GET /": () => [200, { grants: [] }],
+      "GET /approver-candidates": () => {
+        reads += 1;
+        return reads === 1 ? candidates() : new Promise((resolve) => { release = () => resolve(candidates()); });
+      },
+    };
+    render(section());
+    await openForm();
+    fill("desk-login", APPROVER_REPOSITORIES[0]);
+    expect(submitButton()).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add approver" }));
+    expect(screen.queryByRole("option", { name: "desk (desk@host-1)" })).not.toBeInTheDocument();
+    expect(screen.getByText("Loading your agents...")).toBeInTheDocument();
+    expect(submitButton()).toBeDisabled();
+    await act(async () => { release(); });
+    expect(await screen.findByRole("option", { name: "desk (desk@host-1)" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Agent")).toHaveValue("");
+  });
+
+  it("says some agents couldn't be checked when the candidate read is partial, not that there are none", async () => {
+    routes = { "GET /": () => [200, { grants: [] }], "GET /approver-candidates": () => candidates([], true) };
+    render(section());
+    fireEvent.click(await screen.findByRole("button", { name: "Add approver" }));
+    expect(await screen.findByText("Some agents couldn't be checked; try again by reopening the form.")).toBeInTheDocument();
+    expect(screen.queryByText(/None of your agents can be an approver/)).not.toBeInTheDocument();
+  });
+
+  it("says approver grants aren't available when the install has no candidates route (404), and keeps the list", async () => {
+    routes = {
+      "GET /": () => [200, { grants: [approver()] }],
+      "GET /approver-candidates": () => [404, { error: "not_found", message: "Not found" }],
+    };
+    render(section());
+    fireEvent.click(await screen.findByRole("button", { name: "Add approver" }));
+    expect(await screen.findByText("Approver grants aren't available on this install: it can't confirm code owners.")).toBeInTheDocument();
+    expect(screen.queryByText(/None of your agents/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Agent")).toBeDisabled();
+    expect(submitButton()).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Remove approver desk-1" })).toBeInTheDocument();
+  });
+
+  it("shows another failed candidates read as the server's error", async () => {
+    routes = {
+      "GET /": () => [200, { grants: [] }],
+      "GET /approver-candidates": () => [503, { error: "Delegation is unavailable", code: "unavailable" }],
+    };
+    render(section());
+    fireEvent.click(await screen.findByRole("button", { name: "Add approver" }));
+    expect(await screen.findByText("Delegation is unavailable")).toBeInTheDocument();
+    expect(submitButton()).toBeDisabled();
+  });
+
+  it("shows a grant past its expiry as expired, with no Remove", async () => {
+    routes = { "GET /": () => [200, { grants: [approver({ expires_at: "2020-01-01T00:00:00.000Z" })] }] };
+    render(section());
+    expect(await screen.findByText("desk@host-1")).toBeInTheDocument();
+    expect(screen.getByText("expired")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remove approver desk-1" })).not.toBeInTheDocument();
   });
 
   it("re-reads on a new refresh key (a grant or the trust rule changed elsewhere on the page)", async () => {
@@ -220,7 +309,7 @@ describe("approver helpers", () => {
   });
 
   it("parses GitHub logins, refusing anything that isn't one or more than 10", () => {
-    expect(parseLogins("a-b, c[bot]  a-b")).toEqual(["a-b", "c[bot]"]);
+    expect(parseLogins("a-b, c[bot]  A-B")).toEqual(["a-b", "c[bot]"]);
     expect(parseLogins("-bad")).toBeNull();
     expect(parseLogins("x y!")).toBeNull();
     expect(parseLogins(Array.from({ length: 11 }, (_, index) => `u${index}`).join(" "))).toBeNull();

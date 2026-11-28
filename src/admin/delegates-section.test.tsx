@@ -129,6 +129,20 @@ it("keeps a literal comma inside a resource, refuses one used as a separator, an
   expect(screen.getByLabelText("Agent")).toHaveValue("agt_1");
 });
 
+it("on grant_exists, says where the existing grant is, including under Approvers", async () => {
+  routes = {
+    "GET /": () => [200, { grants: [] }],
+    "POST /": () => [409, { error: "The agent already has an active grant", code: "grant_exists" }],
+  };
+  render(section());
+  fireEvent.click(await screen.findByRole("button", { name: "Add grant" }));
+  fireEvent.change(screen.getByLabelText("Agent"), { target: { value: "agt_1" } });
+  fireEvent.change(screen.getByLabelText("On"), { target: { value: "acme/*" } });
+  fireEvent.click(submitButton());
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "This agent already has a grant. Narrow or remove it in this table, or, if it's an approver, under Approvers.");
+});
+
 it("removes a grant after a confirmation; a permission-row grant's confirmation says the agent is excluded", async () => {
   let grants = [grant(), grant({ grant_id: "grt_rule", delegate_agent_id: "rule-agent", scopes: [], trust_rule_id: "rul_1" })];
   routes = {

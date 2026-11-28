@@ -3,15 +3,15 @@
 // relay-control's existing /workspaces/{id}/delegates routes: list approver
 // grants (GET, `all=1` for owners and admins; rows with kind `approver`),
 // grant one (POST with kind `approver`), revoke one (DELETE /{grantId}), and
-// pick the agent from GET delegates/agents `approver_candidates`.
+// pick the agent from GET delegates/approver-candidates.
 //
 // relay-control reads no CODEOWNERS, so it refuses every approver grant with
-// 403 `not_code_owner`. It does not send `approver_candidates` either, which
-// reads as none, so the picker shows the "None of your agents has an address"
-// hint. Neither is special-cased: the form shows the server's refusal through
-// delegationError like any other.
+// 403 `not_code_owner`; the form shows that refusal through delegationError
+// like any other. It has no approver-candidates route either: that read
+// answers 404, and the picker says approver grants aren't available on this
+// install instead of offering agents.
 import { useEffect, useRef, useState } from "react";
-import { adminApi } from "./api";
+import { adminApi, ApiError } from "./api";
 import type { ApproverCandidate, DelegateGrant } from "./contracts";
 import { delegationError } from "./delegation-errors";
 import { selectBase, selectClass, tableClass } from "./delegates-section";
@@ -43,14 +43,17 @@ export const APPROVER_MAX_DAYS = 90;
 const GITHUB_LOGIN = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}(?:\[bot\])?$/u;
 
 export function approverExpiryOptions(maxExpiryDays: number): number[] {
-  const cap = Math.min(APPROVER_MAX_DAYS, maxExpiryDays);
+  const cap = Math.max(1, Math.floor(Math.min(APPROVER_MAX_DAYS, maxExpiryDays)));
   const presets = [7, 30, 90].filter((days) => days <= cap);
   return presets.length ? presets : [cap];
 }
 
-/** Logins separated by spaces or commas; null when one is not a GitHub login or there are more than 10. */
+/**
+ * Logins separated by spaces or commas, lowercased and without repeats, as the server stores them; null when one
+ * is not a GitHub login or there are more than 10.
+ */
 export function parseLogins(text: string): string[] | null {
-  const logins = [...new Set(text.split(/[\s,]+/u).filter(Boolean))];
+  const logins = [...new Set(text.split(/[\s,]+/u).filter(Boolean).map((login) => login.toLowerCase()))];
   return logins.length <= 10 && logins.every((login) => GITHUB_LOGIN.test(login)) ? logins : null;
 }
 
@@ -103,6 +106,8 @@ export function ApproversSection({
   const { data: list, error: loadError, reload } = useLoad(async (signal) => ({
     all,
     approvers: (await adminApi.delegateGrants(workspaceId, all, signal)).filter(isApprover),
+    // When the list was read: a grant past its expiry by then shows expired (re-read on every change and refresh).
+    readAt: Date.now(),
   }));
   const [seenRefresh, setSeenRefresh] = useState(refreshKey);
   if (seenRefresh !== refreshKey) {
@@ -111,6 +116,9 @@ export function ApproversSection({
   }
   const [agents, setAgents] = useState<ApproverCandidate[] | null>(null);
   const [agentsError, setAgentsError] = useState<string | null>(null);
+  const [agentsPartial, setAgentsPartial] = useState(false);
+  // The candidates read answered 404: this install has no approver grants (relay-control can't confirm code owners).
+  const [agentsUnavailable, setAgentsUnavailable] = useState(false);
   const [feedback, setFeedback] = useState<{ area: Area; text: string; error: boolean } | null>(null);
   const [pending, setPending] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -141,16 +149,22 @@ export function ApproversSection({
     }
   };
 
+  // Each opening reads anew; only the latest read is applied, so an earlier one landing last is dropped.
+  const agentsRequest = useRef(0);
   const loadAgents = async () => {
+    const request = ++agentsRequest.current;
     try {
-      const candidates = await adminApi.approverCandidates(workspaceId);
-      if (!mounted.current) return;
+      const answer = await adminApi.approverCandidates(workspaceId);
+      if (!mounted.current || request !== agentsRequest.current) return;
       setAgentsError(null);
-      setAgents(candidates.filter((agent) => Boolean(agent.address)));
+      setAgentsPartial(answer.approver_candidates_partial === true);
+      setAgents(answer.approver_candidates.filter((agent) => Boolean(agent.address)));
     } catch (failure) {
-      if (!mounted.current) return;
-      setAgentsError(delegationError(failure, "Could not list your agents."));
+      if (!mounted.current || request !== agentsRequest.current) return;
       setAgents(null);
+      setAgentsPartial(false);
+      if (failure instanceof ApiError && failure.status === 404) setAgentsUnavailable(true);
+      else setAgentsError(delegationError(failure, "Could not list your agents."));
     }
   };
 
@@ -179,6 +193,10 @@ export function ApproversSection({
     setAdding(true);
     setFeedback(null);
     setAgentId("");
+    setAgents(null);
+    setAgentsError(null);
+    setAgentsPartial(false);
+    setAgentsUnavailable(false);
     void loadAgents();
   };
 
@@ -199,7 +217,7 @@ export function ApproversSection({
         delegate_address: chosen.address,
         github_logins: logins,
         scopes,
-        ...(days !== null ? { expires_at: new Date(Date.now() + days * 86_400_000).toISOString() } : {}),
+        ...(days !== null ? { expires_at: new Date(Date.now() + days * 86_400_000 - 60_000).toISOString() } : {}),
       });
       if (!mounted.current) return;
       resetForm();
@@ -232,8 +250,10 @@ export function ApproversSection({
         <p role="status" className="text-sm text-muted-foreground">{feedback.text}</p>
       )
     ) : null;
+  // A grant past its expiry no longer counts, even before the server marks it expired.
+  const live = (grant: DelegateGrant) => grant.status === "active" && Date.parse(grant.expires_at) > (list?.readAt ?? 0);
   const expiresText = (grant: DelegateGrant) =>
-    grant.status === "active" ? new Date(grant.expires_at).toLocaleDateString() : grant.status;
+    live(grant) ? new Date(grant.expires_at).toLocaleDateString() : grant.status === "active" ? "expired" : grant.status;
   const targetsText = (grant: DelegateGrant) => grant.scopes.flatMap((scope) => scope.targets).join(" ");
 
   return (
@@ -296,11 +316,15 @@ export function ApproversSection({
                   ))}
                 </select>
                 <p className="text-xs text-muted-foreground">
-                  {agents === null
-                    ? (agentsError ?? "Loading your agents...")
-                    : pinnable.length === 0
-                      ? "None of your agents has an address Cloud can pin. Connect it from Agent Relay Desktop or a hosted session."
-                      : "Only agents with a known address are listed: the grant is pinned to it."}
+                  {agentsUnavailable
+                    ? "Approver grants aren't available on this install: it can't confirm code owners."
+                    : agents === null
+                      ? (agentsError ?? "Loading your agents...")
+                      : agentsPartial
+                        ? "Some agents couldn't be checked; try again by reopening the form."
+                        : pinnable.length === 0
+                          ? "None of your agents can be an approver: it needs an address Cloud can pin and no other grant. Connect it from Agent Relay Desktop or a hosted session."
+                          : "Listed: your agents with a known address and no other grant. The grant is pinned to that address."}
                 </p>
               </div>
               <div className="flex flex-col gap-1.5">
@@ -437,7 +461,7 @@ export function ApproversSection({
               </thead>
               <tbody>
                 {approvers.map((grant) => (
-                  <tr key={grant.grant_id} className={grant.status === "active" ? undefined : "text-muted-foreground"}>
+                  <tr key={grant.grant_id} className={live(grant) ? undefined : "text-muted-foreground"}>
                     <td>
                       <code className="font-mono">{grant.delegate_agent_id}</code>
                       {grant.delegate_address ? (
@@ -449,7 +473,7 @@ export function ApproversSection({
                     <td className="font-mono text-xs">{targetsText(grant)}</td>
                     <td>{expiresText(grant)}</td>
                     <td className="text-right">
-                      {grant.status === "active" ? (
+                      {live(grant) ? (
                         <Button
                           type="button"
                           variant="outline"

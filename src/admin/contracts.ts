@@ -638,11 +638,15 @@ export const delegationAgentSchema = z.object({
     .transform((effective) => effective ?? { binding_id: null, role: null, source: "none", grant_id: null }),
 });
 export type DelegationAgent = z.infer<typeof delegationAgentSchema>;
-/** GET delegates/agents `approver_candidates`: the caller's agents an approver can be pinned to, at this address. */
+export const delegationAgentsSchema = z.object({ agents: z.array(delegationAgentSchema) });
+/**
+ * Cloud's GET delegates/approver-candidates: the caller's agents an approver can be pinned to, at this
+ * address; `approver_candidates_partial` when some agents couldn't be checked. relay-control has no such
+ * route (it answers 404).
+ */
 export const approverCandidateSchema = z.object({ agent_id: z.string(), name: z.string(), address: z.string() });
 export type ApproverCandidate = z.infer<typeof approverCandidateSchema>;
-export const delegationAgentsSchema = z.object({
-  agents: z.array(delegationAgentSchema),
-  /** Not sent by relay-control today; missing reads as none. */
-  approver_candidates: z.array(approverCandidateSchema).optional(),
+export const approverCandidatesSchema = z.object({
+  approver_candidates: z.array(approverCandidateSchema),
+  approver_candidates_partial: z.boolean().optional(),
 });
