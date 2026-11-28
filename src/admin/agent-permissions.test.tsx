@@ -598,6 +598,32 @@ it("keeps the grant table mounted while Advanced is closed, so a grant change in
   await waitFor(() => expect(grantsChanged).toHaveBeenCalledTimes(1));
 });
 
+it("mounts the Approvers section beside Explicit grants, hidden while Advanced is closed", async () => {
+  routes["GET /"] = () => [200, { grants: [{ grant_id: "grt_a", owner_id: "u1", delegate_agent_id: "approver-1",
+    scopes: [{ class: "release", targets: ["acme/web:land:*:*"] }], require_tier_o: [], expires_at: "2099-01-01T00:00:00.000Z",
+    status: "active", kind: "approver", delegate_address: "approver@host-1", github_logins: ["approver-login"] }] }];
+  const { container } = render(panel());
+  await loaded();
+  const approvers = () => container.querySelector<HTMLElement>('section[aria-label="Approvers"]')!;
+  await waitFor(() => expect(within(approvers()).getByText("approver@host-1")).toBeInTheDocument());
+  expect(approvers()).not.toBeVisible();
+  openAdvanced();
+  expect(screen.getByRole("region", { name: "Approvers" })).toBeVisible();
+  expect(within(screen.getByRole("region", { name: "Explicit grants" })).queryByText("approver-1")).not.toBeInTheDocument();
+  expect(within(screen.getByRole("region", { name: "Approvers" })).getByText("approver-1")).toBeInTheDocument();
+});
+
+it("an agent decided by an approver grant says so, and points to Approvers instead of offering Exclude", async () => {
+  routes["GET /agents"] = () => [200, { agents: [agent({ effective: { binding_id: null, role: null, source: "approver", grant_id: "grt_a" } })] }];
+  render(panel());
+  await loaded();
+  openAdvanced();
+  const agents = screen.getByRole("table", { name: "Your agents" });
+  expect(within(agents).getByText("An approver grant (see Approvers)")).toBeInTheDocument();
+  expect(within(agents).getByText("Remove it under Approvers")).toBeInTheDocument();
+  expect(within(agents).queryByRole("button", { name: "Exclude" })).not.toBeInTheDocument();
+});
+
 it("the Relay agents row is the trust rule: adding it turns trust on, Remove turns it off", async () => {
   let on = false;
   routes["GET /bindings"] = () => [200, { bindings: on ? [binding()] : [], recommendation: null }];

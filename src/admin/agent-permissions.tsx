@@ -9,6 +9,7 @@ import type { Binding, DelegationAgent, DelegationGroup, Preset, PrincipalKind, 
 import { delegationCode, delegationError } from "./delegation-errors";
 import { useLoad } from "./use-load";
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input } from "../shell/ui";
+import { ApproversSection } from "./approvers-section";
 import { DelegatesSection, selectBase, selectClass, splitTargets, tableClass } from "./delegates-section";
 
 type Access = "never" | "allow" | "ask";
@@ -42,6 +43,7 @@ const NEEDS_GITHUB = " (needs GitHub checks; not available on self-hosted)";
 const EVERYTHING = "Everything I own";
 const SOURCE_LABELS: Record<string, string> = {
   explicit_grant: "Its own grant",
+  approver: "An approver grant (see Approvers)",
   agent: "Its own setting",
   group: "A custom group",
   connector_kind: "Its connector group",
@@ -1250,6 +1252,9 @@ export function AgentPermissions(props: {
                                       <option value="" disabled>Give it a role</option>
                                       {presets.map((preset) => <option key={preset.role} value={preset.role}>{preset.label}</option>)}
                                     </select>
+                                  ) : agent.effective.source === "approver" ? (
+                                    // Its approver grant wins over any setting here, so Exclude would change nothing: it is removed under Approvers.
+                                    <span className="text-xs text-muted-foreground">Remove it under Approvers</span>
                                   ) : !excluded ? (
                                     <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => void exclude(agent)}>
                                       Exclude
@@ -1290,6 +1295,19 @@ export function AgentPermissions(props: {
                       maxExpiryDays={props.maxExpiryDays}
                       isAdmin={props.isAdmin}
                       refreshKey={props.grantsRefreshKey}
+                      onGrantsChanged={props.onGrantsChanged}
+                    />
+                  </section>
+                  {/* Granted approvers: kept with Explicit grants under Advanced, and mounted while it is closed for the same reason. */}
+                  <section aria-label="Approvers" hidden={!advancedShown}>
+                    <ApproversSection
+                      workspaceId={workspaceId}
+                      delegationEnabled={delegationEnabled}
+                      maxExpiryDays={props.maxExpiryDays}
+                      isAdmin={props.isAdmin}
+                      // Both counters only grow, so their sum changes whenever either does: a grant, binding or the
+                      // trust rule changed elsewhere (revoke everything also ends approvers).
+                      refreshKey={refreshKey + (props.grantsRefreshKey ?? 0)}
                       onGrantsChanged={props.onGrantsChanged}
                     />
                   </section>

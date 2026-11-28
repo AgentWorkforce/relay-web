@@ -70,6 +70,15 @@ it("shows one row per grant: agent, can (with ask me first), on, expires; inacti
   expect(screen.queryByRole("button", { name: "Remove old-agent" })).not.toBeInTheDocument();
 });
 
+it("does not list approver grants: those are in the Approvers section", async () => {
+  routes = { "GET /": () => [200, { grants: [grant(), grant({ grant_id: "grt_appr", delegate_agent_id: "approver-1", kind: "approver",
+    delegate_address: "approver@host-1", github_logins: ["approver-login"], scopes: [{ class: "release", targets: ["acme/web:land:*:*"] }] })] }] };
+  render(section());
+  expect(await screen.findByText("assistant-1")).toBeInTheDocument();
+  expect(screen.queryByText("approver-1")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Remove approver-1" })).not.toBeInTheDocument();
+});
+
 it("adds a grant: disabled until valid, ask-me-first maps to require_tier_o, expiry only behind Set expiry", async () => {
   routes = { "GET /": () => [200, { grants: [] }], "POST /": () => [201, grant()] };
   render(section());
@@ -118,6 +127,20 @@ it("keeps a literal comma inside a resource, refuses one used as a separator, an
   expect((writes()[0]!.body as { scopes: Array<{ targets: string[] }> }).scopes[0]!.targets).toEqual(["channel:ops,security", "channel:eng"]);
   // A refusal keeps the form open as typed.
   expect(screen.getByLabelText("Agent")).toHaveValue("agt_1");
+});
+
+it("on grant_exists, says where the existing grant is, including under Approvers", async () => {
+  routes = {
+    "GET /": () => [200, { grants: [] }],
+    "POST /": () => [409, { error: "The agent already has an active grant", code: "grant_exists" }],
+  };
+  render(section());
+  fireEvent.click(await screen.findByRole("button", { name: "Add grant" }));
+  fireEvent.change(screen.getByLabelText("Agent"), { target: { value: "agt_1" } });
+  fireEvent.change(screen.getByLabelText("On"), { target: { value: "acme/*" } });
+  fireEvent.click(submitButton());
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "This agent already has a grant. Narrow or remove it in this table, or, if it's an approver, under Approvers.");
 });
 
 it("removes a grant after a confirmation; a permission-row grant's confirmation says the agent is excluded", async () => {

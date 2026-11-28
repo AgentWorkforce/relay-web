@@ -512,6 +512,12 @@ export const delegateGrantSchema = z.object({
   status: z.string(),
   /** Set on a grant the owner's trust rule created: it covers every class the policy allows, with `scopes: []`. */
   trust_rule_id: z.string().nullable().optional(),
+  /** `approver` for a granted approver: those are listed and revoked in the Approvers section, not under Explicit grants. */
+  kind: z.string().optional(),
+  /** An approver's pinned Relay address. */
+  delegate_address: z.string().nullable().optional(),
+  /** The GitHub logins an approver acts as; it never approves a change one of them made. */
+  github_logins: z.array(z.string()).optional(),
 });
 export type DelegateGrant = z.infer<typeof delegateGrantSchema>;
 export const delegateGrantsSchema = z.object({ grants: z.array(delegateGrantSchema) });
@@ -633,3 +639,14 @@ export const delegationAgentSchema = z.object({
 });
 export type DelegationAgent = z.infer<typeof delegationAgentSchema>;
 export const delegationAgentsSchema = z.object({ agents: z.array(delegationAgentSchema) });
+/**
+ * Cloud's GET delegates/approver-candidates: the caller's agents an approver can be pinned to, at this
+ * address; `approver_candidates_partial` when some agents couldn't be checked. relay-control has no such
+ * route (it answers 404).
+ */
+export const approverCandidateSchema = z.object({ agent_id: z.string(), name: z.string(), address: z.string() });
+export type ApproverCandidate = z.infer<typeof approverCandidateSchema>;
+export const approverCandidatesSchema = z.object({
+  approver_candidates: z.array(approverCandidateSchema),
+  approver_candidates_partial: z.boolean().optional(),
+});
