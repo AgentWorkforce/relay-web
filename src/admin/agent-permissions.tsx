@@ -9,6 +9,7 @@ import type { Binding, DelegationAgent, DelegationGroup, Preset, PrincipalKind, 
 import { delegationCode, delegationError } from "./delegation-errors";
 import { useLoad } from "./use-load";
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input } from "../shell/ui";
+import { ApproversSection } from "./approvers-section";
 import { DelegatesSection, selectBase, selectClass, splitTargets, tableClass } from "./delegates-section";
 
 type Access = "never" | "allow" | "ask";
@@ -1290,6 +1291,19 @@ export function AgentPermissions(props: {
                       maxExpiryDays={props.maxExpiryDays}
                       isAdmin={props.isAdmin}
                       refreshKey={props.grantsRefreshKey}
+                      onGrantsChanged={props.onGrantsChanged}
+                    />
+                  </section>
+                  {/* Granted approvers: kept with Explicit grants under Advanced, and mounted while it is closed for the same reason. */}
+                  <section aria-label="Approvers" hidden={!advancedShown}>
+                    <ApproversSection
+                      workspaceId={workspaceId}
+                      delegationEnabled={delegationEnabled}
+                      maxExpiryDays={props.maxExpiryDays}
+                      isAdmin={props.isAdmin}
+                      // Both counters only grow, so their sum changes whenever either does: a grant, binding or the
+                      // trust rule changed elsewhere (revoke everything also ends approvers).
+                      refreshKey={refreshKey + (props.grantsRefreshKey ?? 0)}
                       onGrantsChanged={props.onGrantsChanged}
                     />
                   </section>

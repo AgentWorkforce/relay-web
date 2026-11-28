@@ -512,6 +512,12 @@ export const delegateGrantSchema = z.object({
   status: z.string(),
   /** Set on a grant the owner's trust rule created: it covers every class the policy allows, with `scopes: []`. */
   trust_rule_id: z.string().nullable().optional(),
+  /** `approver` for a granted approver: those are listed and revoked in the Approvers section, not under Explicit grants. */
+  kind: z.string().optional(),
+  /** An approver's pinned Relay address. */
+  delegate_address: z.string().nullable().optional(),
+  /** The GitHub logins an approver acts as; it never approves a change one of them made. */
+  github_logins: z.array(z.string()).optional(),
 });
 export type DelegateGrant = z.infer<typeof delegateGrantSchema>;
 export const delegateGrantsSchema = z.object({ grants: z.array(delegateGrantSchema) });
@@ -632,4 +638,11 @@ export const delegationAgentSchema = z.object({
     .transform((effective) => effective ?? { binding_id: null, role: null, source: "none", grant_id: null }),
 });
 export type DelegationAgent = z.infer<typeof delegationAgentSchema>;
-export const delegationAgentsSchema = z.object({ agents: z.array(delegationAgentSchema) });
+/** GET delegates/agents `approver_candidates`: the caller's agents an approver can be pinned to, at this address. */
+export const approverCandidateSchema = z.object({ agent_id: z.string(), name: z.string(), address: z.string() });
+export type ApproverCandidate = z.infer<typeof approverCandidateSchema>;
+export const delegationAgentsSchema = z.object({
+  agents: z.array(delegationAgentSchema),
+  /** Not sent by relay-control today; missing reads as none. */
+  approver_candidates: z.array(approverCandidateSchema).optional(),
+});

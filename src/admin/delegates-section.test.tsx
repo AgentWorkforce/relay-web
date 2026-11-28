@@ -70,6 +70,15 @@ it("shows one row per grant: agent, can (with ask me first), on, expires; inacti
   expect(screen.queryByRole("button", { name: "Remove old-agent" })).not.toBeInTheDocument();
 });
 
+it("does not list approver grants: those are in the Approvers section", async () => {
+  routes = { "GET /": () => [200, { grants: [grant(), grant({ grant_id: "grt_appr", delegate_agent_id: "approver-1", kind: "approver",
+    delegate_address: "approver@host-1", github_logins: ["approver-login"], scopes: [{ class: "release", targets: ["acme/web:land:*:*"] }] })] }] };
+  render(section());
+  expect(await screen.findByText("assistant-1")).toBeInTheDocument();
+  expect(screen.queryByText("approver-1")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Remove approver-1" })).not.toBeInTheDocument();
+});
+
 it("adds a grant: disabled until valid, ask-me-first maps to require_tier_o, expiry only behind Set expiry", async () => {
   routes = { "GET /": () => [200, { grants: [] }], "POST /": () => [201, grant()] };
   render(section());

@@ -91,7 +91,8 @@ export function DelegatesSection({
   const [all, setAll] = useState(false);
   const { data: list, error: loadError, reload } = useLoad(async (signal) => ({
     all,
-    grants: await adminApi.delegateGrants(workspaceId, all, signal),
+    // Granted approvers have their own section (approvers-section.tsx); this table shows explicit grants only.
+    grants: (await adminApi.delegateGrants(workspaceId, all, signal)).filter((grant) => grant.kind !== "approver"),
   }));
   const [seenRefresh, setSeenRefresh] = useState(refreshKey);
   if (seenRefresh !== refreshKey) {

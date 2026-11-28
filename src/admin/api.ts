@@ -479,6 +479,10 @@ export const adminApi = {
       scopes: Array<{ class: DelegationClass; targets: string[] }>;
       expires_at?: string;
       require_tier_o?: DelegationClass[];
+      /** A granted approver: release class only, pinned to `delegate_address`, acting as `github_logins`. */
+      kind?: "approver";
+      delegate_address?: string;
+      github_logins?: string[];
     },
   ) => call(`${ws(workspace)}/delegates`, delegateGrantSchema, { method: "POST", body: input }),
   /** The grant's owner or an owner/admin; idempotent, allowed while delegation is off. */
@@ -516,6 +520,9 @@ export const adminApi = {
   /** The caller's provable agents by immutable id, with what decides each one now. */
   delegationAgents: async (workspace: string, signal?: AbortSignal) =>
     (await call(`${ws(workspace)}/delegates/agents`, delegationAgentsSchema, { signal })).agents,
+  /** The same read's `approver_candidates` (agents with an address an approver can be pinned to); missing is none. */
+  approverCandidates: async (workspace: string, signal?: AbortSignal) =>
+    (await call(`${ws(workspace)}/delegates/agents`, delegationAgentsSchema, { signal })).approver_candidates ?? [],
   /** A one-time claim code, valid for 10 minutes; refused with `not_enabled` while delegation is off. */
   startDelegateClaim: (workspace: string) =>
     call(`${ws(workspace)}/delegates/claims`, delegateClaimSchema, { method: "POST" }),
